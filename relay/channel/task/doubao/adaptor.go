@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -103,13 +102,6 @@ type responseTask struct {
 	UpdatedAt int64 `json:"updated_at"`
 }
 
-// responseTaskList 是上游 GET /api/v1/contents/generations/tasks 的响应结构。
-// items 字段是视频任务列表，total 是符合筛选条件的总任务数。
-type responseTaskList struct {
-	Items []responseTask `json:"items"`
-	Total int            `json:"total"`
-}
-
 // ============================
 // Adaptor implementation
 // ============================
@@ -148,10 +140,10 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 
 // EstimateBilling 根据请求 metadata 中的输出分辨率、是否包含视频输入以及视频时长，
 // 返回相对基准价的计费 OtherRatio。Seedance 按 token 计费，时长是主因子：
-// - "video_input"：分辨率档 + 是否含视频输入（来自价格表）
-// - "seconds"：用户显式请求的视频时长（秒），仅在客户端提供正数时写入；
-//   未提供时（duration=-1 / 缺省）不写入，留给 AdjustBillingOnComplete 按
-//   usage.completion_tokens 真实值结算。
+//   - "video_input"：分辨率档 + 是否含视频输入（来自价格表）
+//   - "seconds"：用户显式请求的视频时长（秒），仅在客户端提供正数时写入；
+//     未提供时（duration=-1 / 缺省）不写入，留给 AdjustBillingOnComplete 按
+//     usage.completion_tokens 真实值结算。
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
@@ -320,100 +312,6 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 		return nil, fmt.Errorf("new proxy http client failed: %w", err)
 	}
 	return client.Do(req)
-}
-
-// ListTaskOptions 是 ListTask 的入参选项，零值即代表 "不传" ——
-// 与上游 cii-group 平台的 query string 语义保持一致：
-//   - 数值字段零值/负值/超过 [1,500] → 不带该参数
-//   - 字符串字段空字符串 → 不带该参数
-//
-// 文档地址：https://www.cii-group.com/docs.html （Video 生成任务 / 列出任务）
-type ListTaskOptions struct {
-	PageNum     int      // 1-500，0 表示不带
-	PageSize    int      // 1-500，0 表示不带
-	Status      string   // 过滤状态：queued/running/cancelled/succeeded/failed/expired
-	TaskIDs     []string // 精确搜索，支持多个
-	Model       string   // 精确搜索（推理接入点 ID）
-	ServiceTier string   // default/flex
-}
-
-// buildListQuery 根据 opts 拼出上游 query string。空值字段会被省略。
-// page_num / page_size 限制在 [1, 500] 内，超出或零值会回退到不传。
-func (opts ListTaskOptions) buildListQuery() string {
-	values := url.Values{}
-	if v := clampInt(opts.PageNum, 1, 500); v > 0 {
-		values.Set("page_num", strconv.Itoa(v))
-	}
-	if v := clampInt(opts.PageSize, 1, 500); v > 0 {
-		values.Set("page_size", strconv.Itoa(v))
-	}
-	if s := strings.TrimSpace(opts.Status); s != "" {
-		values.Set("filter.status", s)
-	}
-	for _, id := range opts.TaskIDs {
-		if id = strings.TrimSpace(id); id != "" {
-			values.Add("filter.task_ids", id)
-		}
-	}
-	if s := strings.TrimSpace(opts.Model); s != "" {
-		values.Set("filter.model", s)
-	}
-	if s := strings.TrimSpace(opts.ServiceTier); s != "" {
-		values.Set("filter.service_tier", s)
-	}
-	return values.Encode()
-}
-
-func clampInt(v, lo, hi int) int {
-	if v < lo {
-		return 0
-	}
-	if v > hi {
-		return hi
-	}
-	return v
-}
-
-// ListTask 调用上游 GET /api/v1/contents/generations/tasks 接口，返回原始 JSON 响应体。
-// 返回 []byte 是为了避免 service 包反向依赖 doubao 包的 responseTaskList 结构体；
-// 上层 controller 在拿到字节体后，会按自己的 DTO（dto.UpstreamTaskListItem）反序列化。
-// 仅在网络/反序列化/HTTP 非 2xx 时返回 error，成功时 body 即为上游的 JSON 原文。
-func (a *TaskAdaptor) ListTask(baseURL, key, taskPath string, opts ListTaskOptions, proxy string) ([]byte, error) {
-	path := normalizeTaskApiPath(taskPath)
-	uri := baseURL + path
-	if q := opts.buildListQuery(); q != "" {
-		uri = uri + "?" + q
-	}
-
-	req, err := http.NewRequest(http.MethodGet, uri, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Authorization", "Bearer "+key)
-
-	client, err := service.GetHttpClientWithProxy(proxy)
-	if err != nil {
-		return nil, fmt.Errorf("new proxy http client failed: %w", err)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read list response body failed: %w", err)
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		snippet := strings.TrimSpace(string(body))
-		if len(snippet) > 500 {
-			snippet = snippet[:500] + " ...(truncated)"
-		}
-		return nil, fmt.Errorf("upstream list task failed: status=%d body=%s", resp.StatusCode, snippet)
-	}
-	return body, nil
 }
 
 // DeleteTask 调用上游 DELETE /api/v1/contents/generations/tasks/{id}。

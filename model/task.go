@@ -38,6 +38,7 @@ const (
 	TaskStatusInProgress            = "IN_PROGRESS"
 	TaskStatusFailure               = "FAILURE"
 	TaskStatusSuccess               = "SUCCESS"
+	TaskStatusCancelled             = "CANCELLED"
 	TaskStatusUnknown               = "UNKNOWN"
 )
 
@@ -249,6 +250,30 @@ func TaskGetAllUserTask(userId int, startIdx int, num int, queryParams SyncTaskQ
 	return tasks
 }
 
+// TaskGetUserVideoTasks 返回某个用户下指定平台的视频任务，供上游风格的
+// 内容生成任务列表接口（GET /v1/contents/generations/tasks）消费。
+// platform/status/task_id 过滤均是可选的；为空表示不过滤。task_id 为对外的
+// task_xxx 公开 ID。模型名只存在 Properties JSON 里，不适合做跨库 JSON 查询，
+// 因此上层对 model 的过滤与分页在拿到结果后在内存中进行。
+func TaskGetUserVideoTasks(userId int, platforms []string, statuses []TaskStatus, taskIDs []string) ([]*Task, error) {
+	query := DB.Where("user_id = ?", userId)
+	if len(platforms) > 0 {
+		query = query.Where("platform in (?)", platforms)
+	}
+	if len(statuses) > 0 {
+		query = query.Where("status in (?)", statuses)
+	}
+	if len(taskIDs) > 0 {
+		query = query.Where("task_id in (?)", taskIDs)
+	}
+	var tasks []*Task
+	err := query.Order("id desc").Find(&tasks).Error
+	if err != nil {
+		return nil, err
+	}
+	return tasks, nil
+}
+
 func TaskGetAllTasks(startIdx int, num int, queryParams SyncTaskQueryParams) []*Task {
 	var tasks []*Task
 	var err error
@@ -297,7 +322,7 @@ func TaskGetAllTasks(startIdx int, num int, queryParams SyncTaskQueryParams) []*
 func GetTimedOutUnfinishedTasks(cutoffUnix int64, limit int) []*Task {
 	var tasks []*Task
 	err := DB.Where("progress != ?", "100%").
-		Where("status NOT IN ?", []string{TaskStatusFailure, TaskStatusSuccess}).
+		Where("status NOT IN ?", []string{TaskStatusFailure, TaskStatusSuccess, TaskStatusCancelled}).
 		Where("submit_time < ?", cutoffUnix).
 		Order("submit_time").
 		Limit(limit).
@@ -312,7 +337,7 @@ func GetAllUnFinishSyncTasks(limit int) []*Task {
 	var tasks []*Task
 	var err error
 	// get all tasks progress is not 100%
-	err = DB.Where("progress != ?", "100%").Where("status != ?", TaskStatusFailure).Where("status != ?", TaskStatusSuccess).Limit(limit).Order("id").Find(&tasks).Error
+	err = DB.Where("progress != ?", "100%").Where("status != ?", TaskStatusFailure).Where("status != ?", TaskStatusSuccess).Where("status != ?", TaskStatusCancelled).Limit(limit).Order("id").Find(&tasks).Error
 	if err != nil {
 		return nil
 	}
@@ -329,6 +354,7 @@ func HasUnfinishedSyncTasks() bool {
 		Where("progress != ?", "100%").
 		Where("status != ?", TaskStatusFailure).
 		Where("status != ?", TaskStatusSuccess).
+		Where("status != ?", TaskStatusCancelled).
 		Limit(1).
 		Pluck("id", &id).Error
 	return err == nil && id != 0

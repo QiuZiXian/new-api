@@ -31,6 +31,17 @@ func SetVideoRouter(router *gin.Engine) {
 		videoV1Router.GET("/videos/:task_id", controller.RelayTaskFetch)
 	}
 
+	// Seedance/CII-style content generation task list & cancel. Backed by the
+	// caller's own local task data (see controller/task_content.go), not a proxy
+	// to a shared upstream account.
+	contentTaskV1Router := router.Group("/v1/contents/generations/tasks")
+	contentTaskV1Router.Use(middleware.RouteTag("relay"))
+	contentTaskV1Router.Use(middleware.TokenAuth())
+	{
+		contentTaskV1Router.GET("", controller.ListContentTasks)
+		contentTaskV1Router.DELETE("/:task_id", controller.CancelContentTask)
+	}
+
 	klingV1Router := router.Group("/kling/v1")
 	klingV1Router.Use(middleware.RouteTag("relay"))
 	klingV1Router.Use(middleware.KlingRequestConvert(), middleware.TokenAuth(), middleware.Distribute())

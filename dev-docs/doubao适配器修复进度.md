@@ -35,3 +35,4 @@
   go build ./... 与 go test ./relay/channel/task/doubao/ 全部通过。
 
   后续如果继续做 dev-doc 第 4-7 项（watermark 倍率、模型特定参数校验、AdjustBillingOnComplete 实现），可以基于这次搭好的 OtherRatio 管线继续叠加。
+
