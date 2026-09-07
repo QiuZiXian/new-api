@@ -328,6 +328,10 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			taskRoute.GET("/self", middleware.UserAuth(), controller.GetUserTask)
 			taskRoute.GET("/", middleware.AdminAuth(), controller.GetAllTask)
+			// 上游任务平台（目前仅 Doubao/VolcEngine Seedance）的列表/删除代理：
+			// 复用 /task 前缀以便和现有 task 页面共用入口；调用方需要提供 channel_id。
+			taskRoute.GET("/upstream", middleware.AdminAuth(), controller.ListUpstreamTask)
+			taskRoute.DELETE("/upstream/:id", middleware.AdminAuth(), controller.DeleteUpstreamTask)
 		}
 
 		vendorRoute := apiRouter.Group("/vendors")

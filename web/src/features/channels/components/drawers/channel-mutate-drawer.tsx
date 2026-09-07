@@ -284,6 +284,7 @@ const SENSITIVE_FORM_FIELDS = [
   'vertex_key_type',
   'aws_key_type',
   'azure_responses_version',
+  'task_api_path',
   'force_format',
   'thinking_to_content',
   'proxy',
@@ -4175,6 +4176,32 @@ export function ChannelMutateDrawer({
                                 )}
                               />
                             </div>
+
+                            {currentType === 54 && (
+                              <FormField
+                                control={form.control}
+                                name='task_api_path'
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>
+                                      {t('Doubao Task API Path')}
+                                    </FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        placeholder='/api/v1/contents/generations/tasks'
+                                        {...field}
+                                      />
+                                    </FormControl>
+                                    <FormDescription>
+                                      {t(
+                                        'Full path suffix from the channel Base URL for doubao video task create/query endpoints. Leave empty for the default /api/v3/contents/generations/tasks. Example: /api/v1/contents/generations/tasks'
+                                      )}
+                                    </FormDescription>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            )}
 
                             <FormField
                               control={form.control}

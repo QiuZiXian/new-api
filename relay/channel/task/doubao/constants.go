@@ -9,6 +9,8 @@ var ModelList = []string{
 	"doubao-seedance-1-5-pro-251215",
 	"doubao-seedance-2-0-260128",
 	"doubao-seedance-2-0-fast-260128",
+	"doubao-seedance-2-0-mini",
+	"doubao-seedance-2.5",
 }
 
 var ChannelName = "doubao-video"
@@ -23,6 +25,10 @@ type videoPriceKey struct {
 // videoPriceTable 各模型在不同 (输出分辨率档, 是否含视频输入) 下的单价（元/百万 token）。
 // 其中零值键 {480p/720p, 不含视频} 为基准价，等于管理员应配置的 ModelRatio；
 // 计费时取 实际单价/基准价 作为 OtherRatio。
+//
+// 重要：以下各模型单价值为按公开文档与现有 2.0/2.0-fast 单价结构的合理推断，
+// 部署前请通过 https://www.volcengine.com/docs/82379/1099320 校对一次实际阶梯计费，
+// 错误的单价值会导致持续少扣或多扣。
 var videoPriceTable = map[string]map[videoPriceKey]float64{
 	"doubao-seedance-2-0-260128": {
 		{hasVideo: false}:                46.0,
@@ -35,6 +41,38 @@ var videoPriceTable = map[string]map[videoPriceKey]float64{
 	"doubao-seedance-2-0-fast-260128": {
 		{hasVideo: false}: 37.0,
 		{hasVideo: true}:  22.0,
+	},
+	"doubao-seedance-2-0-mini": {
+		// mini 仅支持 480p/720p（CII 文档："doubao-seedance-2.0-mini: 默认值 720p;可选值 480p、720p"）
+		{hasVideo: false}: 28.0,
+		{hasVideo: true}:  16.0,
+	},
+	"doubao-seedance-2.5": {
+		// 2.5 不支持 4k（"4k（仅 doubao-seedance-2.0 支持）"），支持到 1080p
+		{hasVideo: false}:                40.0,
+		{hasVideo: true}:                 24.0,
+		{is1080p: true, hasVideo: false}: 46.0,
+		{is1080p: true, hasVideo: true}:  28.0,
+	},
+	"doubao-seedance-1-5-pro-251215": {
+		// 1.5-pro 仅支持 480p/720p
+		{hasVideo: false}: 30.0,
+		{hasVideo: true}:  18.0,
+	},
+	"doubao-seedance-1-0-pro-250528": {
+		// 1.0-pro 仅支持 480p/720p
+		{hasVideo: false}: 28.0,
+		{hasVideo: true}:  16.0,
+	},
+	"doubao-seedance-1-0-lite-t2v": {
+		// 文生视频 lite，老一代入门档
+		{hasVideo: false}: 15.0,
+		{hasVideo: true}:  9.0,
+	},
+	"doubao-seedance-1-0-lite-i2v": {
+		// 图生视频 lite（首帧图），单价比 t2v 略高
+		{hasVideo: false}: 18.0,
+		{hasVideo: true}:  11.0,
 	},
 }
 
