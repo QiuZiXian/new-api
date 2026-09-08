@@ -42,6 +42,28 @@ func SetVideoRouter(router *gin.Engine) {
 		contentTaskV1Router.DELETE("/:task_id", controller.CancelContentTask)
 	}
 
+	// 素材组 / 素材 CRUD
+	// 仅 TokenAuth：与 controller/task_content.go 一样，不挂 Distribute()
+	// （素材 CRUD 不需要按模型分发渠道）。
+	assetV1Router := router.Group("/v1")
+	assetV1Router.Use(middleware.RouteTag("relay"))
+	assetV1Router.Use(middleware.TokenAuth())
+	{
+		// 素材组
+		assetV1Router.POST("/asset-groups", controller.CreateAssetGroup)
+		assetV1Router.GET("/asset-groups", controller.ListAssetGroups)
+		assetV1Router.GET("/asset-groups/:group_id", controller.GetAssetGroup)
+		assetV1Router.PUT("/asset-groups/:group_id", controller.UpdateAssetGroup)
+		assetV1Router.DELETE("/asset-groups/:group_id", controller.DeleteAssetGroup)
+
+		// 素材（强依赖素材组，path 上保留 group_id）
+		assetV1Router.POST("/asset-groups/:group_id/assets", controller.CreateAsset)
+		assetV1Router.GET("/asset-groups/:group_id/assets", controller.ListAssets)
+		assetV1Router.GET("/assets/:asset_id", controller.GetAsset)
+		assetV1Router.PUT("/assets/:asset_id", controller.UpdateAsset)
+		assetV1Router.DELETE("/assets/:asset_id", controller.DeleteAsset)
+	}
+
 	klingV1Router := router.Group("/kling/v1")
 	klingV1Router.Use(middleware.RouteTag("relay"))
 	klingV1Router.Use(middleware.KlingRequestConvert(), middleware.TokenAuth(), middleware.Distribute())

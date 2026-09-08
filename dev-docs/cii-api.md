@@ -3058,7 +3058,43 @@ HTTP 状态码。
   }
 }
 ```
+## 素材组列表
 
+POST https://www.cii-group.com/app-api/api/v1/asset-groups/list
+请求体
+PageNum integer 可选 默认值 1
+返回结果的页码。
+
+PageSize integer 可选 默认值 20
+每页返回的结果数量。
+请求体示例：
+```json
+{
+  "PageNum": 1,
+  "PageSize": 20
+}
+```
+返回示例
+```json
+{
+    "ResponseMetadata": {
+        "RequestId": ""
+    },
+    "Result": {
+        "Items": [
+            {
+                "Id": "group-20260907145308-xntbl",
+                "Name": "我的素材组",
+                "Description": "用于存放视频生成的参考图片素材",
+                "GroupType": "AIGC",
+                "CreatedAt": "2026-09-07T14:53:09Z",
+                "UpdatedAt": "2026-09-07T14:53:09Z"
+            }
+        ],
+        "TotalCount": 1
+    }
+}
+```
 ### PUT https://www.cii-group.com/app-api/api/v1/asset-groups/{groupId}
 
 ```http
