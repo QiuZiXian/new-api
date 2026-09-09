@@ -145,7 +145,9 @@ func CreateAssetGroup(userID int, name, description string) (*model.AssetGroup, 
 	upstreamID, perr := parseAssetGroupID(upstreamBody)
 	if perr != nil {
 		common.SysError("asset: parse upstream group id failed: " + perr.Error())
-		return nil, errAssetBadGateway("上游响应缺少 AssetGroupId")
+		// 直接把上游/解析错误的原文塞到响应里，方便客户端定位；
+		// 否则"上游响应缺少 AssetGroupId"这种兜底会把真正的错误原因吞掉。
+		return nil, errAssetBadGateway("上游创建素材组失败: " + perr.Error())
 	}
 
 	now := time.Now().Unix()
@@ -324,7 +326,9 @@ func CreateAsset(userID int, groupPublicID, imageURL, assetType, name string) (*
 	upstreamID, perr := parseAssetID(upstreamBody)
 	if perr != nil {
 		common.SysError("asset: parse upstream asset id failed: " + perr.Error())
-		return nil, errAssetBadGateway("上游响应缺少 AssetId")
+		// 直接把上游/解析错误的原文塞到响应里，方便客户端定位；
+		// 否则"上游响应缺少 AssetId"这种兜底会把真正的错误原因吞掉。
+		return nil, errAssetBadGateway("上游创建素材失败: " + perr.Error())
 	}
 
 	now := time.Now().Unix()
