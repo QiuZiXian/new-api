@@ -1,0 +1,4 @@
+{
+  "Full path suffix from the channel Base URL for asset-group create/query endpoints. Leave empty for the default /api/v1/asset-groups. Example: /api/v1/contents/management/assets-groups": "Full path suffix from the channel Base URL for asset-group create/query endpoints. Leave empty for the default /api/v1/asset-groups. Example: /api/v1/contents/management/assets-groups",
+  "Full path suffix from the channel Base URL for asset create/query endpoints. Leave empty for the default /api/v1/assets. Example: /api/v1/contents/management/assets": "Full path suffix from the channel Base URL for asset create/query endpoints. Leave empty for the default /api/v1/assets. Example: /api/v1/contents/management/assets"
+}

@@ -270,6 +270,8 @@ export const channelFormSchema = z
     aws_key_type: z.enum(['ak_sk', 'api_key']).optional(), // AWS specific
     azure_responses_version: z.string().optional(), // Azure specific
     task_api_path: z.string().optional(), // Doubao Video task channel specific
+    asset_group_api_path: z.string().optional(), // Doubao Video asset-group channel specific
+    asset_api_path: z.string().optional(), // Doubao Video asset channel specific
     // Field passthrough controls (stored in settings JSON)
     allow_service_tier: z.boolean().optional(), // OpenAI/Anthropic
     disable_store: z.boolean().optional(), // OpenAI only
@@ -443,6 +445,8 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   aws_key_type: 'ak_sk',
   azure_responses_version: '',
   task_api_path: '',
+  asset_group_api_path: '',
+  asset_api_path: '',
   // Field passthrough controls
   allow_service_tier: false,
   disable_store: false,
@@ -507,6 +511,8 @@ export function transformChannelToFormDefaults(
   let vertexKeyType: 'json' | 'api_key' = 'json'
   let azureResponsesVersion = ''
   let taskApiPath = ''
+  let assetGroupApiPath = ''
+  let assetApiPath = ''
   let isEnterpriseAccount = false
   let awsKeyType: 'ak_sk' | 'api_key' = 'ak_sk'
   let allowServiceTier = false
@@ -528,6 +534,8 @@ export function transformChannelToFormDefaults(
       vertexKeyType = parsed.vertex_key_type || 'json'
       azureResponsesVersion = parsed.azure_responses_version || ''
       taskApiPath = parsed.task_api_path || ''
+      assetGroupApiPath = parsed.asset_group_api_path || ''
+      assetApiPath = parsed.asset_api_path || ''
       isEnterpriseAccount = parsed.openrouter_enterprise === true
       awsKeyType = parsed.aws_key_type || 'ak_sk'
       allowServiceTier = parsed.allow_service_tier === true
@@ -589,6 +597,8 @@ export function transformChannelToFormDefaults(
     vertex_key_type: vertexKeyType,
     azure_responses_version: azureResponsesVersion,
     task_api_path: taskApiPath,
+    asset_group_api_path: assetGroupApiPath,
+    asset_api_path: assetApiPath,
     aws_key_type: awsKeyType,
     allow_service_tier: allowServiceTier,
     disable_store: disableStore,
@@ -669,6 +679,15 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     settingsObj.task_api_path = formData.task_api_path || ''
   } else if ('task_api_path' in settingsObj) {
     delete settingsObj.task_api_path
+  }
+
+  // Add asset_group_api_path / asset_api_path for Doubao Video asset channels (type 54)
+  if (formData.type === 54) {
+    settingsObj.asset_group_api_path = formData.asset_group_api_path || ''
+    settingsObj.asset_api_path = formData.asset_api_path || ''
+  } else {
+    delete settingsObj.asset_group_api_path
+    delete settingsObj.asset_api_path
   }
 
   // Add enterprise account setting for OpenRouter (type 20)

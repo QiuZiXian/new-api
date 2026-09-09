@@ -50,6 +50,10 @@ const assetNameMaxLen = 255
 // 全局渠道池。这里只按"渠道类型"+"启用状态"做过滤，等价于 dev 文档 2.5
 // "pickAssetChannel：只允许 doubao / volcengine" 的语义。
 //
+// 注意：GetChannelsByType 带 .Omit("key")，返回的候选里 Key 永远是空串，所以
+// 必须先按 type+status 挑一个候选，再用 GetChannelById(ch.Id, true) 取回含
+// 真实 Key 的完整记录，才能判断上游调用所需字段是否就绪。
+//
 // 优先级：priority desc, id desc；返回 nil 表示无可用渠道。
 func PickAssetChannel() (*model.Channel, error) {
 	candidates, err := model.GetChannelsByType(0, 50, false, constant.ChannelTypeDoubaoVideo)
@@ -61,25 +65,45 @@ func PickAssetChannel() (*model.Channel, error) {
 		return nil, err
 	}
 	candidates = append(candidates, volc...)
+
+	var firstErr error
 	for _, ch := range candidates {
-		if ch.Status == common.ChannelStatusEnabled && ch.Key != "" {
-			// 返回副本，避免外部修改影响后续查找
-			out := *ch
-			return &out, nil
+		if ch.Status != common.ChannelStatusEnabled {
+			continue
 		}
+		full, err := model.GetChannelById(ch.Id, true)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		if full.Status == common.ChannelStatusEnabled && full.Key != "" {
+			return full, nil
+		}
+	}
+	if firstErr != nil {
+		return nil, firstErr
 	}
 	return nil, errors.New("no enabled doubao/volcengine channel")
 }
 
-// resolveAssetApiPath 优先取 channel 自身的 OtherSettings.AssetApiPath，缺失时
-// 退到 doubao adaptor 的默认值。该字段尚未在 dto.ChannelOtherSettings 中暴露，
-// 这里暂时直接读 OtherSettings 原文，避免反复修改跨模块 dto。
+// resolveAssetGroupApiPath 取 channel setting 里的 AssetGroupApiPath 覆盖值；
+// 为空时返回 ""，由 doubao adaptor 回退到默认路径 /api/v1/asset-groups。
+func resolveAssetGroupApiPath(ch *model.Channel) string {
+	if ch == nil {
+		return ""
+	}
+	return ch.GetOtherSettings().AssetGroupApiPath
+}
+
+// resolveAssetApiPath 取 channel setting 里的 AssetApiPath 覆盖值；
+// 为空时返回 ""，由 doubao adaptor 回退到默认路径 /api/v1/assets。
 func resolveAssetApiPath(ch *model.Channel) string {
-	settings := ch.GetOtherSettings()
-	// ChannelOtherSettings 没有 AssetApiPath 字段——后续若要支持 per-channel
-	// 覆盖，扩展 dto.ChannelOtherSettings 后再读对应字段。
-	_ = settings
-	return ""
+	if ch == nil {
+		return ""
+	}
+	return ch.GetOtherSettings().AssetApiPath
 }
 
 // CreateAssetGroup 创建一个素材组：
@@ -108,7 +132,7 @@ func CreateAssetGroup(userID int, name, description string) (*model.AssetGroup, 
 		"Description": description,
 	})
 	upstreamBody, status, err := (&taskdoubao.TaskAdaptor{}).CreateGroup(
-		ch.GetBaseURL(), ch.Key, resolveAssetApiPath(ch), body, ch.GetSetting().Proxy,
+		ch.GetBaseURL(), ch.Key, resolveAssetGroupApiPath(ch), body, ch.GetSetting().Proxy,
 	)
 	if err != nil {
 		common.SysError("asset: upstream create group failed: " + err.Error())
@@ -197,7 +221,7 @@ func UpdateAssetGroup(userID int, publicID, name, description string) (*model.As
 			"Description": desc,
 		})
 		if _, status, err := (&taskdoubao.TaskAdaptor{}).UpdateGroup(
-			ch.GetBaseURL(), ch.Key, resolveAssetApiPath(ch), upstreamID, body, ch.GetSetting().Proxy,
+			ch.GetBaseURL(), ch.Key, resolveAssetGroupApiPath(ch), upstreamID, body, ch.GetSetting().Proxy,
 		); err != nil {
 			common.SysError("asset: upstream update group failed: " + err.Error())
 		} else if status < 200 || status >= 300 {
@@ -241,7 +265,7 @@ func DeleteAssetGroup(userID int, publicID string) *taskdto.TaskError {
 			return
 		}
 		if err := (&taskdoubao.TaskAdaptor{}).DeleteGroup(
-			ch.GetBaseURL(), ch.Key, resolveAssetApiPath(ch), upstreamID, ch.GetSetting().Proxy,
+			ch.GetBaseURL(), ch.Key, resolveAssetGroupApiPath(ch), upstreamID, ch.GetSetting().Proxy,
 		); err != nil {
 			common.SysError("asset: upstream delete group failed: " + err.Error())
 		}
@@ -479,8 +503,20 @@ func mustMarshal(v any) []byte {
 	return b
 }
 
-// parseAssetGroupID 从上游创建素材组的响应中抠出 AssetGroupId。
-// 响应 schema 文档为平铺：{AssetGroupId, Name, ...}。
+// parseAssetGroupID 从上游创建素材组的响应中抠出素材组 ID。
+//
+// 同一 Seedance 协议在不同网关下的响应 schema 不一致，且同一网关在
+// "成功"和"业务失败"下 schema 也不一致：
+//   - 成功 - 平铺形式（dev-docs/cii-api.md）：
+//       {"AssetGroupId": "ag-xxx", "Name": "..."}
+//   - 成功 - 信封形式（cii-group.com CII app-api）：
+//       {"ResponseMetadata": {...}, "Result": {"Id": "group-xxx"}}
+//   - 业务失败 - 信封形式（CII app-api，HTTP 仍 200）：
+//       {"ResponseMetadata": {"Error": {"Code": "...", "Message": "..."}}}
+//
+// 这里按 "平铺成功 → 信封成功 → 信封错误" 顺序尝试。前两种拿到 ID 即返回；
+// 第三种是上游业务失败，要把它原始的 Code/Message 透出去给客户端，
+// 避免出现"上游响应缺少 AssetGroupId"这种把上游错误吞掉的误导信息。
 func parseAssetGroupID(body []byte) (string, error) {
 	var m map[string]any
 	if err := common.Unmarshal(body, &m); err != nil {
@@ -489,10 +525,19 @@ func parseAssetGroupID(body []byte) (string, error) {
 	if v, ok := m["AssetGroupId"].(string); ok && v != "" {
 		return v, nil
 	}
+	if result, ok := m["Result"].(map[string]any); ok {
+		if v, ok := result["Id"].(string); ok && v != "" {
+			return v, nil
+		}
+	}
+	if errMsg := extractEnvelopeError(m); errMsg != "" {
+		return "", errors.New(errMsg)
+	}
 	return "", errors.New("AssetGroupId missing")
 }
 
-// parseAssetID 从上游创建素材的响应中抠出 AssetId。
+// parseAssetID 从上游创建素材的响应中抠出素材 ID。
+// schema 兼容性与 parseAssetGroupID 一致：平铺成功 / 信封成功 / 信封错误。
 func parseAssetID(body []byte) (string, error) {
 	var m map[string]any
 	if err := common.Unmarshal(body, &m); err != nil {
@@ -501,5 +546,41 @@ func parseAssetID(body []byte) (string, error) {
 	if v, ok := m["AssetId"].(string); ok && v != "" {
 		return v, nil
 	}
+	if result, ok := m["Result"].(map[string]any); ok {
+		if v, ok := result["Id"].(string); ok && v != "" {
+			return v, nil
+		}
+	}
+	if errMsg := extractEnvelopeError(m); errMsg != "" {
+		return "", errors.New(errMsg)
+	}
 	return "", errors.New("AssetId missing")
+}
+
+// extractEnvelopeError 解析 cii-group CII app-api 的信封错误结构：
+//   {"ResponseMetadata": {"Error": {"Code": "...", "Message": "..."}}}
+// 命中则返回 "Code: Message" 形式的可读字符串；未命中返回 ""。
+func extractEnvelopeError(m map[string]any) string {
+	rm, ok := m["ResponseMetadata"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	errObj, ok := rm["Error"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	code, _ := errObj["Code"].(string)
+	msg, _ := errObj["Message"].(string)
+	code = strings.TrimSpace(code)
+	msg = strings.TrimSpace(msg)
+	switch {
+	case code != "" && msg != "":
+		return code + ": " + msg
+	case code != "":
+		return code
+	case msg != "":
+		return msg
+	default:
+		return ""
+	}
 }

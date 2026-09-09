@@ -285,6 +285,8 @@ const SENSITIVE_FORM_FIELDS = [
   'aws_key_type',
   'azure_responses_version',
   'task_api_path',
+  'asset_group_api_path',
+  'asset_api_path',
   'force_format',
   'thinking_to_content',
   'proxy',
@@ -4195,6 +4197,58 @@ export function ChannelMutateDrawer({
                                     <FormDescription>
                                       {t(
                                         'Full path suffix from the channel Base URL for doubao video task create/query endpoints. Leave empty for the default /api/v3/contents/generations/tasks. Example: /api/v1/contents/generations/tasks'
+                                      )}
+                                    </FormDescription>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            )}
+
+                            {currentType === 54 && (
+                              <FormField
+                                control={form.control}
+                                name='asset_group_api_path'
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>
+                                      {t('Doubao Asset Group API Path')}
+                                    </FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        placeholder='/api/v1/asset-groups'
+                                        {...field}
+                                      />
+                                    </FormControl>
+                                    <FormDescription>
+                                      {t(
+                                        'Full path suffix from the channel Base URL for asset-group create/query endpoints. Leave empty for the default /api/v1/asset-groups. Example: /api/v1/contents/management/assets-groups'
+                                      )}
+                                    </FormDescription>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            )}
+
+                            {currentType === 54 && (
+                              <FormField
+                                control={form.control}
+                                name='asset_api_path'
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>
+                                      {t('Doubao Asset API Path')}
+                                    </FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        placeholder='/api/v1/assets'
+                                        {...field}
+                                      />
+                                    </FormControl>
+                                    <FormDescription>
+                                      {t(
+                                        'Full path suffix from the channel Base URL for asset create/query endpoints. Leave empty for the default /api/v1/assets. Example: /api/v1/contents/management/assets'
                                       )}
                                     </FormDescription>
                                     <FormMessage />
