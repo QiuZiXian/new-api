@@ -132,16 +132,21 @@ func UpdateAssetGroup(c *gin.Context) {
 }
 
 // DeleteAssetGroup 处理 DELETE /v1/asset-groups/:group_id。
-// 本地软删幂等；上游删除为 best-effort（在 service 内部异步执行）。
+// 本地软删幂等；上游删除同步执行，失败信息（若有）会写到响应的
+// `upstream_error` 字段，便于客户端对账——但本地删除结果始终生效。
 func DeleteAssetGroup(c *gin.Context) {
 	userID := c.GetInt("id")
 	publicID := c.Param("group_id")
-	terr := assetservice.DeleteAssetGroup(userID, publicID)
+	upstreamErr, terr := assetservice.DeleteAssetGroup(userID, publicID)
 	if terr != nil {
 		respondTaskError(c, terr)
 		return
 	}
-	c.Status(http.StatusNoContent)
+	c.JSON(http.StatusOK, gin.H{
+		"id":            publicID,
+		"status":        "deleted",
+		"upstream_error": upstreamErr,
+	})
 }
 
 // ============================
@@ -223,15 +228,21 @@ func UpdateAsset(c *gin.Context) {
 }
 
 // DeleteAsset 处理 DELETE /v1/assets/:asset_id。
+// 与 DeleteAssetGroup 同形：本地删除始终生效，上游删除失败时回填
+// `upstream_error`，便于客户端对账。
 func DeleteAsset(c *gin.Context) {
 	userID := c.GetInt("id")
 	publicID := c.Param("asset_id")
-	terr := assetservice.DeleteAsset(userID, publicID)
+	upstreamErr, terr := assetservice.DeleteAsset(userID, publicID)
 	if terr != nil {
 		respondTaskError(c, terr)
 		return
 	}
-	c.Status(http.StatusNoContent)
+	c.JSON(http.StatusOK, gin.H{
+		"id":             publicID,
+		"status":         "deleted",
+		"upstream_error": upstreamErr,
+	})
 }
 
 // ============================

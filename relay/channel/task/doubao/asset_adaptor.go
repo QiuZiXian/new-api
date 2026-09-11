@@ -95,12 +95,12 @@ func (a *TaskAdaptor) UpdateGroup(baseURL, key, path, groupID string, body []byt
 }
 
 // DeleteGroup 调用上游 DELETE /api/v1/asset-groups/{groupID}。
-// 404 视为成功（幂等）。
-func (a *TaskAdaptor) DeleteGroup(baseURL, key, path, groupID string, proxy string) error {
+// 404 视为成功（幂等）；其他状态由调用方解析。
+func (a *TaskAdaptor) DeleteGroup(baseURL, key, path, groupID string, proxy string) ([]byte, int, error) {
 	p := normalizeAssetApiPath(path, defaultAssetGroupsApiPath)
 	uri, err := joinAssetID(p, groupID)
 	if err != nil {
-		return err
+		return nil, 0, err
 	}
 	return assetDoDelete(baseURL, uri, key, proxy)
 }
@@ -138,12 +138,12 @@ func (a *TaskAdaptor) UpdateAsset(baseURL, key, path, assetID string, body []byt
 }
 
 // DeleteAsset 调用上游 DELETE /api/v1/assets/{assetID}。
-// 404 视为成功（幂等）。
-func (a *TaskAdaptor) DeleteAsset(baseURL, key, path, assetID string, proxy string) error {
+// 404 视为成功（幂等）；其他状态由调用方解析。
+func (a *TaskAdaptor) DeleteAsset(baseURL, key, path, assetID string, proxy string) ([]byte, int, error) {
 	p := normalizeAssetApiPath(path, defaultAssetsApiPath)
 	uri, err := joinAssetID(p, assetID)
 	if err != nil {
-		return err
+		return nil, 0, err
 	}
 	return assetDoDelete(baseURL, uri, key, proxy)
 }
@@ -205,20 +205,24 @@ func assetDoJSON(baseURL, path, key, method string, body []byte, proxy string) (
 }
 
 // assetDoDelete 走 assetDoJSON + 把 404 视作成功的精简封装。
-func assetDoDelete(baseURL, path, key, proxy string) error {
-	body, status, err := assetDoJSON(baseURL, path, key, http.MethodDelete, nil, proxy)
+//
+// 仍保留 raw body 透传：上游网关在 404 时返回 `{"error": {"code": 404, "message": "..."}}`
+// 这种非标准结构，调用方可能要把原文/结构化错误回填给客户端。仅把 404
+// 视作"目标已经不在了"，语义上等价于删除成功。
+func assetDoDelete(baseURL, path, key, proxy string) (rawBody []byte, status int, err error) {
+	body, st, err := assetDoJSON(baseURL, path, key, http.MethodDelete, nil, proxy)
 	if err != nil {
-		return err
+		return body, st, err
 	}
-	if status == http.StatusNotFound {
-		return nil
+	if st == http.StatusNotFound {
+		return body, st, nil
 	}
-	if status < 200 || status >= 300 {
+	if st < 200 || st >= 300 {
 		snippet := strings.TrimSpace(string(body))
 		if len(snippet) > 500 {
 			snippet = snippet[:500] + " ...(truncated)"
 		}
-		return fmt.Errorf("upstream delete failed: status=%d body=%s", status, snippet)
+		return body, st, fmt.Errorf("upstream delete failed: status=%d body=%s", st, snippet)
 	}
-	return nil
+	return body, st, nil
 }

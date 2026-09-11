@@ -234,45 +234,54 @@ func UpdateAssetGroup(userID int, publicID, name, description string) (*model.As
 	return g, nil
 }
 
-// DeleteAssetGroup 删除素材组：本地 CAS 软删，best-effort 上游删除。
+// DeleteAssetGroup 删除素材组：本地 CAS 软删，同步上游删除。
+//
+// 本地删除始终是事实源；上游删除失败不会回滚本地状态，但会作为
+// upstreamErr 回传给 controller，由 controller 决定是否要把这个错误
+// 写进响应体（让客户端知道"本地已删、上游未删"，方便后续对账）。
+//
 // 业务约束：组内还有未删素材时禁止删除。
-func DeleteAssetGroup(userID int, publicID string) *taskdto.TaskError {
+func DeleteAssetGroup(userID int, publicID string) (upstreamErr string, terr *taskdto.TaskError) {
 	g, terr := GetAssetGroup(userID, publicID)
 	if terr != nil {
-		return terr
+		return "", terr
 	}
 	activeCount, err := model.CountActiveAssetsInGroup(uint(userID), g.ID)
 	if err != nil {
 		common.SysError("asset: count active assets failed: " + err.Error())
-		return errAssetBadGateway("查询组内素材失败")
+		return "", errAssetBadGateway("查询组内素材失败")
 	}
 	if activeCount > 0 {
-		return errAssetBadRequest("素材组内还有素材，请先清空")
+		return "", errAssetBadRequest("素材组内还有素材，请先清空")
 	}
 
 	won, err := model.SoftDeleteAssetGroup(userID, publicID)
 	if err != nil {
 		common.SysError("asset: soft delete group failed: " + err.Error())
-		return errAssetBadGateway("本地删除素材组失败")
+		return "", errAssetBadGateway("本地删除素材组失败")
 	}
 	if !won {
 		// 已被并发删除——幂等
-		return nil
+		return "", nil
 	}
 
-	// best-effort 同步上游
-	go func(chID int, upstreamID string) {
-		ch, cerr := model.GetChannelById(chID, true)
-		if cerr != nil || ch == nil {
-			return
-		}
-		if err := (&taskdoubao.TaskAdaptor{}).DeleteGroup(
-			ch.GetBaseURL(), ch.Key, resolveAssetGroupApiPath(ch), upstreamID, ch.GetSetting().Proxy,
-		); err != nil {
-			common.SysError("asset: upstream delete group failed: " + err.Error())
-		}
-	}(g.ChannelID, g.UpstreamAssetGroupID)
-	return nil
+	ch, cerr := model.GetChannelById(g.ChannelID, true)
+	if cerr != nil || ch == nil {
+		common.SysError("asset: lookup channel for upstream delete group failed: " + errIfNonNil(cerr))
+		return "本地已删除，上游同步渠道不可用", nil
+	}
+	_, status, derr := (&taskdoubao.TaskAdaptor{}).DeleteGroup(
+		ch.GetBaseURL(), ch.Key, resolveAssetGroupApiPath(ch), g.UpstreamAssetGroupID, ch.GetSetting().Proxy,
+	)
+	if derr != nil {
+		common.SysError("asset: upstream delete group failed: " + derr.Error())
+		return "本地已删除，上游删除失败: " + derr.Error(), nil
+	}
+	if status >= 200 && status < 300 {
+		return "", nil
+	}
+	// 理论不会到这里——assetDoDelete 收到非 2xx 已经返回 err。
+	return fmt.Sprintf("本地已删除，上游返回非 2xx 状态: %d", status), nil
 }
 
 // CreateAsset 在指定素材组下创建一条素材。
@@ -417,33 +426,40 @@ func UpdateAsset(userID int, publicID, name string) (*model.Asset, *taskdto.Task
 	return a, nil
 }
 
-// DeleteAsset 删除素材：本地 CAS 软删，best-effort 上游删除。
-func DeleteAsset(userID int, publicID string) *taskdto.TaskError {
+// DeleteAsset 删除素材：本地 CAS 软删，同步上游删除。
+//
+// 与 DeleteAssetGroup 一致：本地是事实源；上游失败不影响本地删除结果，
+// 但会作为 upstreamErr 回传，便于客户端对账。
+func DeleteAsset(userID int, publicID string) (upstreamErr string, terr *taskdto.TaskError) {
 	a, terr := GetAsset(userID, publicID)
 	if terr != nil {
-		return terr
+		return "", terr
 	}
 	won, err := model.SoftDeleteAsset(userID, publicID)
 	if err != nil {
 		common.SysError("asset: soft delete asset failed: " + err.Error())
-		return errAssetBadGateway("本地删除素材失败")
+		return "", errAssetBadGateway("本地删除素材失败")
 	}
 	if !won {
-		return nil
+		return "", nil
 	}
 
-	go func(chID int, upstreamID string) {
-		ch, cerr := model.GetChannelById(chID, true)
-		if cerr != nil || ch == nil {
-			return
-		}
-		if err := (&taskdoubao.TaskAdaptor{}).DeleteAsset(
-			ch.GetBaseURL(), ch.Key, resolveAssetApiPath(ch), upstreamID, ch.GetSetting().Proxy,
-		); err != nil {
-			common.SysError("asset: upstream delete asset failed: " + err.Error())
-		}
-	}(a.ChannelID, a.UpstreamAssetID)
-	return nil
+	ch, cerr := model.GetChannelById(a.ChannelID, true)
+	if cerr != nil || ch == nil {
+		common.SysError("asset: lookup channel for upstream delete asset failed: " + errIfNonNil(cerr))
+		return "本地已删除，上游同步渠道不可用", nil
+	}
+	_, status, derr := (&taskdoubao.TaskAdaptor{}).DeleteAsset(
+		ch.GetBaseURL(), ch.Key, resolveAssetApiPath(ch), a.UpstreamAssetID, ch.GetSetting().Proxy,
+	)
+	if derr != nil {
+		common.SysError("asset: upstream delete asset failed: " + derr.Error())
+		return "本地已删除，上游删除失败: " + derr.Error(), nil
+	}
+	if status >= 200 && status < 300 {
+		return "", nil
+	}
+	return fmt.Sprintf("本地已删除，上游返回非 2xx 状态: %d", status), nil
 }
 
 // ============================
