@@ -81,6 +81,11 @@ func ChannelType2APIType(channelType int) (int, bool) {
 		apiType = constant.APITypeSub2API
 	case constant.ChannelTypeNewAPI:
 		apiType = constant.APITypeNewAPI
+	case constant.ChannelTypeCiiSubtitleErase:
+		// CII 字幕擦除没有同步适配器，落到 0 路由会触发 "invalid api type" 分支。
+		// 这里复用 NewAPI（OpenAI 兼容）的 apiType，行为上无副作用——
+		// 任务路由走 GetTaskAdaptor(platform)，不会走 GetAdaptor。
+		apiType = constant.APITypeNewAPI
 	}
 	if apiType == -1 {
 		return constant.APITypeOpenAI, false

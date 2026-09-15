@@ -42,6 +42,18 @@ func SetVideoRouter(router *gin.Engine) {
 		contentTaskV1Router.DELETE("/:task_id", controller.CancelContentTask)
 	}
 
+	// 字幕擦除（独立路由，不与视频生成共享 /v1/videos）。
+	// Distribute 按 model 字段把请求分到 cii-subtitle-erase 模型对应的
+	// ChannelTypeCiiSubtitleErase 渠道。复用 controller.RelayTask / RelayTaskFetch
+	// 走标准任务提交/查询流程，最终命中 ciisubtitleerase.TaskAdaptor。
+	subtitleEraseV1Router := router.Group("/v1/videos/subtitle-erase/tasks")
+	subtitleEraseV1Router.Use(middleware.RouteTag("relay"))
+	subtitleEraseV1Router.Use(middleware.TokenAuth(), middleware.Distribute())
+	{
+		subtitleEraseV1Router.POST("", controller.RelayTask)
+		subtitleEraseV1Router.GET("/:task_id", controller.RelayTaskFetch)
+	}
+
 	// 素材组 / 素材 CRUD
 	// 仅 TokenAuth：与 controller/task_content.go 一样，不挂 Distribute()
 	// （素材 CRUD 不需要按模型分发渠道）。
