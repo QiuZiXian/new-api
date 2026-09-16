@@ -1469,6 +1469,8 @@
     "Doubao Task API Path": "Путь API видео-задач Doubao",
     "Doubao Asset Group API Path": "Doubao Asset Group API Path",
     "Doubao Asset API Path": "Doubao Asset API Path",
+    "Doubao Visual Validate API Path": "Doubao Visual Validate API Path",
+    "Full path suffix from the channel Base URL for visual-validate (real-person verification) create-session/result endpoints. Leave empty for the default /api/v1/visual-validate.": "Full path suffix from the channel Base URL for visual-validate (real-person verification) create-session/result endpoints. Leave empty for the default /api/v1/visual-validate.",
     "Doubao custom API address editing unlocked": "Редактирование пользовательского адреса API Doubao разблокировано",
     "DoubaoVideo": "DoubaoVideo",
     "CiiSubtitleErase": "CiiSubtitleErase",

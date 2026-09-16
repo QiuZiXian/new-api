@@ -94,7 +94,13 @@ type ChannelOtherSettings struct {
 	// asset adaptor uses. Leave empty to use the built-in `/api/v1/assets`. Set
 	// e.g. `/api/v1/contents/management/assets` to target gateways that re-host
 	// the same asset protocol under a different path.
-	AssetApiPath                          string                `json:"asset_api_path,omitempty"`
+	AssetApiPath string `json:"asset_api_path,omitempty"`
+	// VisualValidateApiPath overrides the path suffix (from the channel Base URL)
+	// that the visual-validate (真人审核) adaptor uses for the create-session and
+	// get-result endpoints. Leave empty to use the built-in
+	// `/api/v1/visual-validate`. Both endpoints are POSTs under this base path:
+	// `{path}/sessions` and `{path}/results`.
+	VisualValidateApiPath                 string                `json:"visual_validate_api_path,omitempty"`
 	UpstreamModelUpdateCheckEnabled       bool                  `json:"upstream_model_update_check_enabled,omitempty"`        // 是否检测上游模型更新
 	UpstreamModelUpdateAutoSyncEnabled    bool                  `json:"upstream_model_update_auto_sync_enabled,omitempty"`    // 是否自动同步上游模型更新
 	UpstreamModelUpdateLastCheckTime      int64                 `json:"upstream_model_update_last_check_time,omitempty"`      // 上次检测时间

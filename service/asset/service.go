@@ -462,6 +462,45 @@ func DeleteAsset(userID int, publicID string) (upstreamErr string, terr *taskdto
 	return fmt.Sprintf("本地已删除，上游返回非 2xx 状态: %d", status), nil
 }
 
+// RegisterUpstreamGroup 把一个"上游已存在"的素材组直接注册到本地（不调上游）。
+// 真人审核通过后，上游会自动创建真人人像素材组（GroupId）；
+// 这里只补本地映射，让调用方能立刻走素材接口往该组上传素材。
+// 幂等：同一 user 下上游 ID 已注册时直接返回已有记录。
+func RegisterUpstreamGroup(userID int, ch *model.Channel, upstreamID, name, description string) (*model.AssetGroup, *taskdto.TaskError) {
+	if upstreamID == "" {
+		return nil, errAssetBadRequest("upstream group id 不能为空")
+	}
+	if existing, err := model.GetAssetGroupByUpstreamID(upstreamID, userID); err == nil && existing != nil {
+		return existing, nil
+	}
+	if ch == nil {
+		picked, err := PickAssetChannel()
+		if err != nil {
+			common.SysError("asset: register group pick channel failed: " + err.Error())
+			return nil, errAssetBadGateway("无可用 doubao/volcengine 渠道")
+		}
+		ch = picked
+	}
+	now := time.Now().Unix()
+	g := &model.AssetGroup{
+		PublicID:             model.GenerateAssetGroupID(),
+		UserID:               userID,
+		ChannelID:            ch.Id,
+		ChannelType:          ch.Type,
+		UpstreamAssetGroupID: upstreamID,
+		Name:                 name,
+		Description:          description,
+		GroupType:            assetGroupTypeDefault,
+		CreatedAt:            now,
+		UpdatedAt:            now,
+	}
+	if err := g.Insert(); err != nil {
+		common.SysError("asset: register upstream group failed: " + err.Error())
+		return nil, errAssetBadGateway("本地注册素材组失败")
+	}
+	return g, nil
+}
+
 // ============================
 // helpers
 // ============================
@@ -528,11 +567,11 @@ func mustMarshal(v any) []byte {
 // 同一 Seedance 协议在不同网关下的响应 schema 不一致，且同一网关在
 // "成功"和"业务失败"下 schema 也不一致：
 //   - 成功 - 平铺形式（dev-docs/cii-api.md）：
-//       {"AssetGroupId": "ag-xxx", "Name": "..."}
+//     {"AssetGroupId": "ag-xxx", "Name": "..."}
 //   - 成功 - 信封形式（cii-group.com CII app-api）：
-//       {"ResponseMetadata": {...}, "Result": {"Id": "group-xxx"}}
+//     {"ResponseMetadata": {...}, "Result": {"Id": "group-xxx"}}
 //   - 业务失败 - 信封形式（CII app-api，HTTP 仍 200）：
-//       {"ResponseMetadata": {"Error": {"Code": "...", "Message": "..."}}}
+//     {"ResponseMetadata": {"Error": {"Code": "...", "Message": "..."}}}
 //
 // 这里按 "平铺成功 → 信封成功 → 信封错误" 顺序尝试。前两种拿到 ID 即返回；
 // 第三种是上游业务失败，要把它原始的 Code/Message 透出去给客户端，
@@ -578,7 +617,9 @@ func parseAssetID(body []byte) (string, error) {
 }
 
 // extractEnvelopeError 解析 cii-group CII app-api 的信封错误结构：
-//   {"ResponseMetadata": {"Error": {"Code": "...", "Message": "..."}}}
+//
+//	{"ResponseMetadata": {"Error": {"Code": "...", "Message": "..."}}}
+//
 // 命中则返回 "Code: Message" 形式的可读字符串；未命中返回 ""。
 func extractEnvelopeError(m map[string]any) string {
 	rm, ok := m["ResponseMetadata"].(map[string]any)

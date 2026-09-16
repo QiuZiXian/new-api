@@ -76,6 +76,26 @@ func SetVideoRouter(router *gin.Engine) {
 		assetV1Router.DELETE("/assets/:asset_id", controller.DeleteAsset)
 	}
 
+	// 真人审核 (Visual Validate)
+	// 与素材 CRUD 一样仅 TokenAuth（无 model 字段，不挂 Distribute）。
+	vvV1Router := router.Group("/v1/visual-validate")
+	vvV1Router.Use(middleware.RouteTag("relay"))
+	vvV1Router.Use(middleware.TokenAuth())
+	{
+		vvV1Router.POST("/sessions", controller.CreateVisualValidateSession)
+		vvV1Router.GET("/sessions", controller.ListVisualValidateSessions)
+		vvV1Router.GET("/sessions/:session_id", controller.GetVisualValidateSession)
+		vvV1Router.POST("/results", controller.GetVisualValidateResult)
+	}
+
+	// 真人审核回调端点：终端用户在 H5 完成认证后浏览器跳转打开，
+	// 因此不能挂 TokenAuth；防伪造由 service 层的 sign token 校验兜底。
+	vvCallbackRouter := router.Group("/v1/visual-validate")
+	vvCallbackRouter.Use(middleware.RouteTag("relay"))
+	{
+		vvCallbackRouter.GET("/callback", controller.VisualValidateCallback)
+	}
+
 	klingV1Router := router.Group("/kling/v1")
 	klingV1Router.Use(middleware.RouteTag("relay"))
 	klingV1Router.Use(middleware.KlingRequestConvert(), middleware.TokenAuth(), middleware.Distribute())

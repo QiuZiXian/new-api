@@ -445,6 +445,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   aws_key_type: 'ak_sk',
   azure_responses_version: '',
   task_api_path: '',
+  visual_validate_api_path: '',
   asset_group_api_path: '',
   asset_api_path: '',
   // Field passthrough controls
@@ -597,6 +598,7 @@ export function transformChannelToFormDefaults(
     vertex_key_type: vertexKeyType,
     azure_responses_version: azureResponsesVersion,
     task_api_path: taskApiPath,
+    visual_validate_api_path: visualValidateApiPath,
     asset_group_api_path: assetGroupApiPath,
     asset_api_path: assetApiPath,
     aws_key_type: awsKeyType,
@@ -681,11 +683,15 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     delete settingsObj.task_api_path
   }
 
-  // Add asset_group_api_path / asset_api_path for Doubao Video asset channels (type 54)
+  // Add visual_validate_api_path / asset_group_api_path / asset_api_path
+  // for Doubao Video channels (type 54)
   if (formData.type === 54) {
+    settingsObj.visual_validate_api_path =
+      formData.visual_validate_api_path || ''
     settingsObj.asset_group_api_path = formData.asset_group_api_path || ''
     settingsObj.asset_api_path = formData.asset_api_path || ''
   } else {
+    delete settingsObj.visual_validate_api_path
     delete settingsObj.asset_group_api_path
     delete settingsObj.asset_api_path
   }

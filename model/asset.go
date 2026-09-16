@@ -151,6 +151,24 @@ func GetAssetByPublicID(publicID string, ownerUserID int) (*Asset, error) {
 	return &a, nil
 }
 
+// GetAssetGroupByUpstreamID 通过上游 ID 找素材组（不限制软删状态——
+// 上游组只创建一次，重复注册前用它做幂等判断）。
+// ownerUserID<=0 表示不限制 owner。
+func GetAssetGroupByUpstreamID(upstreamID string, ownerUserID int) (*AssetGroup, error) {
+	if upstreamID == "" {
+		return nil, errors.New("upstream id is required")
+	}
+	var g AssetGroup
+	q := DB.Where("upstream_asset_group_id = ?", upstreamID).Where("deleted_at = 0")
+	if ownerUserID > 0 {
+		q = q.Where("user_id = ?", ownerUserID)
+	}
+	if err := q.First(&g).Error; err != nil {
+		return nil, err
+	}
+	return &g, nil
+}
+
 // ListAssetGroups 列出某个用户下的素材组，按 id 倒序（最新在前）。
 // pageNum/pageSize 由调用方负责钳制；本函数只做查询。
 func ListAssetGroups(userID int, pageNum, pageSize int) ([]*AssetGroup, int64, error) {

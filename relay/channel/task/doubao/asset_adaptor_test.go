@@ -120,7 +120,7 @@ func TestAssetDoDelete_404IsSuccess(t *testing.T) {
 	defer srv.Close()
 
 	a := &TaskAdaptor{}
-	err := a.DeleteGroup(srv.URL, "k", "/api/v1/asset-groups", "grp_1", "")
+	_, _, err := a.DeleteGroup(srv.URL, "k", "/api/v1/asset-groups", "grp_1", "")
 	assert.NoError(t, err, "404 on delete is idempotent success")
 }
 
@@ -132,7 +132,7 @@ func TestAssetDoDelete_5xxIsError(t *testing.T) {
 	defer srv.Close()
 
 	a := &TaskAdaptor{}
-	err := a.DeleteGroup(srv.URL, "k", "/api/v1/asset-groups", "grp_1", "")
+	_, _, err := a.DeleteGroup(srv.URL, "k", "/api/v1/asset-groups", "grp_1", "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "502")
 }

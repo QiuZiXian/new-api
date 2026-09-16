@@ -285,6 +285,7 @@ const SENSITIVE_FORM_FIELDS = [
   'aws_key_type',
   'azure_responses_version',
   'task_api_path',
+  'visual_validate_api_path',
   'asset_group_api_path',
   'asset_api_path',
   'force_format',
@@ -4197,6 +4198,32 @@ export function ChannelMutateDrawer({
                                     <FormDescription>
                                       {t(
                                         'Full path suffix from the channel Base URL for doubao video task create/query endpoints. Leave empty for the default /api/v3/contents/generations/tasks. Example: /api/v1/contents/generations/tasks'
+                                      )}
+                                    </FormDescription>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            )}
+
+                            {currentType === 54 && (
+                              <FormField
+                                control={form.control}
+                                name='visual_validate_api_path'
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>
+                                      {t('Doubao Visual Validate API Path')}
+                                    </FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        placeholder='/api/v1/visual-validate'
+                                        {...field}
+                                      />
+                                    </FormControl>
+                                    <FormDescription>
+                                      {t(
+                                        'Full path suffix from the channel Base URL for visual-validate (real-person verification) create-session/result endpoints. Leave empty for the default /api/v1/visual-validate.'
                                       )}
                                     </FormDescription>
                                     <FormMessage />

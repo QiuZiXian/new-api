@@ -1469,6 +1469,8 @@
     "Doubao Task API Path": "豆包影片任務 API 路徑",
     "Doubao Asset Group API Path": "Doubao Asset Group API Path",
     "Doubao Asset API Path": "Doubao Asset API Path",
+    "Doubao Visual Validate API Path": "Doubao Visual Validate API Path",
+    "Full path suffix from the channel Base URL for visual-validate (real-person verification) create-session/result endpoints. Leave empty for the default /api/v1/visual-validate.": "渠道 Base URL 之後用於真人審核建立會話/查詢結果的上游路徑後綴。留空使用默認 /api/v1/visual-validate。",
     "Doubao custom API address editing unlocked": "已解鎖豆包自訂 API 地址編輯",
     "DoubaoVideo": "DoubaoVideo",
     "CiiSubtitleErase": "CiiSubtitleErase",
