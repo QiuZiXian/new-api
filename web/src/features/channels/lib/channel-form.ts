@@ -270,6 +270,7 @@ export const channelFormSchema = z
     aws_key_type: z.enum(['ak_sk', 'api_key']).optional(), // AWS specific
     azure_responses_version: z.string().optional(), // Azure specific
     task_api_path: z.string().optional(), // Doubao Video task channel specific
+    visual_validate_api_path: z.string().optional(), // Doubao Video visual-validate channel specific
     asset_group_api_path: z.string().optional(), // Doubao Video asset-group channel specific
     asset_api_path: z.string().optional(), // Doubao Video asset channel specific
     // Field passthrough controls (stored in settings JSON)
@@ -512,6 +513,7 @@ export function transformChannelToFormDefaults(
   let vertexKeyType: 'json' | 'api_key' = 'json'
   let azureResponsesVersion = ''
   let taskApiPath = ''
+  let visualValidateApiPath = ''
   let assetGroupApiPath = ''
   let assetApiPath = ''
   let isEnterpriseAccount = false
@@ -535,6 +537,7 @@ export function transformChannelToFormDefaults(
       vertexKeyType = parsed.vertex_key_type || 'json'
       azureResponsesVersion = parsed.azure_responses_version || ''
       taskApiPath = parsed.task_api_path || ''
+      visualValidateApiPath = parsed.visual_validate_api_path || ''
       assetGroupApiPath = parsed.asset_group_api_path || ''
       assetApiPath = parsed.asset_api_path || ''
       isEnterpriseAccount = parsed.openrouter_enterprise === true
