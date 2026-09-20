@@ -1,0 +1,54 @@
+{
+  "_说明": "复制为 config.json 后填写。config.json 已在 .gitignore 中，不要提交真实 token。",
+
+  "base_url": "http://127.0.0.1:3000",
+  "token": "sk-xxxxxxxxxxxxxxxxxxxxxxxx",
+
+  "_计费换算说明": "new-api 内部扣 quota（积分）。controller/billing.go: amount = quota / QuotaPerUnit * USDExchangeRate。所以 预期quota = 预期人民币 * QuotaPerUnit / USDExchangeRate。下面两个值必须和你部署的 new-api 实际配置一致，否则计费核对会全盘误判。",
+  "quota_per_unit": 500000,
+  "usd_exchange_rate": 7.3,
+
+  "quota_tolerance": 0.25,
+
+  "task_poll_interval_sec": 5,
+  "task_timeout_sec": 600,
+
+  "test_assets": {
+    "_说明": "素材/视频测试用的公网 URL。留空则自动跳过依赖它们的用例。image_url 建议用一张小尺寸 jpg/png；video_url 用一段短视频（<15s，用来跑字幕擦除，秒数越短越省钱）。",
+    "image_url": "",
+    "video_url": ""
+  },
+
+  "billing_cases": [
+    {
+      "name": "seedance-1.5-pro 文生视频 5s/720p",
+      "kind": "video",
+      "model": "doubao-seedance-1.5-pro",
+      "resolution": "720p",
+      "duration": 5,
+      "prompt": "小猫对着镜头打哈欠"
+    },
+    {
+      "name": "seedance-2.5 文生视频 5s/720p",
+      "kind": "video",
+      "model": "doubao-seedance-2.5",
+      "resolution": "720p",
+      "duration": 5,
+      "prompt": "城市夜景延时摄影"
+    },
+    {
+      "name": "字幕擦除（按实际时长计费）",
+      "kind": "subtitle_erase",
+      "model": "cii-subtitle-erase"
+    },
+    {
+      "name": "chat 短对话（按 token 计费）",
+      "kind": "chat",
+      "model": "claude-opus-4-6",
+      "prompt": "说\"ok\"这两个字母，不要其它内容。"
+    }
+  ],
+
+  "skip_destructive": true,
+  "_skip_destructive说明": "true = 跳过会真删数据 / 真花钱的用例（删除素材组、删除素材、视觉审核）。跑全量回归时改 false。"
+}

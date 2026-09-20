@@ -38,6 +38,9 @@ skills-lock.json
 
 # Local-only live probes and scratch test workspaces.
 .local-tests/
+
+# E2E 测试用的真实凭据（复制 config.example.json 而来，含 sk- token）
+tests/e2e/config.json
 service/relayconvert/chat_responses_live_local_test.go
 service/openaicompat/chat_responses_live_local_test.go
 go.work

@@ -1,0 +1,52 @@
+{
+  "_说明": "从 dev-docs/模型定价.xlsx 抽取的单价，供测试脚本独立复算「预期费用」并与 new-api 日志里的实际 quota 比对。若定价调整，改这里即可。",
+  "_重要": "new-api 实际扣多少 quota 取决于管理员配置的 ModelRatio / 分组倍率，本表是「渠道报价」参考。脚本做的是参考性核对：差异超过容差会 WARN/FAIL，提示管理员去核对 ModelRatio 配置，而不是断言平台一定算错。",
+  "_计费口径": "cny（元）。视频类按「元/秒」，图片类按「元/张」，文本类按「元/百万 token」(per_mtok) 或「元/千 token」(per_ktok)。",
+
+  "video_per_second": {
+    "doubao-seedance-2.5":        { "480p": 0.67,  "720p": 1.51,  "1080p": 3.74 },
+    "doubao-seedance-2.0":        { "480p": 0.56,  "720p": 1.21,  "1080p": 3.01,  "4k": 6.22 },
+    "doubao-seedance-2.0-fast":   { "480p": 0.44,  "720p": 0.95 },
+    "doubao-seedance-2.0-mini":   { "480p": 0.28,  "720p": 0.605 }
+  },
+
+  "_video_special说明": "doubao-seedance-1.5-pro 按 token 计费（不是按秒），且已公告即将下线。单位：元/千 token。",
+  "video_per_ktok": {
+    "doubao-seedance-1.5-pro": { "with_audio": 0.016, "no_audio": 0.008 }
+  },
+
+  "_subtitle_erase说明": "字幕擦除。火山引擎按分钟，第三方托管按秒。new-api 侧 ciisubtitleerase adaptor 是按 finished_at-created_at 实际秒数 × 1 积分结算，所以这里统一折算成元/秒便于核对。",
+  "subtitle_erase_per_second": {
+    "cii-subtitle-erase": { "volcengine_standard": 0.006667, "third_party": 0.108 }
+  },
+
+  "image_per_image": {
+    "doubao-seedream-5.0-pro":  { "le_2610k_px": 0.3,  "gt_2610k_px": 0.6 },
+    "doubao-seedream-5.0-lite": 0.22,
+    "doubao-seedream-4.5": 0.25,
+    "doubao-seedream-4.0": 0.20,
+    "doubao-seedream-3.0": 0.259
+  },
+  "_image_first_free说明": "5.0-pro / 5.0-lite / 4.5 / 4.0 有「首张免费」优惠，第 2 张起才按上表计费。脚本核对时若 n=1，预期费用记 0。",
+
+  "text_per_mtok_cny": {
+    "kimi-k3":                  { "input": 20, "output": 100, "cache": 2 },
+    "DeepSeek-V4-Pro":          { "input": 9,  "output": 27,  "cache": 0.3,  "_peak": true },
+    "DeepSeek-V4-Flash":        { "input": 3,  "output": 9,   "cache": 0.1,  "_peak": true },
+    "DeepSeek-V3.2":            { "input": 2,  "output": 3,   "cache": 1 },
+    "DeepSeek-V3-0324":         { "input": 2,  "output": 8,   "cache": 0.5 },
+    "DeepSeek-R1-0528":         { "input": 4,  "output": 16,  "cache": 0.5 }
+  },
+  "_text_peak说明": "DeepSeek-V4-Pro / V4-Flash 是峰谷计费：上表为高峰期单价，空闲期约为高峰的 50%。所以这两模型的预期费用是一个区间，脚本按 [空闲, 高峰] 区间核对。",
+  "peak_offpeak_ratio": 0.5,
+
+  "text_per_mtok_usd": {
+    "claude-opus-4-6":   { "input": 5,  "output": 25, "cache": 0.5 },
+    "T-C-1 -1":          { "input": 5,  "output": 25, "cache": 0.5 },
+    "T-C-1 -2":          { "input": 3,  "output": 15, "cache": 0.3 }
+  },
+
+  "per_call_cny": {
+    "jd/deepseek-v4-flash-0731": 0.01
+  }
+}
