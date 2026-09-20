@@ -386,14 +386,46 @@ class QuotaAuditor:
                 last_err = err
                 time.sleep(poll)
                 continue
+            # 同一个任务会有两条日志：预扣 + 结算。
+            # 只有结算那条带 actual_quota（真实总消耗），优先取它。
+            fallback = None
             for log in logs:
-                if self._log_matches(log, model, after_ts):
+                if not self._log_matches(log, model, after_ts):
+                    continue
+                if self.parse_other(log).get("actual_quota") is not None:
                     return log, None
+                if fallback is None:
+                    fallback = log
+            if fallback is not None:
+                return fallback, None
             time.sleep(poll)
         return None, last_err or f"等待 {max_wait}s 未找到 {model} 的扣费日志"
 
     @staticmethod
-    def actual_quota(log):
+    def parse_other(log):
+        """日志的 other 字段是内嵌 JSON 字符串，里面有 actual_quota / model_ratio 等。"""
+        raw = log.get("other")
+        if isinstance(raw, dict):
+            return raw
+        if isinstance(raw, str) and raw.strip():
+            try:
+                parsed = json.loads(raw)
+                return parsed if isinstance(parsed, dict) else {}
+            except ValueError:
+                return {}
+        return {}
+
+    @classmethod
+    def actual_quota(cls, log):
+        """
+        任务型请求(视频/字幕擦除)分两步扣费：提交时预扣 pre_consumed_quota，
+        完成后按实际量结算。日志的 quota 字段记的是**结算差额**
+        (actual_quota - pre_consumed_quota)，不是本次总消耗。
+        真实总消耗在 other.actual_quota 里，核对计费必须用它。
+        """
+        actual = cls.parse_other(log).get("actual_quota")
+        if actual is not None:
+            return int(actual)
         return int(log.get("quota") or 0)
 
     def audit(self, label, model, expected_cny, after_ts, note=None):
@@ -783,6 +815,10 @@ class Runner:
         def probe_judge(st, body, path, extra_note=""):
             if st == 404:
                 return WARN, f"POST {path} 不存在(404)。{extra_note}"
+            # 非法 model 走完鉴权后会进到分发层，拿不到渠道时返回 503 model_not_found。
+            # 这也是「路由存在且已进业务层」的证据，不能当成服务不可达。
+            if st == 503 and "model_not_found" in str(body):
+                return PASS, f"路由存在，非法 model 已进分发层并返回 503 model_not_found"
             if st in (200, 400, 401, 403, 409, 422):
                 return PASS, f"路由存在，探测返回 HTTP {st}（非法 model 被业务层挡下）"
             return WARN, (f"无法判定 {path}：HTTP {st}"
