@@ -783,6 +783,11 @@ class Runner:
         def probe_judge(st, body, path, extra_note=""):
             if st == 404:
                 return WARN, f"POST {path} 不存在(404)。{extra_note}"
+            # 非法 model 走完鉴权后会进到分发层，拿不到渠道时返回 503 model_not_found。
+            # 这也是「路由存在且已进业务层」的证据，不能当成服务不可达。
+            if st == 503 and isinstance(body, dict) and \
+                    "model_not_found" in str(pick(body, "error.code", default="")):
+                return PASS, f"路由存在，非法 model 已进分发层并返回 503 model_not_found"
             if st in (200, 400, 401, 403, 409, 422):
                 return PASS, f"路由存在，探测返回 HTTP {st}（非法 model 被业务层挡下）"
             return WARN, (f"无法判定 {path}：HTTP {st}"
