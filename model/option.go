@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -71,6 +72,7 @@ func InitOptionMap() {
 	common.OptionMap["HomePageContent"] = ""
 	common.OptionMap["Footer"] = common.Footer
 	common.OptionMap["SystemName"] = common.SystemName
+	common.OptionMap["AppSlug"] = common.AppSlug
 	common.OptionMap["Logo"] = common.Logo
 	common.OptionMap["ServerAddress"] = ""
 	common.OptionMap["WorkerUrl"] = system_setting.WorkerUrl
@@ -514,6 +516,13 @@ func updateOptionMap(key string, value string) (err error) {
 		common.Footer = value
 	case "SystemName":
 		common.SystemName = value
+	case "AppSlug":
+		// 对外接口面上的标识（响应头名 / 错误 type 前缀）。留空或删掉会回退到
+		// DefaultAppSlug，由 common.normalizedAppSlug 兜底。
+		common.AppSlug = value
+		// relaykit 是独立 module，读不到 common；把归一化后的 slug 同步进去，
+		// 保证本地错误的 type 与根 module 的 AppErrorType() 始终一致。
+		kitutil.SetIdentitySlug(common.AppSlugSnake())
 	case "Logo":
 		common.Logo = value
 	case "WeChatServerAddress":

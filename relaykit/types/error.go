@@ -26,6 +26,10 @@ type ClaudeError struct {
 type ErrorType string
 
 const (
+	// ErrorTypeNewAPIError is the default type for gateway-local errors. The
+	// value actually emitted is resolved at construction time from the
+	// configured identity slug (see NewLocalErrorType), so white-labelled hosts
+	// report their own prefix while keeping this constant as the fallback.
 	ErrorTypeNewAPIError     ErrorType = "new_api_error"
 	ErrorTypeOpenAIError     ErrorType = "openai_error"
 	ErrorTypeClaudeError     ErrorType = "claude_error"
@@ -253,7 +257,7 @@ func NewError(err error, errorCode ErrorCode, ops ...NewAPIErrorOptions) *NewAPI
 	e := &NewAPIError{
 		Err:        err,
 		RelayError: nil,
-		errorType:  ErrorTypeNewAPIError,
+		errorType:  ErrorType(kitutil.ErrorTypeSlug()),
 		StatusCode: http.StatusInternalServerError,
 		errorCode:  errorCode,
 	}
@@ -303,7 +307,7 @@ func NewErrorWithStatusCode(err error, errorCode ErrorCode, statusCode int, ops 
 			Message: err.Error(),
 			Type:    string(errorCode),
 		},
-		errorType:  ErrorTypeNewAPIError,
+		errorType:  ErrorType(kitutil.ErrorTypeSlug()),
 		StatusCode: statusCode,
 		errorCode:  errorCode,
 	}

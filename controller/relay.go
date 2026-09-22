@@ -97,14 +97,18 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			case types.RelayFormatOpenAIRealtime:
 				helper.WssError(c, ws, newAPIError.ToOpenAIError())
 			case types.RelayFormatClaude:
+				// Claude 协议要求顶层 type:"error" + error:{type,message}；
+				// 在这之上并列扁平字段，与其它接口保持同一种错误体。
+				claudeErr := newAPIError.ToClaudeError()
 				c.JSON(newAPIError.StatusCode, gin.H{
-					"type":  "error",
-					"error": newAPIError.ToClaudeError(),
+					"code":        string(newAPIError.GetErrorCode()),
+					"message":     claudeErr.Message,
+					"status_code": newAPIError.StatusCode,
+					"type":        "error",
+					"error":       claudeErr,
 				})
 			default:
-				c.JSON(newAPIError.StatusCode, gin.H{
-					"error": newAPIError.ToOpenAIError(),
-				})
+				c.JSON(newAPIError.StatusCode, openaiErrorBody(newAPIError))
 			}
 		}
 	}()
@@ -450,28 +454,18 @@ func RelayMidjourney(c *gin.Context) {
 	}
 }
 
+// RelayNotImplemented 与其它 /v1 接口同形返回未实现错误。
 func RelayNotImplemented(c *gin.Context) {
-	err := types.OpenAIError{
-		Message: "API not implemented",
-		Type:    "new_api_error",
-		Param:   "",
-		Code:    "api_not_implemented",
-	}
-	c.JSON(http.StatusNotImplemented, gin.H{
-		"error": err,
-	})
+	c.JSON(http.StatusNotImplemented, common.NewErrorBody(http.StatusNotImplemented,
+		common.ErrorCodeNotImplemented, "API not implemented"))
 }
 
+// RelayNotFound 与其它 /v1 接口同形返回路由不存在的错误。
 func RelayNotFound(c *gin.Context) {
-	err := types.OpenAIError{
-		Message: fmt.Sprintf("Invalid URL (%s %s)", c.Request.Method, c.Request.URL.Path),
-		Type:    "invalid_request_error",
-		Param:   "",
-		Code:    "",
-	}
-	c.JSON(http.StatusNotFound, gin.H{
-		"error": err,
-	})
+	c.JSON(http.StatusNotFound, common.NewErrorBodyWithType(http.StatusNotFound,
+		common.ErrorCodeNotFound,
+		fmt.Sprintf("Invalid URL (%s %s)", c.Request.Method, c.Request.URL.Path),
+		"invalid_request_error"))
 }
 
 func RelayTaskFetch(c *gin.Context) {

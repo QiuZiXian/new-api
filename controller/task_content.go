@@ -9,7 +9,6 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	taskdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	taskdoubao "github.com/QuantumNous/new-api/relay/channel/task/doubao"
 	"github.com/QuantumNous/new-api/service"
@@ -320,6 +319,8 @@ func contentPageParam(raw string, def int) int {
 	return v
 }
 
+// respondContentTaskError 写错误响应。
+// 与素材、真人审核、relay 链路共用同一套错误体（扁平 + error 包裹双写）。
 func respondContentTaskError(c *gin.Context, status int, code, message string) {
-	c.JSON(status, &taskdto.TaskError{Code: code, Message: message, StatusCode: status})
+	c.JSON(status, common.NewErrorBody(status, code, message))
 }

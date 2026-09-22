@@ -178,12 +178,11 @@ func main() {
 	}
 	server.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
 		common.SysLog(fmt.Sprintf("panic detected: %v", err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": gin.H{
-				"message": fmt.Sprintf("Panic detected, error: %v. Please submit a issue here: https://github.com/Calcium-Ion/new-api", err),
-				"type":    "new_api_panic",
-			},
-		})
+		// 与 middleware.RelayPanicRecover 同形：扁平字段 + error 包裹双写。
+		c.JSON(http.StatusInternalServerError,
+			common.NewErrorBodyWithType(http.StatusInternalServerError, common.ErrorCodeInternal,
+				fmt.Sprintf("Panic detected, error: %v. Please submit a issue here: https://github.com/Calcium-Ion/new-api", err),
+				common.AppPanicType()))
 	}))
 	// This will cause SSE not to work!!!
 	//server.Use(gzip.Gzip(gzip.DefaultCompression))

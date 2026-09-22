@@ -4,6 +4,7 @@ import (
 	"html"
 	"net/http"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	vvservice "github.com/QuantumNous/new-api/service/visualvalidate"
 
@@ -74,7 +75,7 @@ func CreateVisualValidateSession(c *gin.Context) {
 	userID := c.GetInt("id")
 	var req CreateVisualValidateSessionReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		respondAssetError(c, http.StatusBadRequest, "bad_request", "请求体解析失败: "+err.Error())
+		respondAssetError(c, http.StatusBadRequest, common.ErrorCodeBadRequest, "请求体解析失败: "+err.Error())
 		return
 	}
 	s, terr := vvservice.CreateSession(userID, vvservice.CreateSessionReq{
@@ -127,7 +128,7 @@ func GetVisualValidateResult(c *gin.Context) {
 	userID := c.GetInt("id")
 	var req VisualValidateResultReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		respondAssetError(c, http.StatusBadRequest, "bad_request", "请求体解析失败: "+err.Error())
+		respondAssetError(c, http.StatusBadRequest, common.ErrorCodeBadRequest, "请求体解析失败: "+err.Error())
 		return
 	}
 	s, groupID, terr := vvservice.GetResult(userID, vvservice.GetResultReq{

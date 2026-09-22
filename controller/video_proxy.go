@@ -20,14 +20,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// videoProxyError returns a standardized OpenAI-style error response.
+// videoProxyError writes a unified error response: flat top-level fields plus
+// the OpenAI-style error envelope, same shape as the rest of the /v1 surface.
+// errType keeps its OpenAI meaning (e.g. invalid_request_error, server_error).
 func videoProxyError(c *gin.Context, status int, errType, message string) {
-	c.JSON(status, gin.H{
-		"error": gin.H{
-			"message": message,
-			"type":    errType,
-		},
-	})
+	c.JSON(status, common.NewErrorBodyWithType(status, common.DefaultCodeForStatus(status), message, errType))
 }
 
 func VideoProxy(c *gin.Context) {

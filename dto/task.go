@@ -2,6 +2,8 @@ package dto
 
 import (
 	"encoding/json"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 type TaskError struct {
@@ -11,6 +13,43 @@ type TaskError struct {
 	StatusCode int    `json:"-"`
 	LocalError bool   `json:"-"`
 	Error      error  `json:"-"`
+}
+
+// taskErrorEnvelope 是 TaskError 序列化后的统一响应形态：
+// 顶层保留扁平字段（历史形态），并列的 error 包裹按 OpenAI 约定提供
+// code/message/type。客户端用任一种姿势解析都可以。
+type taskErrorEnvelope struct {
+	Code       string           `json:"code"`
+	Message    string           `json:"message"`
+	Data       any              `json:"data,omitempty"`
+	StatusCode int              `json:"status_code,omitempty"`
+	Error      *taskErrorDetail `json:"error,omitempty"`
+}
+
+type taskErrorDetail struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Type    string `json:"type"`
+}
+
+// MarshalJSON 让所有把 TaskError 直接 c.JSON 出去的接口自动获得统一错误体，
+// 不必逐个改调用点。StatusCode 未设置时不输出 status_code，避免误报 0。
+// LocalError / Error 仅供内部流转，不出现在响应里。
+func (t *TaskError) MarshalJSON() ([]byte, error) {
+	if t == nil {
+		return []byte("null"), nil
+	}
+	return common.Marshal(taskErrorEnvelope{
+		Code:       t.Code,
+		Message:    t.Message,
+		Data:       t.Data,
+		StatusCode: t.StatusCode,
+		Error: &taskErrorDetail{
+			Code:    t.Code,
+			Message: t.Message,
+			Type:    common.AppErrorType(),
+		},
+	})
 }
 
 type TaskData interface {

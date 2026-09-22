@@ -17,7 +17,8 @@ func CORS() gin.HandlerFunc {
 
 func Version() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Header("X-New-Api-Version", common.Version)
+		// 头名随对外标识走：默认 X-New-Api-Version，配了 AppSlug 后随之变化。
+		c.Header("X-"+common.AppSlugHeaderName()+"-Version", common.Version)
 		c.Next()
 	}
 }

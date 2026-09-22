@@ -1,9 +1,10 @@
 package controller
 
 import (
+	"net/http"
+
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 )
@@ -29,13 +30,10 @@ func GetSubscription(c *gin.Context) {
 		expiredTime = 0
 	}
 	if err != nil {
-		openAIError := types.OpenAIError{
-			Message: err.Error(),
-			Type:    "upstream_error",
-		}
-		c.JSON(200, gin.H{
-			"error": openAIError,
-		})
+		// 统一错误体：扁平字段 + error 包裹。保持历史 200 状态码以免破坏
+		// 依赖该接口的既有客户端。
+		c.JSON(http.StatusOK, common.NewErrorBodyWithType(http.StatusOK,
+			common.ErrorCodeInternal, err.Error(), common.ErrorCodeUpstreamFailed))
 		return
 	}
 	quota := remainQuota + usedQuota
@@ -81,13 +79,9 @@ func GetUsage(c *gin.Context) {
 		quota, err = model.GetUserUsedQuota(userId)
 	}
 	if err != nil {
-		openAIError := types.OpenAIError{
-			Message: err.Error(),
-			Type:    "new_api_error",
-		}
-		c.JSON(200, gin.H{
-			"error": openAIError,
-		})
+		// 统一错误体：扁平字段 + error 包裹。保持历史 200 状态码以免破坏
+		// 依赖该接口的既有客户端。
+		c.JSON(http.StatusOK, common.NewErrorBody(http.StatusOK, common.ErrorCodeInternal, err.Error()))
 		return
 	}
 	amount := float64(quota)

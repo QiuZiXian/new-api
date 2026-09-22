@@ -15,21 +15,18 @@ func abortWithOpenAiMessage(c *gin.Context, statusCode int, message string, code
 		codeStr = string(code[0])
 	}
 	userId := c.GetInt("id")
-	c.JSON(statusCode, gin.H{
-		"error": gin.H{
-			"message": common.MessageWithRequestId(message, c.GetString(common.RequestIdKey)),
-			"type":    "new_api_error",
-			"code":    codeStr,
-		},
-	})
+	// 统一错误体：顶层扁平字段 + OpenAI 风格 error 包裹。
+	c.JSON(statusCode, common.NewErrorBody(statusCode, codeStr, common.MessageWithRequestId(message, c.GetString(common.RequestIdKey))))
 	c.Abort()
 	logger.LogError(c.Request.Context(), fmt.Sprintf("user %d | %s", userId, message))
 }
 
+// abortWithMidjourneyMessage 沿用 Midjourney 渠道自己的 {description,type,code}
+// 契约——它的调用方是按该格式解析的，不并入统一错误体。
 func abortWithMidjourneyMessage(c *gin.Context, statusCode int, code int, description string) {
 	c.JSON(statusCode, gin.H{
 		"description": description,
-		"type":        "new_api_error",
+		"type":        common.AppErrorType(),
 		"code":        code,
 	})
 	c.Abort()

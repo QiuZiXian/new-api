@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	assetservice "github.com/QuantumNous/new-api/service/asset"
 
@@ -57,7 +57,7 @@ func CreateAssetGroup(c *gin.Context) {
 	userID := c.GetInt("id")
 	var req CreateAssetGroupReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		respondAssetError(c, http.StatusBadRequest, "bad_request", "请求体解析失败: "+err.Error())
+		respondAssetError(c, http.StatusBadRequest, common.ErrorCodeBadRequest, "请求体解析失败: "+err.Error())
 		return
 	}
 	g, terr := assetservice.CreateAssetGroup(userID, req.Name, req.Description)
@@ -108,11 +108,11 @@ func UpdateAssetGroup(c *gin.Context) {
 	publicID := c.Param("group_id")
 	var req UpdateAssetGroupReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		respondAssetError(c, http.StatusBadRequest, "bad_request", "请求体解析失败: "+err.Error())
+		respondAssetError(c, http.StatusBadRequest, common.ErrorCodeBadRequest, "请求体解析失败: "+err.Error())
 		return
 	}
 	if req.Name == nil && req.Description == nil {
-		respondAssetError(c, http.StatusBadRequest, "bad_request", "name/description 至少需要传一个")
+		respondAssetError(c, http.StatusBadRequest, common.ErrorCodeBadRequest, "name/description 至少需要传一个")
 		return
 	}
 	name := ""
@@ -143,8 +143,8 @@ func DeleteAssetGroup(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"id":            publicID,
-		"status":        "deleted",
+		"id":             publicID,
+		"status":         "deleted",
 		"upstream_error": upstreamErr,
 	})
 }
@@ -159,7 +159,7 @@ func CreateAsset(c *gin.Context) {
 	groupID := c.Param("group_id")
 	var req CreateAssetReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		respondAssetError(c, http.StatusBadRequest, "bad_request", "请求体解析失败: "+err.Error())
+		respondAssetError(c, http.StatusBadRequest, common.ErrorCodeBadRequest, "请求体解析失败: "+err.Error())
 		return
 	}
 	a, terr := assetservice.CreateAsset(userID, groupID, req.ImageURL, req.AssetType, req.Name)
@@ -212,11 +212,11 @@ func UpdateAsset(c *gin.Context) {
 	publicID := c.Param("asset_id")
 	var req UpdateAssetReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		respondAssetError(c, http.StatusBadRequest, "bad_request", "请求体解析失败: "+err.Error())
+		respondAssetError(c, http.StatusBadRequest, common.ErrorCodeBadRequest, "请求体解析失败: "+err.Error())
 		return
 	}
 	if req.Name == nil {
-		respondAssetError(c, http.StatusBadRequest, "bad_request", "name 不能为空")
+		respondAssetError(c, http.StatusBadRequest, common.ErrorCodeBadRequest, "name 不能为空")
 		return
 	}
 	a, terr := assetservice.UpdateAsset(userID, publicID, *req.Name)
@@ -312,8 +312,10 @@ func toAssetView(a *model.Asset) *assetView {
 }
 
 // respondAssetError 写错误响应。
+// 与 relay 链路、内容任务接口共用 common.ErrorBody（扁平 + error 包裹双写），
+// 客户端只需按一种形态解析即可覆盖全部 /v1 接口。
 func respondAssetError(c *gin.Context, status int, code, message string) {
-	c.JSON(status, &dto.TaskError{Code: code, Message: message, StatusCode: status})
+	c.JSON(status, common.NewErrorBody(status, code, message))
 }
 
 // atoiOrDefault 把字符串转 int；失败/空时返回 def。
