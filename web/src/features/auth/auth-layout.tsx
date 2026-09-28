@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
+import { KeyRound, BarChart3, ShieldCheck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Skeleton } from '@/components/ui/skeleton'
@@ -26,56 +27,161 @@ type AuthLayoutProps = {
   children: React.ReactNode
 }
 
+function BrandFeature(props: {
+  icon: React.ReactNode
+  title: string
+  desc: string
+}) {
+  return (
+    <div className='flex items-start gap-3'>
+      <span className='flex size-9 shrink-0 items-center justify-center rounded-lg bg-white/15 text-white backdrop-blur-xs'>
+        {props.icon}
+      </span>
+      <div className='min-w-0'>
+        <p className='text-sm font-semibold text-white'>{props.title}</p>
+        <p className='mt-0.5 text-xs leading-relaxed text-blue-100/85'>
+          {props.desc}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 export function AuthLayout({ children }: AuthLayoutProps) {
   const { t } = useTranslation()
   const { systemName, logo, loading } = useSystemConfig()
 
   return (
-    <div className='relative grid h-svh max-w-none'>
-      {/* Ambient blue-purple glow + grid backdrop */}
-      <div
-        aria-hidden
-        className='pointer-events-none absolute inset-0 -z-10 overflow-hidden'
-      >
+    <div className='grid min-h-svh max-w-none lg:grid-cols-2'>
+      {/* Left: brand panel (desktop only) */}
+      <aside className='relative hidden overflow-hidden bg-[linear-gradient(160deg,#1d4ed8_0%,#2563eb_45%,#0ea5e9_100%)] lg:flex lg:flex-col'>
+        {/* Decorative grid + glows */}
         <div
-          className='absolute inset-0 opacity-25 dark:opacity-[0.14]'
-          style={{
-            background: [
-              'radial-gradient(ellipse 55% 50% at 22% 20%, oklch(0.72 0.18 250 / 80%) 0%, transparent 70%)',
-              'radial-gradient(ellipse 45% 40% at 82% 18%, oklch(0.65 0.15 200 / 60%) 0%, transparent 70%)',
-              'radial-gradient(ellipse 40% 36% at 45% 82%, oklch(0.70 0.12 280 / 40%) 0%, transparent 70%)',
-            ].join(', '),
-          }}
+          aria-hidden
+          className='absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.08)_1px,transparent_1px)] bg-[size:3rem_3rem] [mask-image:radial-gradient(ellipse_75%_65%_at_45%_40%,black_25%,transparent_100%)]'
         />
-        <div className='absolute inset-0 bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_70%_60%_at_50%_40%,black_15%,transparent_100%)] bg-[size:4rem_4rem] opacity-[0.07]' />
-      </div>
+        <div
+          aria-hidden
+          className='absolute -top-24 -right-16 size-80 rounded-full bg-cyan-300/25 blur-3xl'
+        />
+        <div
+          aria-hidden
+          className='absolute bottom-0 -left-20 size-96 rounded-full bg-blue-300/20 blur-3xl'
+        />
+        <svg
+          aria-hidden
+          viewBox='0 0 480 300'
+          className='absolute inset-x-0 bottom-0 w-full opacity-40'
+          fill='none'
+        >
+          <g stroke='rgba(255,255,255,0.5)' strokeWidth='1'>
+            <path d='M-10 240h150l30 30h130' />
+            <path d='M490 210h-130l-36 36h-110' />
+          </g>
+          <g fill='rgba(255,255,255,0.7)'>
+            <circle cx='170' cy='240' r='2.5' />
+            <circle cx='214' cy='270' r='2.5' />
+            <circle cx='330' cy='246' r='2.5' />
+          </g>
+        </svg>
 
-      <Link
-        to='/'
-        className='absolute top-4 left-4 z-10 flex items-center gap-2 transition-opacity hover:opacity-80 sm:top-8 sm:left-8'
-      >
-        <div className='relative h-8 w-8'>
+        {/* Brand */}
+        <Link
+          to='/'
+          className='relative z-10 flex items-center gap-2.5 px-10 pt-9 transition-opacity hover:opacity-85'
+        >
+          <div className='relative size-9'>
+            {loading ? (
+              <Skeleton className='absolute inset-0 rounded-full' />
+            ) : (
+              <img
+                src={logo}
+                alt={t('Logo')}
+                className='size-9 rounded-full bg-white object-cover'
+              />
+            )}
+          </div>
           {loading ? (
-            <Skeleton className='absolute inset-0 rounded-full' />
+            <Skeleton className='h-6 w-28' />
           ) : (
-            <img
-              src={logo}
-              alt={t('Logo')}
-              className='h-8 w-8 rounded-full object-cover'
-            />
+            <span className='text-lg font-semibold text-white'>
+              {systemName}
+            </span>
           )}
+        </Link>
+
+        {/* Value proposition */}
+        <div className='relative z-10 flex flex-1 flex-col justify-center gap-8 px-10 py-12'>
+          <div>
+            <h2 className='text-3xl leading-snug font-bold tracking-tight text-white'>
+              {t('Welcome back')}
+            </h2>
+            <p className='mt-3 max-w-md text-sm leading-relaxed text-blue-100/90'>
+              {t(
+                'Sign in to manage your API keys, model usage, billing and enterprise AI access.'
+              )}
+            </p>
+          </div>
+
+          <div className='space-y-5'>
+            <BrandFeature
+              icon={<KeyRound className='size-4' />}
+              title={t('Unified model access')}
+              desc={t('One key for text, image, video and multimodal models.')}
+            />
+            <BrandFeature
+              icon={<ShieldCheck className='size-4' />}
+              title={t('Enterprise-grade access control')}
+              desc={t('Quotas, expiry, model limits and IP allowlists.')}
+            />
+            <BrandFeature
+              icon={<BarChart3 className='size-4' />}
+              title={t('Usage & cost visibility')}
+              desc={t(
+                'Track tokens, requests, costs and task history in real time.'
+              )}
+            />
+          </div>
         </div>
-        {loading ? (
-          <Skeleton className='h-6 w-24' />
-        ) : (
-          <h1 className='text-xl font-medium'>{systemName}</h1>
-        )}
-      </Link>
-      <div className='container flex items-center pt-16 sm:pt-0'>
-        <div className='glass-1 relative mx-auto flex w-full flex-col justify-center space-y-2 border-border/50 px-6 py-8 shadow-[0_20px_60px_-25px_rgba(15,23,42,0.18)] sm:w-[480px] sm:rounded-2xl sm:p-8 dark:shadow-[0_20px_60px_-25px_rgba(0,0,0,0.6)]'>
-          {children}
+
+        <p className='relative z-10 px-10 pb-8 text-xs text-blue-100/70'>
+          © {new Date().getFullYear()} {loading ? <Skeleton className='inline-block h-3 w-24' /> : systemName}
+        </p>
+      </aside>
+
+      {/* Right: form area */}
+      <main className='relative flex flex-col'>
+        {/* Mobile top bar with logo */}
+        <div className='flex items-center gap-2 px-4 pt-5 lg:hidden'>
+          <Link
+            to='/'
+            className='flex items-center gap-2 transition-opacity hover:opacity-80'
+          >
+            <div className='relative size-8'>
+              {loading ? (
+                <Skeleton className='absolute inset-0 rounded-full' />
+              ) : (
+                <img
+                  src={logo}
+                  alt={t('Logo')}
+                  className='size-8 rounded-full object-cover'
+                />
+              )}
+            </div>
+            {loading ? (
+              <Skeleton className='h-5 w-20' />
+            ) : (
+              <span className='text-base font-medium'>{systemName}</span>
+            )}
+          </Link>
         </div>
-      </div>
+
+        <div className='container flex flex-1 items-center justify-center py-10 lg:py-0'>
+          <div className='glass-1 relative mx-auto flex w-full flex-col justify-center space-y-2 border-border/50 px-6 py-8 shadow-[0_20px_60px_-25px_rgba(15,23,42,0.18)] sm:w-[440px] sm:rounded-2xl sm:p-8 dark:shadow-[0_20px_60px_-25px_rgba(0,0,0,0.6)]'>
+            {children}
+          </div>
+        </div>
+      </main>
     </div>
   )
 }

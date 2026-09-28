@@ -16,281 +16,344 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { CherryStudio } from '@lobehub/icons'
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, BookOpen, ChevronRight, MessageSquare, Sparkles } from 'lucide-react'
+import {
+  ArrowRight,
+  BrainCircuit,
+  Building2,
+  Clapperboard,
+  Image as ImageIcon,
+  Layers,
+  Video,
+  Zap,
+} from 'lucide-react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
-import { useStatus } from '@/hooks/use-status'
+import { cn } from '@/lib/utils'
 
-import { HeroTerminalDemo } from '../hero-terminal-demo'
+import { HeroArt } from './hero-art'
 
 interface HeroProps {
   className?: string
   isAuthenticated?: boolean
 }
 
-// Supported third-party clients rendered as cards under the hero copy.
-const SUPPORTED_APPS = [
-  {
-    name: 'Cherry Studio',
-    description: 'Multi-model desktop copilot with one-click gateway config',
-    href: 'https://cherry-ai.com',
-  },
-  {
-    name: 'CC Switch',
-    description: 'One-click provider/key switching across AI clients',
-    href: 'https://ccswitch.io',
-  },
-] as const
+const SLIDE_INTERVAL = 7000
+const SLIDE_IDS = ['glm-launch', 'visual-aggregation'] as const
+const SLIDE_COUNT = SLIDE_IDS.length
 
-// Stylized three-dots indicator representing "More"
-const MoreIcon = () => (
-  <svg
-    className='text-muted-foreground/60 group-hover:text-foreground size-6 shrink-0 transition-colors'
-    viewBox='0 0 24 24'
-    fill='none'
-    xmlns='http://www.w3.org/2000/svg'
-  >
-    <circle cx='6' cy='12' r='2' fill='currentColor' />
-    <circle cx='12' cy='12' r='2' fill='currentColor' />
-    <circle cx='18' cy='12' r='2' fill='currentColor' />
-  </svg>
-)
+function FeatureCard(props: {
+  icon: React.ReactNode
+  title: string
+  desc: string
+}) {
+  return (
+    <div className='rounded-xl border border-blue-100/90 bg-white/80 p-3.5 shadow-[0_2px_10px_-4px_rgba(37,99,235,0.12)] backdrop-blur-xs dark:border-blue-400/10 dark:bg-white/5'>
+      <div className='flex items-center gap-2'>
+        <span className='flex size-7 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600 dark:bg-blue-400/10 dark:text-blue-400'>
+          {props.icon}
+        </span>
+        <span className='text-slate-900 text-[13px] font-semibold dark:text-slate-100'>
+          {props.title}
+        </span>
+      </div>
+      <p className='text-slate-500 mt-2 text-xs leading-relaxed dark:text-slate-400'>
+        {props.desc}
+      </p>
+    </div>
+  )
+}
+
+function BulletItem(props: { children: React.ReactNode }) {
+  return (
+    <li className='text-slate-500 flex items-start gap-1.5 text-[11px] leading-relaxed dark:text-slate-400'>
+      <span className='bg-blue-500 mt-[5px] size-1 shrink-0 rounded-full' />
+      <span className='min-w-0'>{props.children}</span>
+    </li>
+  )
+}
+
+function SlideCTA(props: {
+  isAuthenticated?: boolean
+  label: string
+  hint?: string
+  to: string
+}) {
+  const { t } = useTranslation()
+  const target = props.isAuthenticated ? '/dashboard' : props.to
+  return (
+    <div className='mt-6 flex flex-wrap items-center gap-3'>
+      <Button
+        className='group h-11 rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 px-6 text-sm font-medium text-white shadow-[0_8px_20px_-6px_rgba(37,99,235,0.5)] hover:from-blue-700 hover:to-blue-600'
+        render={<Link to={target} />}
+      >
+        {props.isAuthenticated ? t('Go to Dashboard') : props.label}
+        <ArrowRight className='ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5' />
+      </Button>
+      {props.hint && (
+        <span className='text-slate-500 text-xs dark:text-slate-400'>
+          {props.hint}
+        </span>
+      )}
+    </div>
+  )
+}
+
+/** Slide 1 — new flagship model launch. */
+function SlideGLM(props: { isAuthenticated?: boolean }) {
+  const { t } = useTranslation()
+  const features = [
+    {
+      icon: <BrainCircuit className='size-4' />,
+      title: t('Smarter general intelligence'),
+      desc: t('Logic, reasoning, long-form writing and coding all improved'),
+    },
+    {
+      icon: <Layers className='size-4' />,
+      title: t('Stronger complex task handling'),
+      desc: t(
+        'Stable performance on long documents and multi-turn professional scenarios'
+      ),
+    },
+    {
+      icon: <Zap className='size-4' />,
+      title: t('Faster responses'),
+      desc: t('Efficient invocation with less waiting for smoother workflows'),
+    },
+    {
+      icon: <Building2 className='size-4' />,
+      title: t('Enterprise-grade stability'),
+      desc: t(
+        'Built for business rollout, knowledge Q&A and assistant scenarios'
+      ),
+    },
+  ]
+
+  return (
+    <div>
+      <h1 className='text-slate-900 text-[clamp(1.9rem,3.4vw,2.75rem)] leading-[1.2] font-bold tracking-tight dark:text-slate-50'>
+        <span className='text-blue-600 dark:text-blue-400'>GLM-5.3</span>
+        {t(' is now live')}
+      </h1>
+      <p className='text-slate-600 mt-3 text-sm leading-relaxed md:text-base dark:text-slate-400'>
+        {t(
+          'A smarter, faster, and more stable new-generation large model platform'
+        )}
+      </p>
+
+      <div className='mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2'>
+        {features.map((feature) => (
+          <FeatureCard key={feature.title} {...feature} />
+        ))}
+      </div>
+
+      <SlideCTA
+        isAuthenticated={props.isAuthenticated}
+        label={t('Try GLM-5.3 now')}
+        hint={t('Sign in to unlock the new-generation model capabilities')}
+        to='/pricing'
+      />
+    </div>
+  )
+}
+
+/** Slide 2 — aggregated visual generation models. */
+function SlideAggregate(props: { isAuthenticated?: boolean }) {
+  const { t } = useTranslation()
+  const cards = [
+    {
+      icon: <Clapperboard className='size-4' />,
+      name: 'Seedance2.5',
+      bullets: [
+        t('Cinematic quality with strong long-take storytelling'),
+        t('Ideal for premium ads, short films and series-style footage'),
+        t('Consistent and stable frames'),
+      ],
+    },
+    {
+      icon: <Video className='size-4' />,
+      name: 'MiniMax-H3',
+      bullets: [
+        t('High prompt adherence with synced audio & video'),
+        t('Commercial marketing videos and CG animation'),
+        t('Fast high-quality ad output with great value'),
+      ],
+    },
+    {
+      icon: <ImageIcon className='size-4' />,
+      name: 'Wan3.0',
+      bullets: [
+        t('Standout image-to-video with locked first-frame composition'),
+        t('Turn static posters into dynamic video'),
+        t('Batch-produce marketing assets'),
+      ],
+    },
+  ]
+
+  return (
+    <div>
+      <h1 className='text-slate-900 text-[clamp(1.9rem,3.4vw,2.75rem)] leading-[1.2] font-bold tracking-tight dark:text-slate-50'>
+        {t('Aggregate')}{' '}
+        <span className='text-blue-600 dark:text-blue-400'>
+          Seedance2.5、MiniMax-H3、Wan3.0
+        </span>
+      </h1>
+      <p className='text-slate-600 mt-3 text-sm leading-relaxed md:text-base dark:text-slate-400'>
+        {t(
+          'Top AI visual generation models in one place — image creation, text-to-video and image-to-video without switching tools.'
+        )}
+      </p>
+
+      <div className='mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3'>
+        {cards.map((card) => (
+          <div
+            key={card.name}
+            className='rounded-xl border border-blue-100/90 bg-white/80 p-3.5 shadow-[0_2px_10px_-4px_rgba(37,99,235,0.12)] backdrop-blur-xs dark:border-blue-400/10 dark:bg-white/5'
+          >
+            <div className='flex items-center gap-2'>
+              <span className='flex size-7 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600 dark:bg-blue-400/10 dark:text-blue-400'>
+                {card.icon}
+              </span>
+              <span className='text-slate-900 text-[13px] font-semibold dark:text-slate-100'>
+                {card.name}
+              </span>
+            </div>
+            <ul className='mt-2.5 space-y-1.5'>
+              {card.bullets.map((bullet) => (
+                <BulletItem key={bullet}>{bullet}</BulletItem>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+
+      <div className='border-blue-100/90 mt-5 flex flex-col gap-3 rounded-xl border bg-white/75 px-4 py-3.5 backdrop-blur-xs sm:flex-row sm:items-center dark:border-blue-400/10 dark:bg-white/5'>
+        <p className='text-slate-600 line-clamp-2 flex-1 text-xs leading-relaxed dark:text-slate-400'>
+          {t(
+            'Enter a prompt to quickly generate HD images and videos — marketing posters, short-video covers, ad bumpers and batch content. For creators, operators and enterprises, it lowers the production barrier from idea to final cut.'
+          )}
+        </p>
+        <Button
+          className='group h-10 shrink-0 rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 px-5 text-sm font-medium text-white shadow-[0_8px_20px_-6px_rgba(37,99,235,0.5)] hover:from-blue-700 hover:to-blue-600'
+          render={
+            <Link to={props.isAuthenticated ? '/dashboard' : '/sign-in'} />
+          }
+        >
+          {props.isAuthenticated ? t('Go to Dashboard') : t('Sign in to experience')}
+          <ArrowRight className='ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5' />
+        </Button>
+      </div>
+    </div>
+  )
+}
 
 export function Hero(props: HeroProps) {
   const { t } = useTranslation()
-  const { status } = useStatus()
-  const docsUrl =
-    (status?.docs_link as string | undefined) || 'https://docs.newapi.pro'
+  const reduced = useReducedMotion()
+  const [active, setActive] = useState(0)
+  const pausedRef = useRef(false)
 
-  const renderDocsButton = () => {
-    const isExternal = docsUrl.startsWith('http')
-    if (isExternal) {
-      return (
-        <Button
-          variant='outline'
-          className='group border-border/50 hover:border-border hover:bg-muted/50 inline-flex h-11 items-center gap-1.5 rounded-lg px-5 text-sm font-medium'
-          render={
-            <a href={docsUrl} target='_blank' rel='noopener noreferrer' />
-          }
-        >
-          <BookOpen className='text-muted-foreground/80 group-hover:text-foreground size-4 transition-colors duration-200' />
-          <span>{t('Docs')}</span>
-        </Button>
-      )
-    }
-    return (
-      <Button
-        variant='outline'
-        className='group border-border/50 hover:border-border hover:bg-muted/50 inline-flex h-11 items-center gap-1.5 rounded-lg px-5 text-sm font-medium'
-        render={<Link to={docsUrl} />}
-      >
-        <BookOpen className='text-muted-foreground/80 group-hover:text-foreground size-4 transition-colors duration-200' />
-        <span>{t('Docs')}</span>
-      </Button>
-    )
+  useEffect(() => {
+    if (reduced) return
+    const id = window.setInterval(() => {
+      if (!pausedRef.current) {
+        setActive((current) => (current + 1) % SLIDE_COUNT)
+      }
+    }, SLIDE_INTERVAL)
+    return () => window.clearInterval(id)
+  }, [reduced])
+
+  const slideTransition = {
+    duration: reduced ? 0 : 0.45,
+    ease: 'easeOut' as const,
   }
 
   return (
-    <section className='relative z-10 overflow-hidden px-6 pt-24 pb-16 md:pt-32 md:pb-24 lg:pt-36 lg:pb-28'>
-      {/* Radial gradient background */}
+    <section
+      className='relative isolate overflow-hidden'
+      onMouseEnter={() => (pausedRef.current = true)}
+      onMouseLeave={() => (pausedRef.current = false)}
+    >
+      {/* Tech-blue gradient backdrop */}
       <div
         aria-hidden
-        className='pointer-events-none absolute inset-0 -z-10 opacity-25 dark:opacity-[0.12]'
-        style={{
-          background: [
-            'radial-gradient(ellipse 60% 50% at 20% 20%, oklch(0.72 0.18 250 / 80%) 0%, transparent 70%)',
-            'radial-gradient(ellipse 50% 40% at 80% 15%, oklch(0.65 0.15 200 / 60%) 0%, transparent 70%)',
-            'radial-gradient(ellipse 40% 35% at 40% 80%, oklch(0.70 0.12 280 / 40%) 0%, transparent 70%)',
-          ].join(', '),
-        }}
+        className='absolute inset-0 -z-20 bg-[linear-gradient(180deg,#eaf2ff_0%,#e3eeff_52%,var(--background)_100%)] dark:bg-[linear-gradient(180deg,#0a1730_0%,#0c1c3a_52%,var(--background)_100%)]'
       />
-      {/* Grid pattern */}
+      {/* Circuit traces */}
+      <svg
+        aria-hidden
+        viewBox='0 0 1440 420'
+        className='absolute inset-x-0 top-0 -z-10 h-full w-full opacity-45 dark:opacity-20'
+        preserveAspectRatio='xMidYMin slice'
+      >
+        <g stroke='#93c5fd' strokeWidth='1' fill='none'>
+          <path d='M-20 90h240l40 40h180' />
+          <path d='M-20 150h140l50 50h210' opacity='0.7' />
+          <path d='M1460 70h-220l-40 40h-160' />
+          <path d='M1460 190h-180l-60 60h-140' opacity='0.7' />
+        </g>
+        <g fill='#60a5fa'>
+          <circle cx='440' cy='130' r='3' />
+          <circle cx='380' cy='200' r='3' />
+          <circle cx='1040' cy='110' r='3' />
+          <circle cx='1080' cy='250' r='3' />
+        </g>
+      </svg>
+      {/* Glow blobs */}
       <div
         aria-hidden
-        className='absolute inset-0 -z-10 bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_30%,black_20%,transparent_100%)] bg-[size:4rem_4rem] opacity-[0.08]'
+        className='absolute -top-24 right-[8%] -z-10 size-[420px] rounded-full bg-blue-400/25 blur-3xl dark:bg-blue-500/10'
+      />
+      <div
+        aria-hidden
+        className='absolute top-28 -left-28 -z-10 size-[360px] rounded-full bg-cyan-300/25 blur-3xl dark:bg-cyan-400/10'
       />
 
-      <div className='mx-auto grid max-w-6xl grid-cols-1 items-start gap-12 lg:grid-cols-12 lg:gap-8'>
-        {/* Left Column: Title, description, action buttons and application support */}
-        <div className='flex flex-col items-start text-left lg:col-span-6'>
-          {/* Top Pill Badge */}
-          <div
-            className='landing-animate-fade-up mb-5 inline-flex items-center gap-1.5 rounded-full border border-blue-500/20 bg-blue-500/5 px-3 py-1.5 text-[11px] font-medium text-blue-600 opacity-0 shadow-xs dark:border-blue-400/20 dark:bg-blue-400/5 dark:text-blue-400'
-            style={{ animationDelay: '0ms' }}
-          >
-            <span className='relative flex size-1.5'>
-              <span className='absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75' />
-              <span className='relative inline-flex size-1.5 rounded-full bg-blue-500 dark:bg-blue-400' />
-            </span>
-            <span>{t('AI Application Infrastructure Foundation')}</span>
-          </div>
+      <div className='mx-auto grid max-w-7xl grid-cols-1 items-center gap-10 px-6 pt-24 pb-16 lg:grid-cols-[1.05fr_1fr] lg:gap-8 lg:pt-28 lg:pb-24'>
+        {/* Left: rotating banner copy */}
+        <div className='landing-animate-fade-up min-w-0 opacity-0'>
+          <AnimatePresence mode='wait' initial={false}>
+            <motion.div
+              key={active}
+              initial={reduced ? { opacity: 1 } : { opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={reduced ? { opacity: 0 } : { opacity: 0, y: -18 }}
+              transition={slideTransition}
+            >
+              {active === 0 ? (
+                <SlideGLM isAuthenticated={props.isAuthenticated} />
+              ) : (
+                <SlideAggregate isAuthenticated={props.isAuthenticated} />
+              )}
+            </motion.div>
+          </AnimatePresence>
 
-          <h1
-            className='landing-animate-fade-up text-[clamp(2.25rem,4.5vw,3.25rem)] leading-[1.15] font-bold tracking-tight'
-            style={{ animationDelay: '60ms' }}
-          >
-            {t('Unified API Gateway for')}
-            <br />
-            <span className='bg-gradient-to-r from-blue-400 via-violet-400 to-purple-500 bg-clip-text text-transparent'>
-              {t('Vast Range of AI Models')}
-            </span>
-          </h1>
-          <p
-            className='landing-animate-fade-up text-muted-foreground/80 mt-5 max-w-xl text-base leading-relaxed opacity-0 md:text-[15px]'
-            style={{ animationDelay: '120ms' }}
-          >
-            {t(
-              'Access a vast selection of models via a standard, unified API protocol. Power AI applications, manage digital assets, and connect the Future.'
-            )}
-          </p>
-
-          <div
-            className='landing-animate-fade-up mt-8 flex flex-wrap items-center gap-3 opacity-0'
-            style={{ animationDelay: '180ms' }}
-          >
-            {props.isAuthenticated ? (
-              <>
-                <Button
-                  className='group h-11 rounded-lg px-5 text-sm font-medium'
-                  render={<Link to='/dashboard' />}
-                >
-                  {t('Go to Dashboard')}
-                  <ArrowRight className='ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5' />
-                </Button>
-                {renderDocsButton()}
-              </>
-            ) : (
-              <>
-                <Button
-                  className='group h-11 rounded-lg px-5 text-sm font-medium'
-                  render={<Link to='/sign-up' />}
-                >
-                  {t('Get Started')}
-                  <ArrowRight className='ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5' />
-                </Button>
-                <Button
-                  variant='outline'
-                  className='border-border/50 hover:border-border hover:bg-muted/50 h-11 rounded-lg px-5 text-sm font-medium'
-                  render={<Link to='/pricing' />}
-                >
-                  {t('View Pricing')}
-                </Button>
-                {renderDocsButton()}
-              </>
-            )}
-          </div>
-
-          {/* Supported Apps — upgraded from pills to richer client cards */}
-          <div
-            className='landing-animate-fade-up mt-10 w-full max-w-xl opacity-0'
-            style={{ animationDelay: '240ms' }}
-          >
-            <div className='mb-4 flex items-center justify-between gap-2'>
-              <div className='flex flex-col gap-1'>
-                <span className='text-muted-foreground/50 text-[10px] font-bold tracking-[0.15em] uppercase'>
-                  {t('Supported Applications')}
-                </span>
-                <p className='text-muted-foreground/60 text-xs leading-relaxed'>
-                  {t(
-                    'Supports one-click configuration and perfectly adapts to NewAPI multi-protocol configuration.'
-                  )}
-                </p>
-              </div>
-              <ChevronRight className='text-muted-foreground/20 size-5 shrink-0' />
-            </div>
-
-            <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
-              {SUPPORTED_APPS.map((app) => (
-                <a
-                  key={app.name}
-                  href={app.href}
-                  target='_blank'
-                  rel='noopener noreferrer'
-                  className='group border-border/40 bg-muted/15 hover:border-primary/40 hover:bg-muted/30 flex items-start gap-3 rounded-xl border p-3.5 backdrop-blur-xs transition-all duration-300 hover:scale-[1.02]'
-                >
-                  <span className='text-foreground/85 flex size-9 shrink-0 items-center justify-center rounded-lg border border-border/50 bg-background/70'>
-                    {app.name === 'Cherry Studio' ? (
-                      <CherryStudio.Color size={22} className='shrink-0' />
-                    ) : (
-                      <span className='text-blue-500 bg-blue-500/10 flex size-6 items-center justify-center rounded-md text-[10px] font-bold dark:text-blue-400'>
-                        CC
-                      </span>
-                    )}
-                  </span>
-                  <span className='min-w-0'>
-                    <span className='text-foreground flex items-center gap-1.5 text-sm font-semibold'>
-                      {app.name}
-                      <ArrowRight className='text-muted-foreground/40 size-3.5 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-foreground' />
-                    </span>
-                    <span className='text-muted-foreground/70 mt-0.5 block text-xs leading-relaxed'>
-                      {t(app.description)}
-                    </span>
-                  </span>
-                </a>
-              ))}
-
-              {/* More Apps card → model square */}
-              <Link
-                to='/pricing'
-                className='group border-border/40 bg-muted/15 hover:border-primary/40 hover:bg-muted/30 flex items-center gap-3 rounded-xl border border-dashed p-3.5 backdrop-blur-xs transition-all duration-300 hover:scale-[1.02] sm:col-span-2'
-              >
-                <span className='text-muted-foreground bg-muted flex size-9 shrink-0 items-center justify-center rounded-lg border border-border/50'>
-                  <MoreIcon />
-                </span>
-                <span className='flex min-w-0 flex-1 items-center justify-between gap-2'>
-                  <span className='min-w-0'>
-                    <span className='text-foreground block text-sm font-semibold'>
-                      {t('More Apps')}
-                    </span>
-                    <span className='text-muted-foreground/70 block truncate text-xs'>
-                      {t('Browse the full client & model ecosystem')}
-                    </span>
-                  </span>
-                  <ArrowRight className='text-muted-foreground/40 size-4 transition-all duration-200 group-hover:translate-x-0.5' />
-                </span>
-              </Link>
-            </div>
-
-            {/* Compact aggregate strip */}
-            <div className='border-border/40 bg-muted/10 mt-4 flex items-center gap-2 rounded-xl border px-3 py-2.5'>
-              {[
-                { icon: MessageSquare, label: t('API routes') },
-                { icon: Sparkles, label: t('Models'), value: '100+' },
-              ].map((item) => (
-                <span
-                  key={item.label}
-                  className='text-muted-foreground/80 flex items-center gap-1.5 text-xs'
-                >
-                  <item.icon className='text-blue-500 size-3.5' />
-                  {item.value && (
-                    <span className='text-foreground font-semibold tabular-nums'>
-                      {item.value}
-                    </span>
-                  )}
-                  {item.label}
-                </span>
-              ))}
-              <span className='bg-border/50 mx-1 h-4 w-px' />
-              <span className='text-muted-foreground/70 flex items-center gap-1.5 text-xs'>
-                <span className='relative flex size-1.5'>
-                  <span className='absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75' />
-                  <span className='relative inline-flex size-1.5 rounded-full bg-blue-500' />
-                </span>
-                {t('Live gateway')}
-              </span>
-            </div>
+          {/* Slide dots */}
+          <div className='mt-8 flex items-center gap-2'>
+            {SLIDE_IDS.map((slideId, index) => (
+              <button
+                key={slideId}
+                type='button'
+                aria-label={t('Slide {{index}}', { index: index + 1 })}
+                aria-current={active === index}
+                onClick={() => setActive(index)}
+                className={cn(
+                  'h-2 rounded-full transition-all duration-300',
+                  active === index
+                    ? 'bg-blue-600 w-6 dark:bg-blue-400'
+                    : 'bg-blue-300/70 hover:bg-blue-400 w-2 dark:bg-slate-600 dark:hover:bg-slate-500'
+                )}
+              />
+            ))}
           </div>
         </div>
 
-        {/* Right Column: Hero Terminal API Demo */}
-        <div
-          className='landing-animate-fade-up flex w-full justify-center opacity-0 lg:col-span-6'
-          style={{ animationDelay: '320ms' }}
-        >
-          <HeroTerminalDemo className='mt-8 lg:mt-0' />
+        {/* Right: tech illustration */}
+        <div className='landing-animate-fade-up hidden opacity-0 sm:block'>
+          <HeroArt variant={active === 0 ? 'rings' : 'disc'} />
         </div>
       </div>
     </section>
