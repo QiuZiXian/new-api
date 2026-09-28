@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useMemo, useState } from 'react'
+import { Boxes, Layers, ShieldCheck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { PublicLayout } from '@/components/layout'
@@ -177,8 +178,24 @@ export function Pricing() {
           }}
         />
         <PageTransition className='relative mx-auto w-full max-w-[1800px] px-3 pt-16 pb-8 sm:px-6 sm:pt-20 sm:pb-10 xl:px-8'>
-          <header className='mx-auto mb-5 max-w-3xl pt-5 text-center sm:mb-10 sm:pt-10'>
-            <h1 className='text-[clamp(2rem,5.5vw,3.5rem)] leading-[1.15] font-bold tracking-tight'>
+          <header className='relative mx-auto mb-5 max-w-3xl pt-5 text-center sm:mb-10 sm:pt-10'>
+            {/* Model square glow */}
+            <div
+              aria-hidden
+              className='pointer-events-none absolute -top-16 left-1/2 -z-10 h-64 w-[130%] -translate-x-1/2 rounded-full opacity-25 blur-3xl dark:opacity-[0.14]'
+              style={{
+                background: [
+                  'radial-gradient(ellipse 60% 55% at 40% 30%, oklch(0.72 0.18 250 / 80%) 0%, transparent 70%)',
+                  'radial-gradient(ellipse 50% 45% at 65% 50%, oklch(0.65 0.15 200 / 60%) 0%, transparent 70%)',
+                ].join(', '),
+              }}
+            />
+            <div
+              aria-hidden
+              className='pointer-events-none absolute inset-x-0 top-0 -z-10 h-full bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_30%,black_20%,transparent_100%)] bg-[size:3.5rem_3.5rem] opacity-[0.07]'
+            />
+
+            <h1 className='from-blue-400 via-violet-400 to-purple-500 bg-gradient-to-r bg-clip-text text-[clamp(2rem,5.5vw,3.5rem)] leading-[1.15] font-bold tracking-tight text-transparent'>
               {t('Model Square')}
             </h1>
             <p className='text-muted-foreground/80 mt-3 text-sm sm:mt-4 sm:text-base'>
@@ -191,14 +208,38 @@ export function Pricing() {
                 'Discover curated AI models, compare pricing and capabilities, and choose the right model for every scenario.'
               )}
             </p>
+
+            {/* Model square aggregate badge row */}
+            <div className='mt-6 flex flex-wrap items-center justify-center gap-2'>
+              <span className='border-border/50 bg-muted/30 text-muted-foreground inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium'>
+                <Boxes className='text-blue-500 size-3.5' />
+                <span className='text-foreground font-semibold tabular-nums'>
+                  {models?.length ?? 0}
+                </span>
+                {t('models')}
+              </span>
+              <span className='border-border/50 bg-muted/30 text-muted-foreground inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium'>
+                <Layers className='text-violet-500 size-3.5' />
+                <span className='text-foreground font-semibold tabular-nums'>
+                  {vendors?.length ?? 0}
+                </span>
+                {t('vendors')}
+              </span>
+              <span className='border-border/50 bg-muted/30 text-muted-foreground inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium'>
+                <ShieldCheck className='text-emerald-500 size-3.5' />
+                <span className='text-foreground font-semibold tabular-nums'>
+                  {availableGroups.length}
+                </span>
+                {t('groups')}
+              </span>
+            </div>
+
             <SearchBar
               value={searchInput}
               onChange={setSearchInput}
               onClear={clearSearch}
-              placeholder={t(
-                'Search model name, provider, endpoint, or tag...'
-              )}
-              className='mx-auto mt-4 max-w-2xl sm:mt-6'
+              placeholder={t('Search model name, provider, endpoint, or tag...')}
+              className='mx-auto mt-6 max-w-2xl sm:mt-7'
             />
           </header>
 

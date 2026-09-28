@@ -2075,7 +2075,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相关项目",
     "footer.defaultCopyright": "版权所有。",
-    "footer.new\u0061pi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
+    "footer.newapi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "对于 2025 年 5 月 10 日之后添加的渠道，在部署时无需从模型名称中移除 \".\"",
     "For private deployments, format: https://fastgpt.run/api/openapi": "对于私有部署，格式为：https://fastgpt.run/api/openapi",
     "For security, existing access tokens cannot be displayed. Regenerate only when you need a new token.": "出于安全考虑，现有访问令牌无法再次显示。仅在需要新令牌时重新生成。",
@@ -5325,6 +5325,19 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "vendors": "模型厂商",
+    "groups": "分组",
+    "API routes": "兼容 API 路由",
+    "Live gateway": "网关实时在线",
+    "Application Ecosystem": "应用生态",
+    "the tools you already use": "你正在使用的应用",
+    "One gateway, connected to": "一个网关，无缝对接",
+    "Browse the full client & model ecosystem": "浏览完整客户端与模型生态",
+    "Model Ecosystem": "模型生态",
+    "Multi-model desktop copilot with one-click gateway config": "多模型桌面助手，支持网关一键配置",
+    "One-click provider/key switching across AI clients": "在各类 AI 客户端间一键切换服务商与密钥",
+    "Cherry Studio": "Cherry Studio",
+    "Explore the Model Square": "进入模型广场"
   }
 }

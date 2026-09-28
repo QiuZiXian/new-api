@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { CherryStudio } from '@lobehub/icons'
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, BookOpen } from 'lucide-react'
+import { ArrowRight, BookOpen, ChevronRight, MessageSquare, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -30,6 +30,20 @@ interface HeroProps {
   className?: string
   isAuthenticated?: boolean
 }
+
+// Supported third-party clients rendered as cards under the hero copy.
+const SUPPORTED_APPS = [
+  {
+    name: 'Cherry Studio',
+    description: 'Multi-model desktop copilot with one-click gateway config',
+    href: 'https://cherry-ai.com',
+  },
+  {
+    name: 'CC Switch',
+    description: 'One-click provider/key switching across AI clients',
+    href: 'https://ccswitch.io',
+  },
+] as const
 
 // Stylized three-dots indicator representing "More"
 const MoreIcon = () => (
@@ -169,65 +183,104 @@ export function Hero(props: HeroProps) {
             )}
           </div>
 
-          {/* Supported Apps (参考图二样式，进行卡片化和信息扩充设计，增加视觉高度) */}
+          {/* Supported Apps — upgraded from pills to richer client cards */}
           <div
             className='landing-animate-fade-up mt-10 w-full max-w-xl opacity-0'
             style={{ animationDelay: '240ms' }}
           >
-            <div className='mb-4 flex flex-col gap-1'>
-              <span className='text-muted-foreground/50 text-[10px] font-bold tracking-[0.15em] uppercase'>
-                {t('Supported Applications')}
-              </span>
-              <p className='text-muted-foreground/60 text-xs leading-relaxed'>
-                {t(
-                  'Supports one-click configuration and perfectly adapts to NewAPI multi-protocol configuration.'
-                )}
-              </p>
-            </div>
-            <div className='flex flex-wrap items-center gap-3'>
-              {/* Cherry Studio */}
-              <a
-                href='https://cherry-ai.com'
-                target='_blank'
-                rel='noopener noreferrer'
-                className='group border-border/40 bg-muted/15 text-foreground/80 hover:border-border hover:bg-muted/30 hover:text-foreground flex items-center gap-3 rounded-full border px-5 py-2.5 text-sm font-medium shadow-[0_1px_2.5px_rgba(0,0,0,0.01)] backdrop-blur-xs transition-all duration-300 hover:scale-[1.02]'
-              >
-                <CherryStudio.Color size={24} className='shrink-0' />
-                <span>Cherry Studio</span>
-              </a>
-
-              {/* CC Switch */}
-              <a
-                href='https://ccswitch.io'
-                target='_blank'
-                rel='noopener noreferrer'
-                className='group border-border/40 bg-muted/15 text-foreground/80 hover:border-border hover:bg-muted/30 hover:text-foreground flex items-center gap-3 rounded-full border px-5 py-2.5 text-sm font-medium shadow-[0_1px_2.5px_rgba(0,0,0,0.01)] backdrop-blur-xs transition-all duration-300 hover:scale-[1.02]'
-              >
-                <img
-                  src='https://ccswitch.io/favicon.png'
-                  alt='CC Switch'
-                  className='size-6 shrink-0 rounded-md object-contain'
-                  onError={(e) => {
-                    // Fallback to a styled text avatar if the remote favicon fails to load in sandbox or local environments
-                    e.currentTarget.style.display = 'none'
-                    const fallback = e.currentTarget.nextSibling as HTMLElement
-                    if (fallback) fallback.style.display = 'flex'
-                  }}
-                />
-                <span
-                  style={{ display: 'none' }}
-                  className='size-6 shrink-0 items-center justify-center rounded-md bg-blue-500/10 text-[10px] font-bold text-blue-600 dark:bg-blue-400/10 dark:text-blue-400'
-                >
-                  CC
+            <div className='mb-4 flex items-center justify-between gap-2'>
+              <div className='flex flex-col gap-1'>
+                <span className='text-muted-foreground/50 text-[10px] font-bold tracking-[0.15em] uppercase'>
+                  {t('Supported Applications')}
                 </span>
-                <span>CC Switch</span>
-              </a>
-
-              {/* "更多" */}
-              <div className='group border-border/40 bg-muted/15 text-foreground/55 hover:border-border hover:bg-muted/30 hover:text-foreground flex cursor-default items-center gap-2.5 rounded-full border px-5 py-2.5 text-sm font-medium shadow-[0_1px_2.5px_rgba(0,0,0,0.01)] backdrop-blur-xs transition-all duration-300 hover:scale-[1.02]'>
-                <MoreIcon />
-                <span>{t('More Apps')}</span>
+                <p className='text-muted-foreground/60 text-xs leading-relaxed'>
+                  {t(
+                    'Supports one-click configuration and perfectly adapts to NewAPI multi-protocol configuration.'
+                  )}
+                </p>
               </div>
+              <ChevronRight className='text-muted-foreground/20 size-5 shrink-0' />
+            </div>
+
+            <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+              {SUPPORTED_APPS.map((app) => (
+                <a
+                  key={app.name}
+                  href={app.href}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  className='group border-border/40 bg-muted/15 hover:border-primary/40 hover:bg-muted/30 flex items-start gap-3 rounded-xl border p-3.5 backdrop-blur-xs transition-all duration-300 hover:scale-[1.02]'
+                >
+                  <span className='text-foreground/85 flex size-9 shrink-0 items-center justify-center rounded-lg border border-border/50 bg-background/70'>
+                    {app.name === 'Cherry Studio' ? (
+                      <CherryStudio.Color size={22} className='shrink-0' />
+                    ) : (
+                      <span className='text-blue-500 bg-blue-500/10 flex size-6 items-center justify-center rounded-md text-[10px] font-bold dark:text-blue-400'>
+                        CC
+                      </span>
+                    )}
+                  </span>
+                  <span className='min-w-0'>
+                    <span className='text-foreground flex items-center gap-1.5 text-sm font-semibold'>
+                      {app.name}
+                      <ArrowRight className='text-muted-foreground/40 size-3.5 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-foreground' />
+                    </span>
+                    <span className='text-muted-foreground/70 mt-0.5 block text-xs leading-relaxed'>
+                      {t(app.description)}
+                    </span>
+                  </span>
+                </a>
+              ))}
+
+              {/* More Apps card → model square */}
+              <Link
+                to='/pricing'
+                className='group border-border/40 bg-muted/15 hover:border-primary/40 hover:bg-muted/30 flex items-center gap-3 rounded-xl border border-dashed p-3.5 backdrop-blur-xs transition-all duration-300 hover:scale-[1.02] sm:col-span-2'
+              >
+                <span className='text-muted-foreground bg-muted flex size-9 shrink-0 items-center justify-center rounded-lg border border-border/50'>
+                  <MoreIcon />
+                </span>
+                <span className='flex min-w-0 flex-1 items-center justify-between gap-2'>
+                  <span className='min-w-0'>
+                    <span className='text-foreground block text-sm font-semibold'>
+                      {t('More Apps')}
+                    </span>
+                    <span className='text-muted-foreground/70 block truncate text-xs'>
+                      {t('Browse the full client & model ecosystem')}
+                    </span>
+                  </span>
+                  <ArrowRight className='text-muted-foreground/40 size-4 transition-all duration-200 group-hover:translate-x-0.5' />
+                </span>
+              </Link>
+            </div>
+
+            {/* Compact aggregate strip */}
+            <div className='border-border/40 bg-muted/10 mt-4 flex items-center gap-2 rounded-xl border px-3 py-2.5'>
+              {[
+                { icon: MessageSquare, label: t('API routes') },
+                { icon: Sparkles, label: t('Models'), value: '100+' },
+              ].map((item) => (
+                <span
+                  key={item.label}
+                  className='text-muted-foreground/80 flex items-center gap-1.5 text-xs'
+                >
+                  <item.icon className='text-blue-500 size-3.5' />
+                  {item.value && (
+                    <span className='text-foreground font-semibold tabular-nums'>
+                      {item.value}
+                    </span>
+                  )}
+                  {item.label}
+                </span>
+              ))}
+              <span className='bg-border/50 mx-1 h-4 w-px' />
+              <span className='text-muted-foreground/70 flex items-center gap-1.5 text-xs'>
+                <span className='relative flex size-1.5'>
+                  <span className='absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75' />
+                  <span className='relative inline-flex size-1.5 rounded-full bg-blue-500' />
+                </span>
+                {t('Live gateway')}
+              </span>
             </div>
           </div>
         </div>

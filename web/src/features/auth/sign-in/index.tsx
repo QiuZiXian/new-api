@@ -34,6 +34,14 @@ export function SignIn() {
     <AuthLayout>
       <div className='w-full space-y-8'>
         <div className='space-y-2'>
+          {/* Small brand tagline above the sign-in heading */}
+          <p className='text-muted-foreground/70 mb-4 flex items-center gap-2 text-xs font-medium tracking-[0.15em] uppercase sm:text-left'>
+            <span className='relative flex size-1.5'>
+              <span className='absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75' />
+              <span className='relative inline-flex size-1.5 rounded-full bg-blue-500 dark:bg-blue-400' />
+            </span>
+            {t('AI Application Infrastructure Foundation')}
+          </p>
           <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
             {t('Sign in')}
           </h2>

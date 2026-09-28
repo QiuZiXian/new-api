@@ -33,6 +33,22 @@ export const AI_APPLICATIONS = [
   'Cline',
 ] as const
 
+// App square - richer set of ecosystem apps for the scrolling icon wall
+export const ECOSYSTEM_APPS = [
+  'LobeHub.Color',
+  'Dify.Color',
+  'OpenWebUI',
+  'Cline',
+  'CherryStudio.Color',
+  'ComfyUI',
+  'Ollama.Color',
+  'Vllm.Color',
+  'Claude.Color',
+  'Qwen.Color',
+  'DeepSeek.Color',
+  'Doubao.Color',
+] as const
+
 // Hero section - AI Models (Right side)
 export const AI_MODELS = [
   'Qwen.Color',

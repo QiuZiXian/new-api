@@ -193,6 +193,28 @@ export function Features(_props: FeaturesProps) {
           </h2>
         </AnimateInView>
 
+        {/* Model & protocol compatibility strip */}
+        <AnimateInView
+          animation='fade-up'
+          className='border-border/40 bg-muted/10 mb-14 flex flex-wrap items-center justify-center gap-2 rounded-2xl border px-4 py-5 sm:px-6'
+        >
+          <span className='text-muted-foreground mr-1 flex items-center gap-1.5 text-xs font-medium tracking-wider uppercase'>
+            <Globe className='text-blue-500 size-3.5' />
+            {t('Model Ecosystem')}
+          </span>
+          <span className='bg-border/40 mx-1 hidden h-4 w-px sm:block' />
+          {['OpenAI', 'Claude', 'Gemini', 'DeepSeek', 'Qwen', 'Llama', 'Mistral', 'GPT-4o', 'Ollama'].map(
+            (name) => (
+              <span
+                key={name}
+                className='border-border/30 bg-background text-muted-foreground hover:border-blue-500/30 hover:bg-blue-500/5 hover:text-foreground cursor-default rounded-full border px-3 py-1 text-xs transition-colors duration-300'
+              >
+                {name}
+              </span>
+            )
+          )}
+        </AnimateInView>
+
         {/* Bento grid */}
         <div className='border-border/40 bg-border/40 grid gap-px overflow-hidden rounded-xl border md:grid-cols-3'>
           {features.map((f, i) => (
