@@ -49,6 +49,15 @@
     }
   ],
 
+  "visual_validate": {
+    "_说明": "真人审核 (visual-validate) 测试用。upstream_* 缺失时上游直连用例 SKIP；downstream_callback_url 建议用 webhook.site 生成一个，用来验证认证结束后的下游通知。",
+    "upstream_base_url": "https://www.cii-group.com/app-api",
+    "upstream_key": "",
+    "upstream_api_path": "/api/v1/visual-validate",
+    "project_name": "",
+    "downstream_callback_url": ""
+  },
+
   "skip_destructive": true,
   "_skip_destructive说明": "true = 跳过会真删数据 / 真花钱的用例（删除素材组、删除素材、视觉审核）。跑全量回归时改 false。"
 }

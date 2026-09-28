@@ -2,7 +2,10 @@ FROM oven/bun:1.4.0@sha256:5ff609364c049b54eb0ff560ec96319729a972078ef2c755d758f
 
 WORKDIR /build/web
 COPY web/package.json web/bun.lock ./
-RUN bun install --frozen-lockfile
+# 国内机器可用 --build-arg NPM_REGISTRY=https://registry.npmmirror.com 加速
+ARG NPM_REGISTRY=https://registry.npmjs.org
+RUN printf 'registry=%s/\n' "${NPM_REGISTRY}" > .npmrc \
+    && bun install --frozen-lockfile
 COPY ./web ./
 COPY ./VERSION /build/VERSION
 RUN DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(cat /build/VERSION) bun run build
@@ -16,8 +19,12 @@ ENV GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64}
 ENV GOEXPERIMENT=greenteagc
 
 WORKDIR /build
-ARG GOPROXY=https://goproxy.io,direct
+# 默认走 goproxy.cn：实测该机 goproxy.io 单次请求 8s 超时级别（146 个依赖会卡死数小时），
+# proxy.golang.org / sum.golang.org 完全不通，goproxy.cn 约 0.4s。
+# 仍可用 docker build --build-arg GOPROXY=... 覆盖。
+ARG GOPROXY=https://goproxy.cn,direct
 ENV GOPROXY=${GOPROXY}
+ENV GOSUMDB=off GOTOOLCHAIN=local
 
 ADD go.mod go.sum ./
 # relaykit is a local submodule referenced via replace; its go.mod must be
