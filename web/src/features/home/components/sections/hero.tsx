@@ -34,8 +34,6 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-import { HeroArt } from './hero-art'
-
 interface HeroProps {
   className?: string
   isAuthenticated?: boolean
@@ -44,6 +42,10 @@ interface HeroProps {
 const SLIDE_INTERVAL = 7000
 const SLIDE_IDS = ['glm-launch', 'visual-aggregation'] as const
 const SLIDE_COUNT = SLIDE_IDS.length
+const HERO_BACKGROUNDS = [
+  '/home/hero-slide-1.jpg',
+  '/home/hero-slide-2.jpg',
+] as const
 
 function FeatureCard(props: {
   icon: React.ReactNode
@@ -277,44 +279,28 @@ export function Hero(props: HeroProps) {
       onMouseEnter={() => (pausedRef.current = true)}
       onMouseLeave={() => (pausedRef.current = false)}
     >
-      {/* Tech-blue gradient backdrop */}
-      <div
-        aria-hidden
-        className='absolute inset-0 -z-20 bg-[linear-gradient(180deg,#eaf2ff_0%,#e3eeff_52%,var(--background)_100%)] dark:bg-[linear-gradient(180deg,#0a1730_0%,#0c1c3a_52%,var(--background)_100%)]'
-      />
-      {/* Circuit traces */}
-      <svg
-        aria-hidden
-        viewBox='0 0 1440 420'
-        className='absolute inset-x-0 top-0 -z-10 h-full w-full opacity-45 dark:opacity-20'
-        preserveAspectRatio='xMidYMin slice'
-      >
-        <g stroke='#93c5fd' strokeWidth='1' fill='none'>
-          <path d='M-20 90h240l40 40h180' />
-          <path d='M-20 150h140l50 50h210' opacity='0.7' />
-          <path d='M1460 70h-220l-40 40h-160' />
-          <path d='M1460 190h-180l-60 60h-140' opacity='0.7' />
-        </g>
-        <g fill='#60a5fa'>
-          <circle cx='440' cy='130' r='3' />
-          <circle cx='380' cy='200' r='3' />
-          <circle cx='1040' cy='110' r='3' />
-          <circle cx='1080' cy='250' r='3' />
-        </g>
-      </svg>
-      {/* Glow blobs */}
-      <div
-        aria-hidden
-        className='absolute -top-24 right-[8%] -z-10 size-[420px] rounded-full bg-blue-400/25 blur-3xl dark:bg-blue-500/10'
-      />
-      <div
-        aria-hidden
-        className='absolute top-28 -left-28 -z-10 size-[360px] rounded-full bg-cyan-300/25 blur-3xl dark:bg-cyan-400/10'
-      />
+      {/* Rotating background artwork from design assets */}
+      <div aria-hidden className='absolute inset-0 -z-20'>
+        <AnimatePresence mode='wait' initial={false}>
+          <motion.img
+            key={active}
+            src={HERO_BACKGROUNDS[active]}
+            alt=''
+            initial={reduced ? { opacity: 1 } : { opacity: 0, scale: 1.03 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={reduced ? { opacity: 0 } : { opacity: 0 }}
+            transition={{ duration: reduced ? 0 : 0.6, ease: 'easeOut' }}
+            className='absolute inset-0 h-full w-full object-cover object-[72%_center] sm:object-[78%_center]'
+          />
+        </AnimatePresence>
+        {/* Readability overlay: darken behind copy, fade out over artwork */}
+        <div className='absolute inset-0 bg-[linear-gradient(90deg,rgba(238,244,255,0.92)_0%,rgba(238,244,255,0.55)_38%,rgba(238,244,255,0)_65%)] dark:bg-[linear-gradient(90deg,rgba(8,15,35,0.94)_0%,rgba(8,15,35,0.6)_38%,rgba(8,15,35,0.12)_65%)]' />
+        <div className='absolute inset-x-0 bottom-0 h-24 bg-[linear-gradient(180deg,transparent,var(--background))]' />
+      </div>
 
-      <div className='mx-auto grid max-w-7xl grid-cols-1 items-center gap-10 px-6 pt-24 pb-16 lg:grid-cols-[1.05fr_1fr] lg:gap-8 lg:pt-28 lg:pb-24'>
+      <div className='mx-auto max-w-7xl px-6 pt-28 pb-16 sm:pt-36 lg:pb-24'>
         {/* Left: rotating banner copy */}
-        <div className='landing-animate-fade-up min-w-0 opacity-0'>
+        <div className='landing-animate-fade-up min-w-0 max-w-2xl opacity-0'>
           <AnimatePresence mode='wait' initial={false}>
             <motion.div
               key={active}
@@ -349,11 +335,6 @@ export function Hero(props: HeroProps) {
               />
             ))}
           </div>
-        </div>
-
-        {/* Right: tech illustration */}
-        <div className='landing-animate-fade-up hidden opacity-0 sm:block'>
-          <HeroArt variant={active === 0 ? 'rings' : 'disc'} />
         </div>
       </div>
     </section>

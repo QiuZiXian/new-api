@@ -178,8 +178,8 @@ export function PublicHeader(props: PublicHeaderProps) {
       <header className='pointer-events-none fixed inset-x-0 top-0 z-50'>
         <div
           className={cn(
-            'pointer-events-auto mx-auto transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
-            scrolled ? 'max-w-[52rem] px-3 pt-3' : 'max-w-7xl px-4 pt-0 md:px-6'
+            'pointer-events-auto transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
+            scrolled ? 'mx-auto max-w-[52rem] px-3 pt-3' : 'w-full px-4 md:px-8'
           )}
         >
           <nav
@@ -187,15 +187,20 @@ export function PublicHeader(props: PublicHeaderProps) {
               'flex items-center justify-between transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
               scrolled
                 ? 'bg-background/60 ring-border/50 h-12 rounded-2xl pr-1.5 pl-4 shadow-[0_2px_16px_-6px_rgba(0,0,0,0.08),0_0_0_0.5px_rgba(0,0,0,0.02)] ring-[0.5px] backdrop-blur-2xl dark:shadow-[0_2px_16px_-6px_rgba(0,0,0,0.4)]'
-                : 'h-16 px-2'
+                : 'h-24 px-2 md:h-32'
             )}
           >
             {/* Logo */}
             <Link
               to={homeUrl}
-              className='group flex shrink-0 items-center gap-2.5'
+              className='group flex shrink-0 items-center gap-3'
             >
-              <div className='flex size-7 shrink-0 items-center justify-center transition-all duration-300 group-hover:scale-105'>
+              <div
+                className={cn(
+                  'flex shrink-0 items-center justify-center transition-all duration-300 group-hover:scale-105',
+                  scrolled ? 'size-9' : 'size-10 md:size-14'
+                )}
+              >
                 {loading ? (
                   <Skeleton className='size-full rounded-lg' />
                 ) : customLogo ? (
@@ -209,8 +214,17 @@ export function PublicHeader(props: PublicHeaderProps) {
                   />
                 )}
               </div>
-              <span className='text-sm font-semibold tracking-tight'>
-                {loading ? <Skeleton className='h-4 w-16' /> : displaySiteName}
+              <span
+                className={cn(
+                  'font-semibold tracking-tight',
+                  scrolled ? 'text-base' : 'text-xl md:text-2xl'
+                )}
+              >
+                {loading ? (
+                  <Skeleton className={scrolled ? 'h-4 w-20' : 'h-7 w-32'} />
+                ) : (
+                  displaySiteName
+                )}
               </span>
             </Link>
 
@@ -229,7 +243,7 @@ export function PublicHeader(props: PublicHeaderProps) {
                       tabIndex={link.disabled ? -1 : undefined}
                       onClick={(event) => handleNavLinkClick(event, link)}
                       className={cn(
-                        'text-muted-foreground hover:text-foreground rounded-lg px-3 py-1.5 text-sm font-medium transition-colors duration-200',
+                        'rounded-lg px-3 py-1.5 text-base font-medium transition-colors duration-200 md:text-xl',
                         link.disabled && 'pointer-events-none opacity-50'
                       )}
                     >
@@ -244,7 +258,7 @@ export function PublicHeader(props: PublicHeaderProps) {
                     disabled={link.disabled}
                     onClick={(event) => handleNavLinkClick(event, link)}
                     className={cn(
-                      'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors duration-200',
+                      'rounded-lg px-3 py-1.5 text-base font-medium transition-colors duration-200 md:text-xl',
                       isActive
                         ? 'text-foreground'
                         : 'text-muted-foreground hover:text-foreground',
@@ -287,7 +301,7 @@ export function PublicHeader(props: PublicHeaderProps) {
                   ) : (
                     <Button
                       size='sm'
-                      className='h-8 rounded-lg px-3.5 text-xs font-medium'
+                      className='h-9 rounded-lg px-4 text-sm font-medium md:h-10 md:px-5'
                       render={<Link to='/sign-in' />}
                     >
                       {t('Sign in')}
@@ -346,7 +360,7 @@ export function PublicHeader(props: PublicHeaderProps) {
             : 'pointer-events-none opacity-0'
         )}
       >
-        <div className='flex h-full flex-col justify-between px-8 pt-20 pb-10'>
+        <div className='flex h-full flex-col justify-between px-8 pt-28 pb-10'>
           <nav className='flex flex-col gap-1'>
             {links.map((link, i) => {
               const isActive = pathname === link.href
