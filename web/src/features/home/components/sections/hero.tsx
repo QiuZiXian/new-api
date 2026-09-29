@@ -24,7 +24,7 @@ import {
   Clapperboard,
   Image as ImageIcon,
   Layers,
-  Video,
+  Sparkles,
   Zap,
 } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
@@ -43,8 +43,8 @@ const SLIDE_INTERVAL = 7000
 const SLIDE_IDS = ['glm-launch', 'visual-aggregation'] as const
 const SLIDE_COUNT = SLIDE_IDS.length
 const HERO_BACKGROUNDS = [
-  '/home/hero-slide-1.jpg',
   '/home/hero-slide-2.jpg',
+  '/home/hero-slide-1.jpg',
 ] as const
 
 function FeatureCard(props: {
@@ -137,7 +137,7 @@ function SlideGLM(props: { isAuthenticated?: boolean }) {
   return (
     <div>
       <h1 className='text-slate-900 text-[clamp(1.9rem,3.4vw,2.75rem)] leading-[1.2] font-bold tracking-tight dark:text-slate-50'>
-        <span className='text-blue-600 dark:text-blue-400'>GLM-5.3</span>
+        <span className='text-blue-600 dark:text-blue-400'>kimi-k3</span>
         {t(' is now live')}
       </h1>
       <p className='text-slate-600 mt-3 text-sm leading-relaxed md:text-base dark:text-slate-400'>
@@ -154,7 +154,7 @@ function SlideGLM(props: { isAuthenticated?: boolean }) {
 
       <SlideCTA
         isAuthenticated={props.isAuthenticated}
-        label={t('Try GLM-5.3 now')}
+        label={t('Try kimi-k3 now')}
         hint={t('Sign in to unlock the new-generation model capabilities')}
         to='/pricing'
       />
@@ -176,21 +176,25 @@ function SlideAggregate(props: { isAuthenticated?: boolean }) {
       ],
     },
     {
-      icon: <Video className='size-4' />,
-      name: 'MiniMax-H3',
+      icon: <ImageIcon className='size-4' />,
+      name: 'seedream-4.0',
       bullets: [
-        t('High prompt adherence with synced audio & video'),
-        t('Commercial marketing videos and CG animation'),
-        t('Fast high-quality ad output with great value'),
+        t('New-generation image model unifying generation and editing'),
+        t(
+          'Handles complex multimodal tasks: knowledge-based generation, reasoning and reference consistency'
+        ),
+        t('Much faster inference with up to 4K high-resolution output'),
       ],
     },
     {
-      icon: <ImageIcon className='size-4' />,
-      name: 'Wan3.0',
+      icon: <Sparkles className='size-4' />,
+      name: 'gpt-image-1',
       bullets: [
-        t('Standout image-to-video with locked first-frame composition'),
-        t('Turn static posters into dynamic video'),
-        t('Batch-produce marketing assets'),
+        t('Generates images from plain text prompts'),
+        t(
+          'Built for concept art, social visuals, marketing mockups and product images'
+        ),
+        t('Turns natural-language ideas into visuals in seconds'),
       ],
     },
   ]
@@ -200,7 +204,7 @@ function SlideAggregate(props: { isAuthenticated?: boolean }) {
       <h1 className='text-slate-900 text-[clamp(1.9rem,3.4vw,2.75rem)] leading-[1.2] font-bold tracking-tight dark:text-slate-50'>
         {t('Aggregate')}{' '}
         <span className='text-blue-600 dark:text-blue-400'>
-          Seedance2.5、MiniMax-H3、Wan3.0
+          Seedance2.5、seedream-4.0、gpt-image-1
         </span>
       </h1>
       <p className='text-slate-600 mt-3 text-sm leading-relaxed md:text-base dark:text-slate-400'>

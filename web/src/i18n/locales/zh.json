@@ -5406,6 +5406,14 @@
     "Enterprise-grade access control": "企业级权限管控",
     "Quotas, expiry, model limits and IP allowlists.": "支持额度、过期时间、模型限制与 IP 白名单。",
     "Usage & cost visibility": "用量与成本可视化",
-    "Track tokens, requests, costs and task history in real time.": "实时查看 Token、调用次数、费用与任务记录。"
+    "Track tokens, requests, costs and task history in real time.": "实时查看 Token、调用次数、费用与任务记录。",
+    "Try kimi-k3 now": "立即体验 kimi-k3",
+    "New-generation image model unifying generation and editing": "新一代图像创作模型，生图与编辑统一架构",
+    "Handles complex multimodal tasks: knowledge-based generation, reasoning and reference consistency": "灵活应对多模态任务：知识生图、复杂推理与参考图一致性",
+    "Much faster inference with up to 4K high-resolution output": "推理速度大幅提升，支持 4K 高清出图",
+    "Generates images from plain text prompts": "通过文本提示生成图像",
+    "Built for concept art, social visuals, marketing mockups and product images": "适用于概念艺术、社交媒体视觉、营销模拟图与产品图",
+    "Turns natural-language ideas into visuals in seconds": "自然语言构思秒变视觉草图",
+    "Register now": "立即注册"
   }
 }

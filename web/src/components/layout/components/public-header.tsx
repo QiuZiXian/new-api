@@ -181,7 +181,7 @@ export function PublicHeader(props: PublicHeaderProps) {
             'pointer-events-auto transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
             scrolled
               ? 'mx-auto max-w-[80rem] px-4 pt-3'
-              : 'w-full pl-[2.777%] pr-[2.777%] pt-4 lg:pr-[14%]'
+              : 'w-full pl-[8.333%] pr-[2.777%] pt-4 lg:pr-[14%]'
           )}
         >
           <nav

@@ -21,11 +21,9 @@ import { useTranslation } from 'react-i18next'
 
 import { AnimateInView } from '@/components/animate-in-view'
 import { Button } from '@/components/ui/button'
-import { useSystemConfig } from '@/hooks/use-system-config'
 import { Link } from '@tanstack/react-router'
 
 import { ECOSYSTEM_APPS } from '../../constants'
-import { GatewayCard } from '../gateway-card'
 import { ScrollingIcons } from '../scrolling-icons'
 
 /**
@@ -36,7 +34,6 @@ import { ScrollingIcons } from '../scrolling-icons'
  */
 export function Ecosystem() {
   const { t } = useTranslation()
-  const { systemName } = useSystemConfig()
   const isAuthenticated = false
 
   return (
@@ -72,26 +69,42 @@ export function Ecosystem() {
           direction='up'
           className='-my-2 h-[420px]'
         />
-        <div className='min-w-0'>
-          <GatewayCard logo='/logo.png' systemName={systemName} />
+        <div className='flex min-w-0 flex-col items-center justify-center gap-3'>
+          <Button
+            className='group h-[52px] w-full max-w-[280px] rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 px-6 text-base font-medium text-white shadow-[0_10px_24px_-8px_rgba(37,99,235,0.55)] hover:from-blue-700 hover:to-blue-600'
+            render={
+              isAuthenticated ? <Link to='/dashboard' /> : <Link to='/sign-up' />
+            }
+          >
+            {t('Register now')}
+            <ArrowRight className='ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5' />
+          </Button>
+          <Button
+            className='h-[52px] w-full max-w-[280px] rounded-lg border-blue-200 px-6 text-base font-medium text-blue-600 shadow-sm hover:border-blue-300 hover:bg-blue-50 dark:border-blue-500/40 dark:text-blue-400 dark:hover:bg-blue-500/10'
+            variant='outline'
+            render={
+              isAuthenticated ? (
+                <Link to='/dashboard' />
+              ) : (
+                <Link to='/sign-in' />
+              )
+            }
+          >
+            {t('Get Started')}
+          </Button>
+          <Button
+            className='h-[52px] w-full max-w-[280px] rounded-lg border-border/50 px-6 text-base font-medium hover:bg-muted/50'
+            variant='outline'
+            render={<Link to='/pricing' />}
+          >
+            {t('View Pricing')}
+          </Button>
         </div>
         <ScrollingIcons
           icons={ECOSYSTEM_APPS}
           direction='down'
           className='-my-2 h-[420px]'
         />
-      </div>
-
-      <div className='mt-12 text-center'>
-        <Button
-          className='group h-11 rounded-lg px-5 text-sm font-medium'
-          render={
-            isAuthenticated ? <Link to='/dashboard' /> : <Link to='/pricing' />
-          }
-        >
-          {t('Explore the Model Square')}
-          <ArrowRight className='ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5' />
-        </Button>
       </div>
     </section>
   )

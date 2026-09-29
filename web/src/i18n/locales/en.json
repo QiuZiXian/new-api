@@ -5406,6 +5406,14 @@
     "Enterprise-grade access control": "Enterprise-grade access control",
     "Quotas, expiry, model limits and IP allowlists.": "Quotas, expiry, model limits and IP allowlists.",
     "Usage & cost visibility": "Usage & cost visibility",
-    "Track tokens, requests, costs and task history in real time.": "Track tokens, requests, costs and task history in real time."
+    "Track tokens, requests, costs and task history in real time.": "Track tokens, requests, costs and task history in real time.",
+    "Try kimi-k3 now": "Try kimi-k3 now",
+    "New-generation image model unifying generation and editing": "New-generation image model unifying generation and editing",
+    "Handles complex multimodal tasks: knowledge-based generation, reasoning and reference consistency": "Handles complex multimodal tasks: knowledge-based generation, reasoning and reference consistency",
+    "Much faster inference with up to 4K high-resolution output": "Much faster inference with up to 4K high-resolution output",
+    "Generates images from plain text prompts": "Generates images from plain text prompts",
+    "Built for concept art, social visuals, marketing mockups and product images": "Built for concept art, social visuals, marketing mockups and product images",
+    "Turns natural-language ideas into visuals in seconds": "Turns natural-language ideas into visuals in seconds",
+    "Register now": "Register now"
   }
 }

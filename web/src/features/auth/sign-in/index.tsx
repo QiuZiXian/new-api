@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Link, useSearch } from '@tanstack/react-router'
+import { ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { useStatus } from '@/hooks/use-status'
@@ -47,16 +48,16 @@ export function SignIn() {
           </h2>
           {!status?.self_use_mode_enabled &&
             status?.register_enabled !== false && (
-              <p className='text-muted-foreground text-left text-sm sm:text-base'>
-                {t("Don't have an account?")}{' '}
+              <div className='text-muted-foreground flex flex-wrap items-center gap-2.5 text-left text-sm sm:text-base'>
+                <span>{t("Don't have an account?")}</span>
                 <Link
                   to='/sign-up'
-                  className='hover:text-primary font-medium underline underline-offset-4'
+                  className='inline-flex h-10 items-center gap-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 px-5 text-base font-semibold text-white shadow-[0_8px_20px_-6px_rgba(37,99,235,0.6)] transition-all hover:from-blue-700 hover:to-blue-600'
                 >
                   {t('Sign up')}
+                  <ArrowRight className='size-4' />
                 </Link>
-                .
-              </p>
+              </div>
             )}
         </div>
 
