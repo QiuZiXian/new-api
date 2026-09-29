@@ -52,49 +52,71 @@ export function HowItWorks() {
   ]
 
   return (
-    <section className='border-border/40 relative z-10 border-t px-6 py-20 md:py-28'>
-      <div className='mx-auto max-w-6xl'>
-        <AnimateInView className='mb-12 text-center md:mb-16'>
-          <p className='text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase'>
-            {t('Teams')}
-          </p>
-          <h2 className='text-2xl font-bold tracking-tight md:text-3xl'>
-            {t('Built for every AI-powered team')}
-          </h2>
-          <p className='text-muted-foreground mx-auto mt-3 max-w-2xl text-sm leading-relaxed'>
-            {t(
-              'Whether it is API integration, content production or enterprise governance, one platform covers the workflow.'
-            )}
-          </p>
-        </AnimateInView>
+    <section className='relative z-10 px-4 py-10 md:px-6 md:py-14'>
+      {/* Gradient banner panel */}
+      <div className='relative isolate mx-auto max-w-[1400px] overflow-hidden rounded-[32px] px-6 py-16 shadow-[0_40px_90px_-45px_rgba(49,46,129,0.55)] md:px-12 md:py-20'>
+        <div
+          aria-hidden
+          className='absolute inset-0 -z-20 bg-[linear-gradient(120deg,#172554_0%,#1d4ed8_48%,#7c3aed_100%)]'
+        />
+        <div
+          aria-hidden
+          className='absolute inset-0 -z-10 bg-[linear-gradient(to_right,rgba(255,255,255,0.10)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.10)_1px,transparent_1px)] bg-[size:44px_44px] [mask-image:radial-gradient(ellipse_80%_70%_at_50%_30%,black_30%,transparent_100%)]'
+        />
+        <div
+          aria-hidden
+          className='absolute -top-24 -right-16 -z-10 size-80 rounded-full bg-violet-300/25 blur-3xl'
+        />
+        <div
+          aria-hidden
+          className='absolute -bottom-24 -left-20 -z-10 size-96 rounded-full bg-sky-400/20 blur-3xl'
+        />
 
-        <div className='grid gap-5 md:grid-cols-3'>
-          {teams.map((team, i) => (
-            <AnimateInView
-              key={team.title}
-              delay={i * 140}
-              animation='fade-up'
-              className='border-border/50 bg-card hover:border-blue-500/30 hover:shadow-[0_16px_40px_-20px_rgba(37,99,235,0.35)] relative flex flex-col rounded-2xl border p-6 transition-all duration-300'
-            >
-              <span className='mb-5 inline-flex size-11 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:bg-blue-400/10 dark:text-blue-400'>
-                {team.icon}
-              </span>
-              <h3 className='mb-2 text-base font-semibold'>{team.title}</h3>
-              <p className='text-muted-foreground mb-5 text-sm leading-relaxed'>
-                {team.desc}
-              </p>
-              <div className='mt-auto flex flex-wrap gap-1.5'>
-                {team.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className='border-border/60 bg-muted/40 text-muted-foreground rounded-md border px-2 py-0.5 text-[11px]'
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </AnimateInView>
-          ))}
+        <div className='mx-auto max-w-6xl'>
+          <AnimateInView className='mb-12 text-center md:mb-16'>
+            <p className='mb-3 text-xs font-medium tracking-widest uppercase text-indigo-100/80'>
+              {t('Teams')}
+            </p>
+            <h2 className='text-2xl font-bold tracking-tight text-white md:text-3xl'>
+              {t('Built for every AI-powered team')}
+            </h2>
+            <p className='mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-indigo-50/85'>
+              {t(
+                'Whether it is API integration, content production or enterprise governance, one platform covers the workflow.'
+              )}
+            </p>
+          </AnimateInView>
+
+          <div className='grid gap-5 md:grid-cols-3'>
+            {teams.map((team, i) => (
+              <AnimateInView
+                key={team.title}
+                delay={i * 140}
+                animation='fade-up'
+                className='group border-white/15 bg-white/10 hover:border-white/30 hover:bg-white/15 relative flex flex-col rounded-2xl border p-6 backdrop-blur-sm transition-all duration-300 hover:shadow-[0_20px_45px_-25px_rgba(2,6,23,0.6)]'
+              >
+                <span className='mb-5 inline-flex size-11 items-center justify-center rounded-xl bg-white/15 text-white transition-colors group-hover:bg-white/25'>
+                  {team.icon}
+                </span>
+                <h3 className='mb-2 text-base font-semibold text-white'>
+                  {team.title}
+                </h3>
+                <p className='mb-5 text-sm leading-relaxed text-indigo-50/85'>
+                  {team.desc}
+                </p>
+                <div className='mt-auto flex flex-wrap gap-1.5'>
+                  {team.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className='rounded-md border border-white/20 bg-white/10 px-2 py-0.5 text-[11px] text-indigo-50/90'
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </AnimateInView>
+            ))}
+          </div>
         </div>
       </div>
     </section>

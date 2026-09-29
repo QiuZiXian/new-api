@@ -119,9 +119,11 @@ function LegalLinks(props: { leadingSeparator?: boolean }) {
 
 export function Footer(props: FooterProps) {
   const { t } = useTranslation()
-  const { footerHtml, demoSiteEnabled } = useSystemConfig()
+  const { systemName, footerHtml, demoSiteEnabled } = useSystemConfig()
 
+  const displayName = systemName || props.name || 'New API'
   const isDemoSiteMode = Boolean(demoSiteEnabled)
+  const currentYear = new Date().getFullYear()
 
   const fallbackColumns = useMemo<FooterColumnProps[]>(
     () => [
@@ -197,7 +199,10 @@ export function Footer(props: FooterProps) {
               dangerouslySetInnerHTML={{ __html: footerHtml }}
             />
             <div className='border-border/60 text-muted-foreground/45 flex w-full flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t pt-4 text-xs sm:w-auto sm:justify-end sm:border-t-0 sm:border-l sm:pt-0 sm:pl-5'>
-              <LegalLinks />
+              <span>
+                &copy; {currentYear} {displayName}
+              </span>
+              <LegalLinks leadingSeparator />
             </div>
           </div>
         </div>
@@ -232,11 +237,13 @@ export function Footer(props: FooterProps) {
           )}
         </div>
 
-        {/* Copyright + optional legal links inline on the left, project
-            attribution on the right; wraps on narrow screens. */}
+        {/* Copyright + legal links; wraps on narrow screens. */}
         <div className='border-border/30 mt-12 flex flex-col items-center justify-between gap-x-3 gap-y-2 border-t pt-6 sm:flex-row'>
           <div className='text-muted-foreground/40 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs sm:justify-start'>
-            <LegalLinks />
+            <span>
+              &copy; {currentYear} {displayName}
+            </span>
+            <LegalLinks leadingSeparator />
           </div>
         </div>
       </div>

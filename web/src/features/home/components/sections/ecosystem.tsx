@@ -16,21 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { ArrowRight } from 'lucide-react'
+import { Rocket, Tags, UserPlus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { AnimateInView } from '@/components/animate-in-view'
 import { Button } from '@/components/ui/button'
 import { Link } from '@tanstack/react-router'
 
-import { ECOSYSTEM_APPS } from '../../constants'
-import { ScrollingIcons } from '../scrolling-icons'
-
 /**
- * Second screen — Application Ecosystem / Gateway showcase.
- * A central gateway card flanked by two reverse-scrolling app icon walls,
- * echoing the "app marketplace" aggregation feel of the reference sites while
- * keeping the existing blue-purple tech aesthetic.
+ * Second screen — gateway headline with the three primary entry actions.
  */
 export function Ecosystem() {
   const { t } = useTranslation()
@@ -50,7 +44,7 @@ export function Ecosystem() {
         }}
       />
 
-      <AnimateInView className='mx-auto mb-12 max-w-2xl text-center md:mb-16'>
+      <AnimateInView className='mx-auto mb-10 max-w-2xl text-center md:mb-12'>
         <p className='text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase'>
           {t('Application Ecosystem')}
         </p>
@@ -63,49 +57,38 @@ export function Ecosystem() {
         </h2>
       </AnimateInView>
 
-      <div className='mx-auto grid max-w-6xl grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-5'>
-        <ScrollingIcons
-          icons={ECOSYSTEM_APPS}
-          direction='up'
-          className='-my-2 h-[420px]'
-        />
-        <div className='flex min-w-0 flex-col items-center justify-center gap-3'>
-          <Button
-            className='group h-[52px] w-full max-w-[280px] rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 px-6 text-base font-medium text-white shadow-[0_10px_24px_-8px_rgba(37,99,235,0.55)] hover:from-blue-700 hover:to-blue-600'
-            render={
-              isAuthenticated ? <Link to='/dashboard' /> : <Link to='/sign-up' />
-            }
-          >
-            {t('Register now')}
-            <ArrowRight className='ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5' />
-          </Button>
-          <Button
-            className='h-[52px] w-full max-w-[280px] rounded-lg border-blue-200 px-6 text-base font-medium text-blue-600 shadow-sm hover:border-blue-300 hover:bg-blue-50 dark:border-blue-500/40 dark:text-blue-400 dark:hover:bg-blue-500/10'
-            variant='outline'
-            render={
-              isAuthenticated ? (
-                <Link to='/dashboard' />
-              ) : (
-                <Link to='/sign-in' />
-              )
-            }
-          >
-            {t('Get Started')}
-          </Button>
-          <Button
-            className='h-[52px] w-full max-w-[280px] rounded-lg border-border/50 px-6 text-base font-medium hover:bg-muted/50'
-            variant='outline'
-            render={<Link to='/pricing' />}
-          >
-            {t('View Pricing')}
-          </Button>
-        </div>
-        <ScrollingIcons
-          icons={ECOSYSTEM_APPS}
-          direction='down'
-          className='-my-2 h-[420px]'
-        />
-      </div>
+      <AnimateInView
+        className='flex flex-col items-center justify-center gap-4 sm:flex-row sm:gap-5'
+        animation='fade-up'
+      >
+        <Button
+          className='group h-[52px] w-full rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-7 text-base font-medium text-white shadow-[0_12px_28px_-10px_rgba(37,99,235,0.65)] transition-all duration-300 hover:-translate-y-0.5 hover:from-blue-700 hover:to-blue-600 hover:shadow-[0_18px_36px_-12px_rgba(37,99,235,0.75)] sm:w-auto'
+          render={
+            isAuthenticated ? <Link to='/dashboard' /> : <Link to='/sign-up' />
+          }
+        >
+          <UserPlus className='mr-1.5 size-4' />
+          {t('Register now')}
+        </Button>
+        <Button
+          className='h-[52px] w-full rounded-xl border-blue-200 bg-white px-7 text-base font-medium text-blue-600 shadow-[0_10px_24px_-12px_rgba(37,99,235,0.35)] transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50 hover:shadow-[0_16px_30px_-12px_rgba(37,99,235,0.45)] sm:w-auto dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/20'
+          variant='outline'
+          render={
+            isAuthenticated ? <Link to='/dashboard' /> : <Link to='/sign-in' />
+          }
+        >
+          <Rocket className='mr-1.5 size-4' />
+          {t('Get Started')}
+        </Button>
+        <Button
+          className='h-[52px] w-full rounded-xl border-border/60 bg-white/70 px-7 text-base font-medium shadow-[0_10px_24px_-14px_rgba(15,23,42,0.25)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-border hover:bg-white hover:shadow-[0_16px_30px_-14px_rgba(15,23,42,0.3)] sm:w-auto dark:bg-white/5'
+          variant='outline'
+          render={<Link to='/pricing' />}
+        >
+          <Tags className='mr-1.5 size-4' />
+          {t('View Pricing')}
+        </Button>
+      </AnimateInView>
     </section>
   )
 }
