@@ -53,41 +53,24 @@ export function AuthLayout({ children }: AuthLayoutProps) {
 
   return (
     <PublicLayout showMainContainer={false}>
-      <div className='grid min-h-svh lg:grid-cols-2'>
-        {/* Left: brand panel (desktop only) */}
-        <aside className='relative hidden overflow-hidden bg-[linear-gradient(160deg,#1d4ed8_0%,#2563eb_45%,#0ea5e9_100%)] lg:flex lg:flex-col'>
-          {/* Decorative grid + glows */}
-          <div
-            aria-hidden
-            className='absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.08)_1px,transparent_1px)] bg-[size:3rem_3rem] [mask-image:radial-gradient(ellipse_75%_65%_at_45%_40%,black_25%,transparent_100%)]'
-          />
-          <div
-            aria-hidden
-            className='absolute -top-24 -right-16 size-80 rounded-full bg-cyan-300/25 blur-3xl'
-          />
-          <div
-            aria-hidden
-            className='absolute bottom-0 -left-20 size-96 rounded-full bg-blue-300/20 blur-3xl'
-          />
-          <svg
-            aria-hidden
-            viewBox='0 0 480 300'
-            className='absolute inset-x-0 bottom-0 w-full opacity-40'
-            fill='none'
-          >
-            <g stroke='rgba(255,255,255,0.5)' strokeWidth='1'>
-              <path d='M-10 240h150l30 30h130' />
-              <path d='M490 210h-130l-36 36h-110' />
-            </g>
-            <g fill='rgba(255,255,255,0.7)'>
-              <circle cx='170' cy='240' r='2.5' />
-              <circle cx='214' cy='270' r='2.5' />
-              <circle cx='330' cy='246' r='2.5' />
-            </g>
-          </svg>
+      <div className='relative isolate grid min-h-svh lg:grid-cols-2'>
+        {/* Full-bleed background artwork, mirrored so the illustration sits
+            on the left and the open space stays behind the form. */}
+        <img
+          aria-hidden
+          src='/home/hero-slide-2.jpg'
+          alt=''
+          className='absolute inset-0 -z-20 h-full w-full scale-x-[-1] object-cover object-[65%_center]'
+        />
+        <div
+          aria-hidden
+          className='absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgba(6,17,44,0.86)_0%,rgba(6,17,44,0.62)_45%,rgba(6,17,44,0.28)_100%)]'
+        />
 
+        {/* Left: brand panel (desktop only) */}
+        <aside className='relative hidden lg:flex lg:flex-col'>
           {/* Value proposition */}
-          <div className='relative z-10 flex flex-1 flex-col justify-center gap-8 px-10 pt-32 pb-12'>
+          <div className='relative z-10 flex flex-1 flex-col justify-center gap-8 px-10 pt-24 pb-12'>
             <div>
               <h2 className='text-3xl leading-snug font-bold tracking-tight text-white'>
                 {t('Welcome back')}
@@ -134,7 +117,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
 
         {/* Right: form area (top bar comes from PublicLayout) */}
         <main className='relative flex flex-col'>
-          <div className='container flex flex-1 items-center justify-center pt-28 pb-10 lg:pt-32'>
+          <div className='container flex flex-1 items-center justify-center pt-24 pb-10 lg:pt-28'>
             <div className='glass-1 relative mx-auto flex w-full flex-col justify-center space-y-2 border-border/50 px-6 py-8 shadow-[0_20px_60px_-25px_rgba(15,23,42,0.18)] sm:w-[440px] sm:rounded-2xl sm:p-8 dark:shadow-[0_20px_60px_-25px_rgba(0,0,0,0.6)]'>
               {children}
             </div>

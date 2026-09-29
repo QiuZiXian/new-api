@@ -42,7 +42,7 @@ export function PricingHero(props: PricingHeroProps) {
         <div className='absolute inset-x-0 bottom-0 h-20 bg-[linear-gradient(180deg,transparent,var(--background))]' />
       </div>
 
-      <div className='mx-auto flex max-w-[1800px] flex-col items-start gap-6 px-4 pt-28 pb-12 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:pt-40 sm:pb-14 xl:px-8'>
+      <div className='mx-auto flex max-w-[1800px] flex-col items-start gap-6 px-4 pt-24 pb-12 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:pt-32 sm:pb-14 xl:px-8'>
         <div className='landing-animate-fade-up min-w-0 opacity-0'>
           <h1 className='text-slate-900 text-[clamp(1.75rem,3vw,2.5rem)] leading-tight font-bold tracking-tight dark:text-slate-50'>
             {t('Model Square')}

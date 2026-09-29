@@ -179,15 +179,18 @@ export function PublicHeader(props: PublicHeaderProps) {
         <div
           className={cn(
             'pointer-events-auto transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
-            scrolled ? 'mx-auto max-w-[52rem] px-3 pt-3' : 'w-full px-4 md:px-8'
+            scrolled
+              ? 'mx-auto max-w-[80rem] px-4 pt-3'
+              : 'w-full pl-[2.777%] pr-[2.777%] pt-4 lg:pr-[14%]'
           )}
         >
           <nav
             className={cn(
-              'flex items-center justify-between transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
+              'flex flex-nowrap items-center justify-between transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
+              'h-16 md:h-20',
               scrolled
-                ? 'bg-background/60 ring-border/50 h-12 rounded-2xl pr-1.5 pl-4 shadow-[0_2px_16px_-6px_rgba(0,0,0,0.08),0_0_0_0.5px_rgba(0,0,0,0.02)] ring-[0.5px] backdrop-blur-2xl dark:shadow-[0_2px_16px_-6px_rgba(0,0,0,0.4)]'
-                : 'h-24 px-2 md:h-32'
+                ? 'bg-background/60 ring-border/50 rounded-2xl pr-2 pl-4 shadow-[0_2px_16px_-6px_rgba(0,0,0,0.08),0_0_0_0.5px_rgba(0,0,0,0.02)] ring-[0.5px] backdrop-blur-2xl dark:shadow-[0_2px_16px_-6px_rgba(0,0,0,0.4)]'
+                : 'px-2'
             )}
           >
             {/* Logo */}
@@ -198,7 +201,7 @@ export function PublicHeader(props: PublicHeaderProps) {
               <div
                 className={cn(
                   'flex shrink-0 items-center justify-center transition-all duration-300 group-hover:scale-105',
-                  scrolled ? 'size-9' : 'size-10 md:size-14'
+                  scrolled ? 'size-9 md:size-11' : 'size-10 md:size-14'
                 )}
               >
                 {loading ? (
@@ -216,12 +219,12 @@ export function PublicHeader(props: PublicHeaderProps) {
               </div>
               <span
                 className={cn(
-                  'font-semibold tracking-tight',
-                  scrolled ? 'text-base' : 'text-xl md:text-2xl'
+                  'font-semibold whitespace-nowrap tracking-tight',
+                  scrolled ? 'text-base md:text-lg' : 'text-xl md:text-2xl'
                 )}
               >
                 {loading ? (
-                  <Skeleton className={scrolled ? 'h-4 w-20' : 'h-7 w-32'} />
+                  <Skeleton className='h-7 w-32' />
                 ) : (
                   displaySiteName
                 )}
@@ -229,7 +232,7 @@ export function PublicHeader(props: PublicHeaderProps) {
             </Link>
 
             {/* Desktop nav */}
-            <div className='hidden items-center gap-0.5 sm:flex'>
+            <div className='hidden flex-nowrap items-center gap-0.5 whitespace-nowrap sm:flex'>
               {links.map((link, i) => {
                 const isActive = pathname === link.href
                 if (link.external) {
@@ -243,7 +246,7 @@ export function PublicHeader(props: PublicHeaderProps) {
                       tabIndex={link.disabled ? -1 : undefined}
                       onClick={(event) => handleNavLinkClick(event, link)}
                       className={cn(
-                        'rounded-lg px-3 py-1.5 text-base font-medium transition-colors duration-200 md:text-xl',
+                        'hover:text-blue-600 rounded-lg border-b-2 border-transparent px-3 py-1.5 text-base font-medium whitespace-nowrap transition-colors duration-200 md:text-xl dark:hover:text-blue-400',
                         link.disabled && 'pointer-events-none opacity-50'
                       )}
                     >
@@ -258,10 +261,10 @@ export function PublicHeader(props: PublicHeaderProps) {
                     disabled={link.disabled}
                     onClick={(event) => handleNavLinkClick(event, link)}
                     className={cn(
-                      'rounded-lg px-3 py-1.5 text-base font-medium transition-colors duration-200 md:text-xl',
+                      'rounded-lg border-b-2 px-3 py-1.5 text-base font-medium whitespace-nowrap transition-colors duration-200 md:text-xl',
                       isActive
-                        ? 'text-foreground'
-                        : 'text-muted-foreground hover:text-foreground',
+                        ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                        : 'border-transparent text-foreground hover:text-blue-600 dark:hover:text-blue-400',
                       link.disabled && 'pointer-events-none opacity-50'
                     )}
                   >

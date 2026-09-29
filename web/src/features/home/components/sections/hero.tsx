@@ -298,7 +298,7 @@ export function Hero(props: HeroProps) {
         <div className='absolute inset-x-0 bottom-0 h-24 bg-[linear-gradient(180deg,transparent,var(--background))]' />
       </div>
 
-      <div className='mx-auto max-w-7xl px-6 pt-28 pb-16 sm:pt-36 lg:pb-24'>
+      <div className='mx-auto max-w-7xl px-6 pt-24 pb-16 sm:pt-32 lg:pb-24'>
         {/* Left: rotating banner copy */}
         <div className='landing-animate-fade-up min-w-0 max-w-2xl opacity-0'>
           <AnimatePresence mode='wait' initial={false}>
