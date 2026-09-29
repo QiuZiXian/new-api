@@ -47,6 +47,10 @@ export type PricingModel = {
   audio_completion_ratio?: number | null
   enable_groups: string[]
   tags?: string
+  /** Corner badge shown at the card's top-left, e.g. "热门" */
+  hot_label?: string
+  /** Diagonal ribbon shown at the card's top-right, e.g. "8折" */
+  discount_label?: string
   supported_endpoint_types?: string[]
   key?: string
   group_ratio?: Record<string, number>

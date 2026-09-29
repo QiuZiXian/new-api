@@ -39,6 +39,10 @@ export interface Model {
   description?: string
   icon?: string
   tags?: string
+  /** Top-left badge on the model square card, e.g. "热门" */
+  hot_label?: string
+  /** Top-right diagonal ribbon on the model square card, e.g. "8折" */
+  discount_label?: string
   vendor_id?: number
   endpoints?: string
   status: number
@@ -233,6 +237,8 @@ export const modelFormSchema = z.object({
   description: z.string().default(''),
   icon: z.string().default(''),
   tags: z.array(z.string()).default([]),
+  hot_label: z.string().default(''),
+  discount_label: z.string().default(''),
   vendor_id: z.number().optional(),
   endpoints: z.string().default(''),
   name_rule: z.number().min(0).max(3).default(0),

@@ -93,6 +93,8 @@ const extendedModelFormSchema = z.object({
   description: z.string(),
   icon: z.string(),
   tags: z.array(z.string()),
+  hot_label: z.string(),
+  discount_label: z.string(),
   vendor_id: z.number().optional(),
   endpoints: z.string(),
   name_rule: z.number(),
@@ -365,6 +367,8 @@ export function ModelMutateDrawer({
       description: '',
       icon: '',
       tags: [],
+      hot_label: '',
+      discount_label: '',
       vendor_id: undefined,
       endpoints: '',
       name_rule: 0,
@@ -433,6 +437,8 @@ export function ModelMutateDrawer({
         description: model.description || '',
         icon: model.icon || '',
         tags: parseModelTags(model.tags),
+        hot_label: model.hot_label || '',
+        discount_label: model.discount_label || '',
         vendor_id: model.vendor_id,
         endpoints: model.endpoints || '',
         name_rule: model.name_rule || 0,
@@ -458,6 +464,8 @@ export function ModelMutateDrawer({
         description: '',
         icon: '',
         tags: [],
+        hot_label: '',
+        discount_label: '',
         vendor_id: undefined,
         endpoints: '',
         name_rule: 0,
@@ -875,6 +883,50 @@ export function ModelMutateDrawer({
                   </FormItem>
                 )}
               />
+
+              <div className='grid gap-4 sm:grid-cols-2'>
+                <FormField
+                  control={form.control}
+                  name='hot_label'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Hot Label')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t('e.g. Hot')}
+                          maxLength={32}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription className='text-xs'>
+                        {t('Shown at the top-left of the model square card')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='discount_label'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Discount Label')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t('e.g. 20% off')}
+                          maxLength={32}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription className='text-xs'>
+                        {t('Shown as a ribbon at the top-right of the card')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </SideDrawerSection>
 
             {/* Matching Configuration */}

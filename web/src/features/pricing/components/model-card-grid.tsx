@@ -72,20 +72,23 @@ export function ModelCardGrid(props: ModelCardGridProps) {
 
   return (
     <div className='space-y-4 sm:space-y-5'>
-      <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5'>
-        {pagedModels.map((model) => (
-          <ModelCard
-            key={model.id ?? model.model_name}
-            model={model}
-            tokenUnit={tokenUnit}
-            priceRate={props.priceRate}
-            usdExchangeRate={props.usdExchangeRate}
-            showRechargePrice={props.showRechargePrice}
-            selectedGroup={props.selectedGroup}
-            perf={perfMap.get(model.model_name || '')}
-            onClick={() => props.onModelClick(model.model_name || '')}
-          />
-        ))}
+      {/* Light tinted panel so the raised cards read as floating cards */}
+      <div className='border-border/50 rounded-2xl border bg-gradient-to-b from-slate-100/90 via-sky-50/70 to-slate-50/90 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] sm:p-4 dark:border-white/5 dark:from-muted/40 dark:via-muted/25 dark:to-muted/35 dark:shadow-none'>
+        <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5'>
+          {pagedModels.map((model) => (
+            <ModelCard
+              key={model.id ?? model.model_name}
+              model={model}
+              tokenUnit={tokenUnit}
+              priceRate={props.priceRate}
+              usdExchangeRate={props.usdExchangeRate}
+              showRechargePrice={props.showRechargePrice}
+              selectedGroup={props.selectedGroup}
+              perf={perfMap.get(model.model_name || '')}
+              onClick={() => props.onModelClick(model.model_name || '')}
+            />
+          ))}
+        </div>
       </div>
 
       <NumericPagination

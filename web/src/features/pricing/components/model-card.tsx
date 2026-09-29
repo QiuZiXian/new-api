@@ -92,6 +92,10 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
     props.model.billing_mode === 'tiered_expr' &&
     Boolean(props.model.billing_expr)
   const isHot = tags.some((tag) => ['hot', '热门'].includes(tag.toLowerCase()))
+  // Badge text is configured per model in the admin; empty means "no badge".
+  // The legacy tag-derived HOT badge stays as a fallback for existing setups.
+  const hotBadgeText = props.model.hot_label?.trim() || (isHot ? 'HOT' : '')
+  const discountLabel = props.model.discount_label?.trim() ?? ''
 
   const dynamicSummary = isDynamicPricing
     ? getDynamicPricingSummary(props.model, {
@@ -164,19 +168,33 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       tabIndex={0}
       onClick={props.onClick}
       onKeyDown={handleKeyDown}
-      className='group border-border/60 hover:border-blue-500/40 hover:shadow-[0_16px_40px_-18px_rgba(37,99,235,0.35)] relative flex cursor-pointer flex-col items-center rounded-2xl border bg-card px-4 pt-8 pb-4 text-center transition-all duration-300 hover:-translate-y-0.5'
+      className='group border-border/50 hover:border-blue-500/40 relative flex cursor-pointer flex-col items-center overflow-hidden rounded-2xl border bg-gradient-to-b from-card via-card to-muted/45 px-4 pt-8 pb-4 text-center shadow-[0_1px_2px_rgba(15,23,42,0.06),0_10px_22px_-12px_rgba(15,23,42,0.20),inset_0_1px_0_rgba(255,255,255,0.85)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_38px_-16px_rgba(37,99,235,0.42),inset_0_1px_0_rgba(255,255,255,0.9)] dark:border-white/10 dark:shadow-[0_12px_26px_-14px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.06)]'
     >
-      {/* Top-left popularity badge */}
-      {isHot && (
-        <span className='absolute top-3 left-3 rounded-full bg-gradient-to-r from-orange-400 to-red-400 px-2 py-0.5 text-[10px] font-bold tracking-wide text-white'>
-          HOT
+      {/* Top-left popularity badge, text comes from backend settings */}
+      {hotBadgeText && (
+        <span className='absolute top-2.5 left-2.5 z-20 rounded-full bg-gradient-to-r from-orange-400 to-red-500 px-2 py-0.5 text-[10px] leading-none font-bold tracking-wide text-white shadow-[0_2px_6px_-1px_rgba(249,115,22,0.55)]'>
+          {hotBadgeText}
         </span>
       )}
 
+      {/* Top-right discount ribbon, text comes from backend settings */}
+      {discountLabel && (
+        <div className='pointer-events-none absolute top-0 right-0 z-20 h-16 w-16 overflow-hidden rounded-tr-2xl'>
+          <span className='absolute top-[14px] right-[-30px] w-24 rotate-45 overflow-hidden bg-gradient-to-r from-rose-500 to-red-500 py-[3px] text-center text-[10px] leading-[14px] font-bold tracking-wide text-ellipsis whitespace-nowrap text-white shadow-[0_2px_8px_-2px_rgba(225,29,72,0.6)]'>
+            {discountLabel}
+          </span>
+        </div>
+      )}
+
       {/* Top-right badges: tiered pricing + hover copy */}
-      <div className='absolute inset-x-3 top-3 flex items-center justify-end gap-1.5'>
+      <div
+        className={cn(
+          'absolute top-2.5 z-10 flex items-center justify-end gap-1.5',
+          discountLabel ? 'right-16' : 'right-2.5'
+        )}
+      >
         {isDynamicPricing && !dynamicSummary?.isSpecialExpression && (
-          <span className='border-amber-300/80 bg-amber-50 text-amber-600 rounded-full border px-2 py-0.5 text-[10px] font-medium dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300'>
+          <span className='border-amber-300/80 bg-amber-50 text-amber-600 rounded-full border px-2 py-0.5 text-[10px] leading-none font-medium dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300'>
             {t('Tiered pricing')}
           </span>
         )}
@@ -192,7 +210,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       </div>
 
       {/* Icon + name + vendor */}
-      <div className='border-border/50 bg-muted/30 flex size-14 shrink-0 items-center justify-center rounded-2xl border'>
+      <div className='border-border/50 bg-background/80 flex size-14 shrink-0 items-center justify-center rounded-2xl border shadow-[0_2px_8px_-3px_rgba(15,23,42,0.18)] dark:bg-muted/40'>
         {modelIcon || (
           <span className='text-muted-foreground text-lg font-bold'>
             {initial}
@@ -233,7 +251,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
         {priceLabel && (
           <span className='text-muted-foreground text-xs'>{priceLabel}</span>
         )}
-        <span className='font-mono text-[15px] font-semibold text-red-500 tabular-nums dark:text-red-400'>
+        <span className='font-mono text-[18px] font-bold text-red-500 tabular-nums dark:text-red-400'>
           {priceValue}
         </span>
         {priceUnit && (
