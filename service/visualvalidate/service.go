@@ -244,8 +244,9 @@ func GetResult(userID int, req GetResultReq) (*model.VisualValidateSession, stri
 	}
 
 	if sessionID == "" {
-		// 纯透传：不落库。
-		groupID, err := fetchUpstreamGroupIDByToken(token, strings.TrimSpace(req.ProjectName), pickAnyChannel)
+		// 纯透传：不落库。但渠道不能凭空挑——先用 BytedToken 反查签发它的会话，
+		// 走同一个渠道，避免多渠道时把 token 打到错误的上游而误报"无效或已过期"。
+		groupID, err := fetchUpstreamGroupIDByToken(token, strings.TrimSpace(req.ProjectName), resultChannels(userID, token, 0))
 		if err != nil {
 			return nil, "", translateUpstreamResultError(err)
 		}
@@ -298,35 +299,118 @@ func GetResult(userID int, req GetResultReq) (*model.VisualValidateSession, stri
 // 上游调用 helpers
 // ============================
 
-// errUpstreamTokenInvalid 表示 BytedToken 过期/已使用（上游 404）。
+// errUpstreamTokenInvalid 表示 BytedToken 过期/已使用/尚未完成认证。
 var errUpstreamTokenInvalid = errors.New("byted token invalid or expired")
 
-// pickAnyChannel 挑一个可用渠道（纯透传场景用）。
-func pickAnyChannel() (*model.Channel, error) {
-	return assetservice.PickAssetChannel()
+// fetchUpstreamGroupID 用会话记录的渠道调上游 results（回调 / session_id 路径用）。
+// 会话登记的渠道排在最前，失败时再退到其它可用渠道。
+func fetchUpstreamGroupID(s *model.VisualValidateSession, bytedToken string) (string, error) {
+	token := strings.TrimSpace(bytedToken)
+	if token == "" {
+		token = s.UpstreamToken
+	}
+	return fetchUpstreamGroupIDByToken(token, "", resultChannels(s.UserID, "", s.ChannelID))
 }
 
-// fetchUpstreamGroupIDByToken 用指定渠道选择器调上游 results。
-func fetchUpstreamGroupIDByToken(token, projectName string, pickChannel func() (*model.Channel, error)) (string, error) {
+// resultChannels 决定 results 请求按什么顺序打到哪些上游渠道。
+//
+// 多渠道（cii-group / 火山官方 / 其它代理）并存时，凭空挑一个渠道很可能把
+// BytedToken 打到另一个账号/站点，上游回 404 或 NotFound，被误报成
+// "BytedToken 无效或已过期"——这正是只传 byted_token 查结果出错的直接原因。
+// 因此：优先用"签发该 token 的会话"登记的渠道（preferredChannelID>0 时直接用），
+// 后面才接全部可用渠道作为兜底。
+func resultChannels(userID int, token string, preferredChannelID int) []*model.Channel {
+	if preferredChannelID <= 0 {
+		preferredChannelID = lookupTokenChannel(userID, token)
+	}
+	var (
+		out  []*model.Channel
+		seen = make(map[int]bool)
+	)
+	appendChannel := func(id int) {
+		if id <= 0 || seen[id] {
+			return
+		}
+		if ch, err := model.GetChannelById(id, true); err == nil && ch != nil && ch.Key != "" {
+			seen[id] = true
+			out = append(out, ch)
+		}
+	}
+	appendChannel(preferredChannelID)
+
+	all, err := assetservice.PickAssetChannels()
+	if err != nil {
+		common.SysError("visualvalidate: list asset channels failed: " + err.Error())
+	}
+	for _, ch := range all {
+		if seen[ch.Id] {
+			continue
+		}
+		seen[ch.Id] = true
+		out = append(out, ch)
+	}
+	return out
+}
+
+// lookupTokenChannel 用 BytedToken 反查签发会话的渠道；查不到返回 0。
+func lookupTokenChannel(userID int, token string) int {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return 0
+	}
+	if s, err := model.GetVisualValidateSessionByUpstreamToken(token, userID); err == nil && s != nil {
+		return s.ChannelID
+	}
+	if s, err := model.GetVisualValidateSessionByUpstreamToken(token, 0); err == nil && s != nil {
+		return s.ChannelID
+	}
+	return 0
+}
+
+// fetchUpstreamGroupIDByToken 按候选渠道顺序调上游 results 换 GroupId。
+// 上游明确判定 token 不存在时立即返回 errUpstreamTokenInvalid，不再重试其它渠道；
+// 其余渠道级错误（路径错、鉴权错、网络错）继续换下一个渠道，全部失败时返回最后一个错误。
+func fetchUpstreamGroupIDByToken(token, projectName string, channels []*model.Channel) (string, error) {
 	if token == "" {
 		return "", errors.New("byted_token is required")
 	}
-	ch, err := pickChannel()
-	if err != nil {
-		return "", fmt.Errorf("pick channel: %w", err)
+	if len(channels) == 0 {
+		return "", errors.New("no enabled doubao/volcengine channel")
 	}
+	var lastErr error
+	for _, ch := range channels {
+		groupID, err := fetchUpstreamGroupIDOnChannel(ch, token, projectName)
+		if err == nil {
+			return groupID, nil
+		}
+		if errors.Is(err, errUpstreamTokenInvalid) {
+			return "", err
+		}
+		lastErr = err
+	}
+	return "", lastErr
+}
+
+// fetchUpstreamGroupIDOnChannel 用指定渠道打一次上游 results。
+func fetchUpstreamGroupIDOnChannel(ch *model.Channel, token, projectName string) (string, error) {
 	body := mustMarshal(resultReqBody(token, projectName))
 	upstreamBody, status, err := (&taskdoubao.TaskAdaptor{}).GetVisualValidateResult(
 		ch.GetBaseURL(), ch.Key, resolveVisualValidateApiPath(ch), body, ch.GetSetting().Proxy,
 	)
 	if err != nil {
-		return "", fmt.Errorf("upstream results: %w", err)
+		return "", fmt.Errorf("channel=%d base=%s: %w", ch.Id, ch.GetBaseURL(), err)
 	}
-	if status == http.StatusNotFound {
+	// 上游判定"BytedToken 不存在/未认证"有两种形态（dev-docs/cii-api.md + 2026-09-24 实测）：
+	//   1) HTTP 404：认证记录尚不存在（用户还没刷脸）
+	//   2) HTTP 200 + ResponseMetadata.Error.Code = "NotFound.<BytedToken>"：token 用过/过期
+	// 两者都要归到 errUpstreamTokenInvalid，否则会被当成 502 掩盖真实语义。
+	// 反过来，路径/站点错导致的 404 不能算 token 失效——isUpstreamTokenNotFound 会挡掉。
+	if isUpstreamTokenNotFound(upstreamBody, status) {
 		return "", errUpstreamTokenInvalid
 	}
 	if status < 200 || status >= 300 {
-		return "", fmt.Errorf("upstream results status=%d body=%s", status, snippetFromBody(upstreamBody))
+		return "", fmt.Errorf("channel=%d base=%s status=%d body=%s",
+			ch.Id, ch.GetBaseURL(), status, snippetFromBody(upstreamBody))
 	}
 	groupID, perr := parseGroupID(upstreamBody)
 	if perr != nil {
@@ -335,18 +419,52 @@ func fetchUpstreamGroupIDByToken(token, projectName string, pickChannel func() (
 	return groupID, nil
 }
 
-// fetchUpstreamGroupID 用会话记录的渠道调上游 results（回调路径用）。
-func fetchUpstreamGroupID(s *model.VisualValidateSession, bytedToken string) (string, error) {
-	token := strings.TrimSpace(bytedToken)
-	if token == "" {
-		token = s.UpstreamToken
+// isUpstreamTokenNotFound 判断上游响应是否表示"BytedToken 不存在/未认证"。
+func isUpstreamTokenNotFound(body []byte, status int) bool {
+	// 空 body 的 404：上游（cii-group）对"还没认证"的标准回应，无额外信息可判。
+	if status == http.StatusNotFound && len(bytes.TrimSpace(body)) == 0 {
+		return true
 	}
-	return fetchUpstreamGroupIDByToken(token, "", func() (*model.Channel, error) {
-		if ch, err := model.GetChannelById(s.ChannelID, true); err == nil && ch.Key != "" {
-			return ch, nil
+	msg := extractUpstreamErrorMessage(body)
+	if msg == "" {
+		return false
+	}
+	lower := strings.ToLower(msg)
+	return strings.Contains(lower, "notfound") || strings.Contains(lower, "not found")
+}
+
+// extractUpstreamErrorMessage 从上游响应里抽出错误码/错误文案。
+// 兼容 CII 信封（ResponseMetadata.Error）与常见的 {error:{code,message}} / {code,message}。
+func extractUpstreamErrorMessage(body []byte) string {
+	var m map[string]any
+	if err := common.Unmarshal(body, &m); err != nil {
+		return ""
+	}
+	parts := make([]string, 0, 4)
+	appendStr := func(v any) {
+		if s, ok := v.(string); ok && s != "" {
+			parts = append(parts, s)
 		}
-		return assetservice.PickAssetChannel()
-	})
+	}
+	if meta, ok := m["ResponseMetadata"].(map[string]any); ok {
+		if errObj, ok := meta["Error"].(map[string]any); ok {
+			appendStr(errObj["Code"])
+			appendStr(errObj["Message"])
+		}
+	}
+	if errObj, ok := m["error"].(map[string]any); ok {
+		appendStr(errObj["code"])
+		appendStr(errObj["message"])
+		appendStr(errObj["Code"])
+		appendStr(errObj["Message"])
+	} else {
+		appendStr(m["error"])
+	}
+	appendStr(m["code"])
+	appendStr(m["Code"])
+	appendStr(m["message"])
+	appendStr(m["Message"])
+	return strings.TrimSpace(strings.Join(parts, " "))
 }
 
 // translateUpstreamResultError 把上游错误翻译成对外的 TaskError。
@@ -355,7 +473,7 @@ func translateUpstreamResultError(err error) *taskdto.TaskError {
 		return nil
 	}
 	if errors.Is(err, errUpstreamTokenInvalid) {
-		return errBadRequest("BytedToken 无效或已过期（有效期 30 分钟且仅能认证一次）")
+		return errBadRequest("BytedToken 无效或已过期（有效期 30 分钟且仅能认证一次）；若用户尚未完成刷脸，请等认证回调后再查询")
 	}
 	common.SysError("visualvalidate: upstream result failed: " + err.Error())
 	return errBadGateway("上游查询真人认证结果失败: " + err.Error())
