@@ -37,6 +37,21 @@ const iconBadgeVariants = cva(
         'chart-3': 'bg-chart-3/10 text-chart-3',
         'chart-4': 'bg-chart-4/10 text-chart-4',
         'chart-5': 'bg-chart-5/10 text-chart-5',
+        // Vibrant multi-color tones (page-level, only used by stat cards on
+        // Dashboard overview / Databoard / Usage logs). High-saturation palette
+        // that echoes the classic frontend look without touching global vars.
+        'vibrant-blue': 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
+        'vibrant-cyan': 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400',
+        'vibrant-emerald':
+          'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+        'vibrant-amber': 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+        'vibrant-violet':
+          'bg-violet-500/15 text-violet-600 dark:text-violet-400',
+        'vibrant-pink': 'bg-pink-500/15 text-pink-600 dark:text-pink-400',
+        'vibrant-orange':
+          'bg-orange-500/15 text-orange-600 dark:text-orange-400',
+        'vibrant-indigo':
+          'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400',
       },
       size: {
         xs: 'size-5 rounded-md [&>svg]:size-3',

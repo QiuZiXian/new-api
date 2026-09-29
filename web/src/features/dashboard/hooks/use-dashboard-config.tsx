@@ -30,6 +30,15 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import type { IconBadgeTone } from '@/components/ui/icon-badge'
+
+// Vibrant multi-color scheme for Databoard stat-card icons (page-level only).
+const MODEL_STAT_ICON_TONES: IconBadgeTone[] = [
+  'vibrant-blue',
+  'vibrant-emerald',
+  'vibrant-violet',
+  'vibrant-cyan',
+  'vibrant-amber',
+]
 import { safeDivide } from '@/features/dashboard/lib'
 
 interface StatCardConfig {
@@ -50,7 +59,7 @@ export function useModelStatCardsConfig(): StatCardConfig[] {
       title: t('Total Count'),
       description: t('Statistical count'),
       icon: Hash,
-      iconTone: 'info',
+      iconTone: MODEL_STAT_ICON_TONES[0],
       getValue: (stat) => stat?.rpm ?? 0,
     },
     {
@@ -58,7 +67,7 @@ export function useModelStatCardsConfig(): StatCardConfig[] {
       title: t('Total Quota'),
       description: t('Statistical quota'),
       icon: Coins,
-      iconTone: 'success',
+      iconTone: MODEL_STAT_ICON_TONES[1],
       getValue: (stat) => stat?.quota ?? 0,
     },
     {
@@ -66,7 +75,7 @@ export function useModelStatCardsConfig(): StatCardConfig[] {
       title: t('Total Tokens'),
       description: t('Statistical tokens'),
       icon: Layers,
-      iconTone: 'chart-4',
+      iconTone: MODEL_STAT_ICON_TONES[2],
       getValue: (stat) => stat?.tpm ?? 0,
     },
     {
@@ -74,7 +83,7 @@ export function useModelStatCardsConfig(): StatCardConfig[] {
       title: t('Average RPM'),
       description: t('Requests per minute'),
       icon: Gauge,
-      iconTone: 'chart-2',
+      iconTone: MODEL_STAT_ICON_TONES[3],
       getValue: (stat, timeRangeMinutes = 1) =>
         safeDivide(stat?.rpm ?? 0, timeRangeMinutes),
     },
@@ -83,7 +92,7 @@ export function useModelStatCardsConfig(): StatCardConfig[] {
       title: t('Average TPM'),
       description: t('Tokens per minute'),
       icon: Zap,
-      iconTone: 'warning',
+      iconTone: MODEL_STAT_ICON_TONES[4],
       getValue: (stat, timeRangeMinutes = 1) =>
         safeDivide(stat?.tpm ?? 0, timeRangeMinutes),
     },

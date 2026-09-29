@@ -251,8 +251,8 @@ function StartStepItem(props: {
         className='bg-background/70 hover:bg-muted/50 focus-visible:ring-ring flex min-w-0 flex-1 items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left shadow-xs transition-colors outline-none focus-visible:ring-2'
       >
         <span className='flex min-w-0 items-start gap-2.5'>
-          <span className='bg-muted mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg'>
-            <Icon className='size-3.5' aria-hidden='true' />
+          <span className='bg-muted mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg'>
+            <Icon className='size-4' aria-hidden='true' />
           </span>
           <span className='flex min-w-0 flex-col gap-0.5'>
             <span className='flex items-center gap-2 text-sm font-medium'>
@@ -424,8 +424,8 @@ function QuickActionItem(props: { action: QuickAction }) {
       className='h-auto justify-start rounded-xl px-3 py-3 text-left'
       render={<Link to={props.action.to} />}
     >
-      <span className='bg-muted flex size-9 shrink-0 items-center justify-center rounded-lg'>
-        <Icon className='size-4' aria-hidden='true' />
+      <span className='bg-muted flex size-10 shrink-0 items-center justify-center rounded-lg'>
+        <Icon className='size-5' aria-hidden='true' />
       </span>
       <span className='flex min-w-0 flex-1 flex-col gap-0.5'>
         <span className='truncate text-sm font-medium'>
