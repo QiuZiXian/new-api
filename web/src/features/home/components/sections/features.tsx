@@ -60,12 +60,15 @@ export function Features(_props: FeaturesProps) {
   ]
 
   return (
-    <section className='relative z-10 px-4 py-10 md:px-6 md:py-14'>
-      {/* Gradient banner panel */}
-      <div className='relative isolate mx-auto max-w-[1400px] overflow-hidden rounded-[32px] px-6 py-16 shadow-[0_40px_90px_-45px_rgba(30,64,175,0.55)] md:px-12 md:py-20'>
+    <section
+      aria-labelledby='features-heading'
+      className='relative z-10 px-4 py-8 md:px-6 md:py-10'
+    >
+      {/* Deep gradient capability banner */}
+      <div className='relative isolate mx-auto max-w-[1400px] overflow-hidden rounded-[24px] px-6 py-12 shadow-[0_40px_90px_-45px_rgba(30,64,175,0.55)] ring-1 ring-white/10 md:rounded-[32px] md:px-12 md:py-18'>
         <div
           aria-hidden
-          className='absolute inset-0 -z-20 bg-[linear-gradient(120deg,#1e3a8a_0%,#2563eb_38%,#4f46e5_70%,#0ea5e9_100%)]'
+          className='absolute inset-0 -z-20 bg-[linear-gradient(135deg,#0b2a6b_0%,#1d4ed8_42%,#4f46e5_74%,#06b6d4_100%)]'
         />
         <div
           aria-hidden
@@ -73,43 +76,61 @@ export function Features(_props: FeaturesProps) {
         />
         <div
           aria-hidden
-          className='absolute -top-24 -left-16 -z-10 size-80 rounded-full bg-cyan-300/25 blur-3xl'
+          className='absolute -top-24 -left-16 -z-10 size-80 rounded-full bg-cyan-300/25 blur-2xl'
         />
         <div
           aria-hidden
-          className='absolute -right-20 -bottom-24 -z-10 size-96 rounded-full bg-fuchsia-400/20 blur-3xl'
+          className='absolute -right-20 -bottom-24 -z-10 size-96 rounded-full bg-fuchsia-400/20 blur-2xl'
+        />
+        {/* Top highlight arc */}
+        <div
+          aria-hidden
+          className='absolute inset-x-0 top-0 -z-10 h-px bg-gradient-to-r from-transparent via-white/50 to-transparent'
         />
 
-          <div className='mx-auto max-w-6xl'>
-            <AnimateInView className='mb-12 text-center md:mb-16'>
-              <p className='mb-3 text-xs font-medium tracking-widest uppercase text-blue-100/80'>
-                {t('Enterprise Capabilities')}
-              </p>
-              <h2 className='text-2xl font-bold tracking-tight text-white md:text-3xl'>
-                {t('Designed for enterprise-grade AI integration')}
-              </h2>
-              <p className='mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-blue-50/85'>
-                {t(
-                  'From model calls to usage management, teams get unified access, unified billing and unified governance.'
-                )}
-              </p>
-            </AnimateInView>
+        <div className='mx-auto max-w-6xl'>
+          <AnimateInView className='mb-12 text-center md:mb-14'>
+            <span className='inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-medium tracking-[0.18em] text-blue-100 uppercase backdrop-blur-sm'>
+              {t('Enterprise Capabilities')}
+            </span>
+            <h2
+              id='features-heading'
+              className='mt-5 text-[clamp(1.75rem,3vw,2.5rem)] leading-[1.18] font-bold tracking-tight text-white'
+            >
+              {t('Designed for enterprise-grade AI integration')}
+            </h2>
+            <p className='mx-auto mt-4 max-w-2xl text-[15px] leading-relaxed text-blue-50/85'>
+              {t(
+                'From model calls to usage management, teams get unified access, unified billing and unified governance.'
+              )}
+            </p>
+          </AnimateInView>
 
           <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4'>
             {capabilities.map((capability, i) => (
               <AnimateInView
                 key={capability.title}
-                delay={i * 120}
+                delay={i * 110}
                 animation='fade-up'
-                className='group border-white/15 bg-white/10 hover:border-white/30 hover:bg-white/15 relative flex flex-col rounded-2xl border p-6 backdrop-blur-sm transition-all duration-300 hover:shadow-[0_20px_45px_-25px_rgba(2,6,23,0.6)]'
+                className='group relative flex flex-col overflow-hidden rounded-[20px] border border-white/15 bg-white/10 p-6 backdrop-blur-sm transition-all duration-300 motion-safe:hover:-translate-y-1 hover:border-white/30 hover:bg-white/15 hover:shadow-[0_24px_50px_-28px_rgba(2,6,23,0.7)]'
               >
-                <span className='mb-5 inline-flex size-11 items-center justify-center rounded-xl bg-white/15 text-white transition-colors group-hover:bg-white/25'>
+                {/* Hover highlight bar */}
+                <span
+                  aria-hidden
+                  className='absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/70 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100'
+                />
+                {/* Index */}
+                <span className='absolute top-5 right-5 text-[13px] font-semibold tabular-nums text-white/25 transition-colors group-hover:text-white/50'>
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+
+                <span className='mb-5 inline-flex size-12 items-center justify-center rounded-[14px] border border-white/15 bg-white/12 text-white transition-colors duration-300 group-hover:border-white/30 group-hover:bg-white/20'>
                   {capability.icon}
                 </span>
-                <h3 className='mb-2 text-base font-semibold text-white'>
+                <h3 className='mb-2 text-[17px] font-semibold text-white'>
                   {capability.title}
                 </h3>
-                <p className='text-sm leading-relaxed text-blue-50/85'>
+                <p className='text-sm leading-relaxed text-blue-50/80'>
                   {capability.desc}
                 </p>
               </AnimateInView>

@@ -52,35 +52,42 @@ export function HowItWorks() {
   ]
 
   return (
-    <section className='relative z-10 px-4 py-10 md:px-6 md:py-14'>
-      {/* Gradient banner panel */}
-      <div className='relative isolate mx-auto max-w-[1400px] overflow-hidden rounded-[32px] px-6 py-16 shadow-[0_40px_90px_-45px_rgba(49,46,129,0.55)] md:px-12 md:py-20'>
+    <section
+      aria-labelledby='how-it-works-heading'
+      className='relative z-10 px-4 py-8 md:px-6 md:py-10'
+    >
+      {/* Light gradient scenario banner — contrasts with the dark capability
+          banner directly above so the two screens do not read as duplicates. */}
+      <div className='relative isolate mx-auto max-w-[1400px] overflow-hidden rounded-[24px] border border-indigo-100/80 px-6 py-12 shadow-[0_30px_70px_-52px_rgba(79,70,229,0.5)] md:rounded-[32px] md:px-12 md:py-18 dark:border-white/10'>
         <div
           aria-hidden
-          className='absolute inset-0 -z-20 bg-[linear-gradient(120deg,#172554_0%,#1d4ed8_48%,#7c3aed_100%)]'
+          className='absolute inset-0 -z-20 bg-[linear-gradient(135deg,#f5f9ff_0%,#e6efff_45%,#eef4ff_100%)] dark:bg-[linear-gradient(135deg,#0a1830_0%,#141d4a_50%,#0a1830_100%)]'
         />
         <div
           aria-hidden
-          className='absolute inset-0 -z-10 bg-[linear-gradient(to_right,rgba(255,255,255,0.10)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.10)_1px,transparent_1px)] bg-[size:44px_44px] [mask-image:radial-gradient(ellipse_80%_70%_at_50%_30%,black_30%,transparent_100%)]'
+          className='absolute inset-0 -z-10 bg-[linear-gradient(to_right,rgba(79,70,229,0.07)_1px,transparent_1px),linear-gradient(to_bottom,rgba(79,70,229,0.07)_1px,transparent_1px)] bg-[size:44px_44px] [mask-image:radial-gradient(ellipse_80%_70%_at_50%_30%,black_30%,transparent_100%)]'
         />
         <div
           aria-hidden
-          className='absolute -top-24 -right-16 -z-10 size-80 rounded-full bg-violet-300/25 blur-3xl'
+          className='absolute -top-24 -right-16 -z-10 size-80 rounded-full bg-violet-300/35 blur-2xl dark:bg-violet-500/15'
         />
         <div
           aria-hidden
-          className='absolute -bottom-24 -left-20 -z-10 size-96 rounded-full bg-sky-400/20 blur-3xl'
+          className='absolute -bottom-24 -left-20 -z-10 size-96 rounded-full bg-sky-300/30 blur-2xl dark:bg-sky-500/10'
         />
 
         <div className='mx-auto max-w-6xl'>
-          <AnimateInView className='mb-12 text-center md:mb-16'>
-            <p className='mb-3 text-xs font-medium tracking-widest uppercase text-indigo-100/80'>
+          <AnimateInView className='mb-12 text-center md:mb-14'>
+            <span className='inline-flex items-center rounded-full border border-indigo-200/80 bg-white/70 px-3 py-1 text-[11px] font-medium tracking-[0.18em] text-indigo-600 uppercase backdrop-blur-sm dark:border-white/15 dark:bg-white/10 dark:text-indigo-300'>
               {t('Teams')}
-            </p>
-            <h2 className='text-2xl font-bold tracking-tight text-white md:text-3xl'>
+            </span>
+            <h2
+              id='how-it-works-heading'
+              className='mt-5 text-[clamp(1.75rem,3vw,2.5rem)] leading-[1.18] font-bold tracking-tight text-slate-900 dark:text-slate-50'
+            >
               {t('Built for every AI-powered team')}
             </h2>
-            <p className='mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-indigo-50/85'>
+            <p className='mx-auto mt-4 max-w-2xl text-[15px] leading-relaxed text-slate-500 dark:text-slate-400'>
               {t(
                 'Whether it is API integration, content production or enterprise governance, one platform covers the workflow.'
               )}
@@ -91,24 +98,29 @@ export function HowItWorks() {
             {teams.map((team, i) => (
               <AnimateInView
                 key={team.title}
-                delay={i * 140}
+                delay={i * 130}
                 animation='fade-up'
-                className='group border-white/15 bg-white/10 hover:border-white/30 hover:bg-white/15 relative flex flex-col rounded-2xl border p-6 backdrop-blur-sm transition-all duration-300 hover:shadow-[0_20px_45px_-25px_rgba(2,6,23,0.6)]'
+                className='group relative flex flex-col overflow-hidden rounded-[20px] border border-slate-200/70 bg-white/85 p-6 shadow-[0_18px_40px_-30px_rgba(15,23,42,0.35)] backdrop-blur-sm transition-all duration-300 motion-safe:hover:-translate-y-1 hover:border-indigo-300 hover:shadow-[0_28px_60px_-32px_rgba(79,70,229,0.45)] md:p-7 dark:border-white/10 dark:bg-white/5'
               >
-                <span className='mb-5 inline-flex size-11 items-center justify-center rounded-xl bg-white/15 text-white transition-colors group-hover:bg-white/25'>
+                {/* Hover accent bar */}
+                <span
+                  aria-hidden
+                  className='absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500 opacity-0 transition-opacity duration-300 group-hover:opacity-100'
+                />
+                <span className='mb-5 inline-flex size-12 items-center justify-center rounded-[14px] bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-[0_10px_22px_-12px_rgba(37,99,235,0.7)]'>
                   {team.icon}
                 </span>
-                <h3 className='mb-2 text-base font-semibold text-white'>
+                <h3 className='mb-2 text-[17px] font-semibold text-slate-900 dark:text-slate-50'>
                   {team.title}
                 </h3>
-                <p className='mb-5 text-sm leading-relaxed text-indigo-50/85'>
+                <p className='mb-6 text-sm leading-relaxed text-slate-500 dark:text-slate-400'>
                   {team.desc}
                 </p>
                 <div className='mt-auto flex flex-wrap gap-1.5'>
                   {team.tags.map((tag) => (
                     <span
                       key={tag}
-                      className='rounded-md border border-white/20 bg-white/10 px-2 py-0.5 text-[11px] text-indigo-50/90'
+                      className='rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[11px] font-medium text-blue-700 transition-colors group-hover:border-blue-200 group-hover:bg-blue-100/70 dark:border-blue-400/25 dark:bg-blue-500/10 dark:text-blue-300'
                     >
                       {tag}
                     </span>

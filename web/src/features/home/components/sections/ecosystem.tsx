@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Rocket, Tags, UserPlus } from 'lucide-react'
+import { ArrowRight, Rocket, Sparkles, Tags, UserPlus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { AnimateInView } from '@/components/animate-in-view'
@@ -24,71 +24,113 @@ import { Button } from '@/components/ui/button'
 import { Link } from '@tanstack/react-router'
 
 /**
- * Second screen — gateway headline with the three primary entry actions.
+ * Second screen — the "one gateway" value proposition with the three primary
+ * entry actions. Deliberately light: it acts as a breathing space between the
+ * hero and the deep-gradient capability banner that follows.
  */
 export function Ecosystem() {
   const { t } = useTranslation()
   const isAuthenticated = false
 
   return (
-    <section className='relative z-10 overflow-hidden border-t border-border/40 px-6 py-24 md:py-32'>
-      {/* Ambient radial glow */}
-      <div
-        aria-hidden
-        className='pointer-events-none absolute inset-0 -z-10 opacity-20 dark:opacity-[0.08]'
-        style={{
-          background: [
-            'radial-gradient(ellipse 55% 45% at 50% 30%, oklch(0.72 0.18 250 / 70%) 0%, transparent 70%)',
-            'radial-gradient(ellipse 40% 40% at 80% 80%, oklch(0.65 0.15 200 / 50%) 0%, transparent 70%)',
-          ].join(', '),
-        }}
-      />
+    <section
+      aria-labelledby='ecosystem-heading'
+      className='relative z-10 px-4 py-8 md:px-6 md:py-10'
+    >
+      <div className='relative isolate mx-auto max-w-[1400px] overflow-hidden rounded-[24px] border border-blue-100/80 px-6 py-12 shadow-[0_30px_70px_-52px_rgba(37,99,235,0.55)] md:rounded-[32px] md:px-12 md:py-16 dark:border-white/10'>
+        {/* Light blue panel base */}
+        <div
+          aria-hidden
+          className='absolute inset-0 -z-20 bg-[linear-gradient(135deg,#f9fbff_0%,#eaf2ff_48%,#f6f9ff_100%)] dark:bg-[linear-gradient(135deg,#0a1830_0%,#122242_50%,#0a1830_100%)]'
+        />
+        {/* Fine grid texture, faded towards the edges */}
+        <div
+          aria-hidden
+          className='absolute inset-0 -z-10 bg-[linear-gradient(to_right,rgba(37,99,235,0.07)_1px,transparent_1px),linear-gradient(to_bottom,rgba(37,99,235,0.07)_1px,transparent_1px)] bg-[size:44px_44px] [mask-image:radial-gradient(ellipse_75%_70%_at_50%_35%,black_25%,transparent_100%)]'
+        />
+        {/* Glows */}
+        <div
+          aria-hidden
+          className='absolute -top-28 left-1/2 -z-10 size-[420px] -translate-x-1/2 rounded-full bg-blue-300/30 blur-2xl dark:bg-blue-500/15'
+        />
+        <div
+          aria-hidden
+          className='absolute -right-24 -bottom-24 -z-10 size-72 rounded-full bg-indigo-200/30 blur-2xl dark:bg-indigo-500/10'
+        />
 
-      <AnimateInView className='mx-auto mb-10 max-w-2xl text-center md:mb-12'>
-        <p className='text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase'>
-          {t('Application Ecosystem')}
-        </p>
-        <h2 className='text-2xl leading-tight font-bold tracking-tight md:text-3xl'>
-          {t('One gateway, connected to')}
-          <br />
-          <span className='from-blue-400 via-violet-400 to-purple-500 bg-gradient-to-r bg-clip-text text-transparent'>
-            {t('the tools you already use')}
-          </span>
-        </h2>
-      </AnimateInView>
+        <div className='mx-auto max-w-3xl text-center'>
+          <AnimateInView animation='fade-in'>
+            <span className='inline-flex items-center gap-1.5 rounded-full border border-blue-200/70 bg-white/70 px-3 py-1 text-[11px] font-medium tracking-[0.18em] text-blue-600 uppercase backdrop-blur-sm dark:border-white/15 dark:bg-white/10 dark:text-blue-300'>
+              <Sparkles className='size-3' />
+              {t('Application Ecosystem')}
+            </span>
+          </AnimateInView>
 
-      <AnimateInView
-        className='flex flex-col items-center justify-center gap-4 sm:flex-row sm:gap-5'
-        animation='fade-up'
-      >
-        <Button
-          className='group h-[52px] w-full rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-7 text-base font-medium text-white shadow-[0_12px_28px_-10px_rgba(37,99,235,0.65)] transition-all duration-300 hover:-translate-y-0.5 hover:from-blue-700 hover:to-blue-600 hover:shadow-[0_18px_36px_-12px_rgba(37,99,235,0.75)] sm:w-auto'
-          render={
-            isAuthenticated ? <Link to='/dashboard' /> : <Link to='/sign-up' />
-          }
+          <AnimateInView delay={80}>
+            <h2
+              id='ecosystem-heading'
+              className='mt-5 text-[clamp(1.75rem,3.2vw,2.5rem)] leading-[1.18] font-bold tracking-tight text-slate-900 dark:text-slate-50'
+            >
+              {t('One gateway, connected to')}
+              <br />
+              <span className='bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-500 bg-clip-text text-transparent dark:from-blue-400 dark:via-indigo-400 dark:to-violet-400'>
+                {t('the tools you already use')}
+              </span>
+            </h2>
+          </AnimateInView>
+
+          <AnimateInView delay={140}>
+            <p className='mx-auto mt-4 max-w-xl text-[15px] leading-relaxed text-slate-500 dark:text-slate-400'>
+              {t(
+                'One gateway for every model — no changes to your existing apps.'
+              )}
+            </p>
+          </AnimateInView>
+        </div>
+
+        <AnimateInView
+          className='mt-10 flex flex-col items-center justify-center gap-3.5 sm:flex-row sm:gap-4'
+          animation='fade-up'
+          delay={200}
         >
-          <UserPlus className='mr-1.5 size-4' />
-          {t('Register now')}
-        </Button>
-        <Button
-          className='h-[52px] w-full rounded-xl border-blue-200 bg-white px-7 text-base font-medium text-blue-600 shadow-[0_10px_24px_-12px_rgba(37,99,235,0.35)] transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50 hover:shadow-[0_16px_30px_-12px_rgba(37,99,235,0.45)] sm:w-auto dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/20'
-          variant='outline'
-          render={
-            isAuthenticated ? <Link to='/dashboard' /> : <Link to='/sign-in' />
-          }
+          <Button
+            className='h-[54px] w-full rounded-xl bg-gradient-to-br from-blue-600 via-blue-600 to-indigo-600 px-7 text-[15px] font-medium text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_14px_30px_-12px_rgba(37,99,235,0.6)] transition-all duration-300 motion-safe:hover:-translate-y-0.5 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_20px_40px_-14px_rgba(37,99,235,0.7)] sm:w-auto'
+            render={
+              isAuthenticated ? <Link to='/dashboard' /> : <Link to='/sign-up' />
+            }
+          >
+            <UserPlus className='mr-2 size-[18px]' />
+            {t('Register now')}
+            <ArrowRight className='ml-2 size-4 transition-transform duration-300 group-hover/button:translate-x-0.5' />
+          </Button>
+          <Button
+            className='h-[54px] w-full rounded-xl border-blue-200 bg-white px-7 text-[15px] font-medium text-blue-700 shadow-[0_10px_24px_-14px_rgba(37,99,235,0.45)] transition-all duration-300 motion-safe:hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50/70 hover:shadow-[0_16px_32px_-14px_rgba(37,99,235,0.5)] sm:w-auto dark:border-blue-400/30 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/20'
+            variant='outline'
+            render={
+              isAuthenticated ? <Link to='/dashboard' /> : <Link to='/sign-in' />
+            }
+          >
+            <Rocket className='mr-2 size-[18px]' />
+            {t('Get Started')}
+          </Button>
+          <Button
+            className='h-[54px] w-full rounded-xl border-slate-200 bg-white/70 px-7 text-[15px] font-medium text-slate-700 backdrop-blur-sm transition-all duration-300 motion-safe:hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white hover:shadow-[0_16px_32px_-16px_rgba(15,23,42,0.28)] sm:w-auto dark:border-white/15 dark:bg-white/5 dark:text-slate-200'
+            variant='outline'
+            render={<Link to='/pricing' />}
+          >
+            <Tags className='mr-2 size-[18px]' />
+            {t('View Pricing')}
+          </Button>
+        </AnimateInView>
+
+        <AnimateInView
+          className='mt-7 text-center text-xs text-slate-400 dark:text-slate-500'
+          animation='fade-in'
+          delay={260}
         >
-          <Rocket className='mr-1.5 size-4' />
-          {t('Get Started')}
-        </Button>
-        <Button
-          className='h-[52px] w-full rounded-xl border-border/60 bg-white/70 px-7 text-base font-medium shadow-[0_10px_24px_-14px_rgba(15,23,42,0.25)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-border hover:bg-white hover:shadow-[0_16px_30px_-14px_rgba(15,23,42,0.3)] sm:w-auto dark:bg-white/5'
-          variant='outline'
-          render={<Link to='/pricing' />}
-        >
-          <Tags className='mr-1.5 size-4' />
-          {t('View Pricing')}
-        </Button>
-      </AnimateInView>
+          {t('Sign up with free trial credits — email, phone or WeChat login')}
+        </AnimateInView>
+      </div>
     </section>
   )
 }
