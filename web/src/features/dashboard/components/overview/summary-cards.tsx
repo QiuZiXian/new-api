@@ -308,29 +308,32 @@ export function SummaryCards() {
 
             <div className='grid grid-cols-2 gap-2'>
               <div className='bg-background/60 rounded-lg px-2.5 py-2'>
-                <div className='text-muted-foreground flex items-center gap-1 text-[11px] leading-none font-medium'>
-                  <Flame className='size-3 shrink-0' aria-hidden='true' />
-                  <span className='truncate'>{t('Last 24h usage')}</span>
-                </div>
+<div className='text-muted-foreground flex items-center gap-1.5 text-[11px] leading-none font-medium'>
+  <Flame
+    className='size-4 shrink-0 text-orange-500'
+    aria-hidden='true'
+  />
+  <span className='truncate'>{t('Last 24h usage')}</span>
+</div>
                 <div className='text-foreground mt-1.5 truncate text-xs font-semibold tabular-nums'>
                   {formatQuota(recentUsage)}
                 </div>
               </div>
               <div className='bg-background/60 rounded-lg px-2.5 py-2'>
-                <div className='text-muted-foreground flex items-center gap-1 text-[11px] leading-none font-medium'>
-                  {runwayDays !== null && runwayDays < 3 ? (
-                    <TrendingDown
-                      className='size-3 shrink-0'
-                      aria-hidden='true'
-                    />
-                  ) : (
-                    <ShieldCheck
-                      className='size-3 shrink-0'
-                      aria-hidden='true'
-                    />
-                  )}
-                  <span className='truncate'>{t('Runway')}</span>
-                </div>
+                <div className='text-muted-foreground flex items-center gap-1.5 text-[11px] leading-none font-medium'>
+                {runwayDays !== null && runwayDays < 3 ? (
+                  <TrendingDown
+                    className='size-4 shrink-0 text-rose-500'
+                    aria-hidden='true'
+                  />
+                ) : (
+                  <ShieldCheck
+                    className='size-4 shrink-0 text-emerald-500'
+                    aria-hidden='true'
+                  />
+                )}
+                <span className='truncate'>{t('Runway')}</span>
+              </div>
                 <div
                   className={cn(
                     'mt-1.5 truncate text-xs font-semibold tabular-nums',

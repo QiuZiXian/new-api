@@ -5325,6 +5325,19 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "vendors": "vendors",
+    "groups": "groups",
+    "API routes": "API routes",
+    "Live gateway": "Live gateway",
+    "Application Ecosystem": "Application Ecosystem",
+    "the tools you already use": "the tools you already use",
+    "One gateway, connected to": "One gateway, connected to",
+    "Browse the full client & model ecosystem": "Browse the full client & model ecosystem",
+    "Model Ecosystem": "Model Ecosystem",
+    "Multi-model desktop copilot with one-click gateway config": "Multi-model desktop copilot with one-click gateway config",
+    "One-click provider/key switching across AI clients": "One-click provider/key switching across AI clients",
+    "Cherry Studio": "Cherry Studio",
+    "Explore the Model Square": "Explore the Model Square"
   }
 }

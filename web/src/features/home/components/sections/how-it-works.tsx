@@ -16,75 +16,129 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Settings, Zap, BarChart3 } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
+import { Code2, PenTool, Building2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
-import { AnimateInView } from '@/components/animate-in-view'
+import { AnimateInView } from "@/components/animate-in-view";
 
 export function HowItWorks() {
-  const { t } = useTranslation()
+  const { t } = useTranslation();
 
-  const steps = [
+  const teams = [
     {
-      num: '1',
-      title: t('Configure'),
+      icon: <Code2 className="size-6" strokeWidth={1.8} />,
+      title: t("Developer teams"),
       desc: t(
-        'Add your API keys, set up channels and configure access permissions'
+        "Integrate multi-model capabilities quickly and cut vendor adaptation and API maintenance costs.",
       ),
-      icon: <Settings className='size-6' strokeWidth={1.5} />,
+      tags: [t("API access"), t("Model switching"), t("Call logs")],
+      iconClass:
+        "bg-blue-500/15 text-blue-600 dark:bg-blue-400/15 dark:text-blue-400",
     },
     {
-      num: '2',
-      title: t('Connect'),
+      icon: <PenTool className="size-6" strokeWidth={1.8} />,
+      title: t("Content teams"),
       desc: t(
-        'Connect through OpenAI, Claude, Gemini, and other compatible API routes'
+        "Call image, video and speech models in one place to speed up marketing assets and short-video production.",
       ),
-      icon: <Zap className='size-6' strokeWidth={1.5} />,
+      tags: [
+        t("Image generation"),
+        t("Video generation"),
+        t("Speech generation"),
+      ],
+      iconClass:
+        "bg-pink-500/15 text-pink-600 dark:bg-pink-400/15 dark:text-pink-400",
     },
     {
-      num: '3',
-      title: t('Monitor'),
-      desc: t('Track usage, costs and performance with real-time analytics'),
-      icon: <BarChart3 className='size-6' strokeWidth={1.5} />,
+      icon: <Building2 className="size-6" strokeWidth={1.8} />,
+      title: t("Enterprise admins"),
+      desc: t(
+        "Review usage, cost, key permissions and call records centrally across teams with less overhead.",
+      ),
+      tags: [t("Cost management"), t("Permission control"), t("Usage stats")],
+      iconClass:
+        "bg-indigo-500/15 text-indigo-600 dark:bg-indigo-400/15 dark:text-indigo-400",
     },
-  ]
+  ];
 
   return (
-    <section className='border-border/40 relative z-10 border-t px-6 py-24 md:py-32'>
-      <div className='mx-auto max-w-6xl'>
-        <AnimateInView className='mb-16 text-center md:mb-20'>
-          <p className='text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase'>
-            {t('How It Works')}
-          </p>
-          <h2 className='text-2xl font-bold tracking-tight md:text-3xl'>
-            {t('Three steps to get started')}
-          </h2>
-        </AnimateInView>
+    <section
+      aria-labelledby="how-it-works-heading"
+      className="relative z-10 px-4 py-8 md:px-6 md:py-10"
+    >
+      {/* Background fills the panel with the left half of the design asset */}
+      <div className="relative isolate mx-auto max-w-[1400px] overflow-hidden rounded-[24px] border border-indigo-100/80 px-6 py-12 shadow-[0_30px_70px_-52px_rgba(79,70,229,0.5)] md:rounded-[32px] md:px-12 md:py-18 dark:border-white/10">
+        <img
+          aria-hidden
+          src="/home/hero-slide-1.jpg"
+          alt=""
+          className="absolute inset-0 -z-10 h-full w-full object-cover object-left"
+        />
+        {/* Subtle scrim to keep text readable over the artwork */}
+        <div
+          aria-hidden
+          className="absolute inset-0 -z-10 bg-white/25 dark:bg-slate-900/55"
+        />
 
-        <div className='grid gap-8 md:grid-cols-3 md:gap-12'>
-          {steps.map((step, i) => (
-            <AnimateInView
-              key={step.num}
-              delay={i * 150}
-              animation='fade-up'
-              className='relative flex flex-col items-center text-center'
+        <div className="mx-auto max-w-6xl">
+          <AnimateInView className="mb-12 text-center md:mb-14">
+            <span className="inline-flex items-center rounded-full border border-indigo-200/80 bg-white/70 px-3 py-1 text-[11px] font-medium tracking-[0.18em] text-indigo-600 uppercase backdrop-blur-sm dark:border-white/15 dark:bg-white/10 dark:text-indigo-300">
+              {t("Teams")}
+            </span>
+            <h2
+              id="how-it-works-heading"
+              className="mt-5 text-[clamp(1.75rem,3vw,2.5rem)] leading-[1.18] font-bold tracking-tight"
             >
-              <div className='relative mb-6'>
-                <div className='text-muted-foreground border-border/50 bg-muted/30 flex size-16 items-center justify-center rounded-2xl border transition-colors'>
-                  {step.icon}
+              <span className="bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-500 bg-clip-text text-transparent dark:from-blue-400 dark:via-indigo-400 dark:to-violet-400">
+                {t("Built for every AI-powered team")}
+              </span>
+            </h2>
+            <p className="mx-auto mt-4 max-w-2xl text-[15px] leading-relaxed text-slate-500 dark:text-slate-400">
+              {t(
+                "Whether it is API integration, content production or enterprise governance, one platform covers the workflow.",
+              )}
+            </p>
+          </AnimateInView>
+
+          <div className="grid gap-5 md:grid-cols-3">
+            {teams.map((team, i) => (
+              <AnimateInView
+                key={team.title}
+                delay={i * 130}
+                animation="fade-up"
+                className="group relative flex flex-col overflow-hidden rounded-[20px] border border-slate-200/70 bg-white/85 p-6 shadow-[0_18px_40px_-30px_rgba(15,23,42,0.35)] backdrop-blur-sm transition-all duration-300 motion-safe:hover:-translate-y-1 hover:border-indigo-300 hover:shadow-[0_28px_60px_-32px_rgba(79,70,229,0.45)] md:p-7 dark:border-white/10 dark:bg-white/5"
+              >
+                {/* Hover accent bar */}
+                <span
+                  aria-hidden
+                  className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                />
+                <span
+                  className={`mb-5 inline-flex size-12 items-center justify-center rounded-[14px] transition-colors duration-300 ${team.iconClass}`}
+                >
+                  {team.icon}
+                </span>
+                <h3 className="mb-2 text-[17px] font-semibold text-slate-900 dark:text-slate-50">
+                  {team.title}
+                </h3>
+                <p className="mb-6 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
+                  {team.desc}
+                </p>
+                <div className="mt-auto flex flex-wrap gap-1.5">
+                  {team.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[11px] font-medium text-blue-700 transition-colors group-hover:border-blue-200 group-hover:bg-blue-100/70 dark:border-blue-400/25 dark:bg-blue-500/10 dark:text-blue-300"
+                    >
+                      {tag}
+                    </span>
+                  ))}
                 </div>
-                <div className='bg-foreground text-background absolute -top-2 -right-2 flex size-6 items-center justify-center rounded-full text-xs font-bold'>
-                  {step.num}
-                </div>
-              </div>
-              <h3 className='mb-2 text-base font-semibold'>{step.title}</h3>
-              <p className='text-muted-foreground max-w-[240px] text-sm leading-relaxed'>
-                {step.desc}
-              </p>
-            </AnimateInView>
-          ))}
+              </AnimateInView>
+            ))}
+          </div>
         </div>
       </div>
     </section>
-  )
+  );
 }

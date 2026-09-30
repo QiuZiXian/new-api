@@ -308,3 +308,33 @@ service.DeleteAsset
 - `pickAssetChannel` 不区分 user——所有用户共享全局 doubao/volcengine 渠道池，与现有 task_content 体系一致。
 
 
+
+## UI 风格规范沉淀（2026-09-30）
+
+- 新增 `dev-docs/UI风格规范.md`，固化色彩 / 字体 / 圆角 / 阴影 / 间距 / 组件 / IconBadge 等设计令牌与组件样板。
+- 小图标 IconBadge 走 vibrant 色板（blue/cyan/emerald/amber/violet/pink/orange/indigo），已落地映射：
+  - Features（企业能力）：统一接口→vibrant-blue，可控成本→vibrant-amber，权限管控→vibrant-violet，稳定路由→vibrant-emerald。
+  - HowItWorks（适用团队）：开发团队→vibrant-blue，内容团队→vibrant-pink，企业管理→vibrant-indigo。
+- 标题字体统一 `bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-500 bg-clip-text`。
+- 后续新增页面 / 组件须按本规范自检，不允许绕开令牌新增临时色或字号。
+
+
+## 按 UI 规范改造导航 / 按钮 / Pricing / 模型详情抽屉（2026-09-30）
+
+- `public-header.tsx`：桌面导航菜单字号 `text-base md:text-xl` → `text-sm font-medium`，高度 `h-9`，hover `bg-accent/60`，激活态 `border-primary text-foreground`。
+- `hero.tsx`：两个 CTA 按钮加 `focus-visible:ring-3 focus-visible:ring-blue-500/40 active:translate-y-px motion-safe:hover:-translate-y-0.5`，阴影从 0.5 → 0.55。
+- `ecosystem.tsx`：3 个 CTA 按钮（h-[54px]）统一加 `focus-visible:ring-3 active:translate-y-px`，主蓝 `ring-blue-500/40`，中性 `ring-slate-500/30`。
+- `pricing-hero.tsx`：H1「Model Square」改为渐变文字 + 顶部 chip「Model Resource Hub」；副标题 `text-[15px] leading-relaxed text-slate-500`。
+- `search-filter-row.tsx`：3 个 label 加 `font-medium tracking-tight`；搜索输入 focus 改 `focus:ring-3 focus:ring-blue-500/15`，输入字 `font-medium`。
+- `model-mutate-drawer.tsx`：
+  - SheetTitle 加 IconBadge `vibrant-blue / Settings2` 前缀。
+  - 顶部新增「概览快照」卡片实时显示 model_name / 描述 / hot_label / discount_label / tags。
+  - 5 个 SideDrawerSection 改用 `<SideDrawerSectionHeader icon iconTone>`：基础信息 `vibrant-blue / Info`、价格展示 `vibrant-amber / Tag`、匹配规则 `vibrant-violet / Filter`、端点 `vibrant-emerald / Network`、计费配置 `vibrant-pink / Wallet`。
+
+## 按钮统一 / 轮播调换 / 定价表格美化（2026-09-30）
+
+- 导航菜单字体回退为 `text-base md:text-xl`（`public-header.tsx`），保留 hover 与激活态。
+- 主页全部按钮按规范 §6.4 统一：`hero.tsx`（抽出 `HERO_BUTTON_CLASS`）、`ecosystem.tsx`（3 个 h-[54px] CTA）、`cta.tsx`（2 个按钮）。
+- Hero 轮播顺序调换：视觉聚合（hero-slide-1.jpg）在前，kimi-k3 首发（hero-slide-2.jpg）在后；文案随图走。
+- 轮播按钮语义：kimi-k3 CTA → 已登录 `/playground`、未登录 `/sign-in`；原「登录体验」改为「查看体验」（新 i18n `View experience`），跳 `/pricing`。
+- 模型详情抽屉定价：表头 `font-semibold`；价格 `font-mono text-[15px] font-bold text-red-500`；折扣用模型卡「热门」橙红渐变胶囊，省 x% 用红色小字。

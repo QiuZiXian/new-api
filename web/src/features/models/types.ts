@@ -39,6 +39,10 @@ export interface Model {
   description?: string
   icon?: string
   tags?: string
+  /** Top-left badge on the model square card, e.g. "热门" */
+  hot_label?: string
+  /** Top-right diagonal ribbon on the model square card, e.g. "8折" */
+  discount_label?: string
   vendor_id?: number
   endpoints?: string
   status: number
@@ -46,6 +50,16 @@ export interface Model {
   created_time: number
   updated_time: number
   name_rule: number
+  // 模型广场展示补充字段（只影响详情页渲染，不参与计费）
+  context_length?: number
+  max_output_tokens?: number
+  category?: string
+  /** 后端存 varchar，英文逗号分隔；表单里同样按逗号分隔编辑 */
+  capabilities?: string
+  input_modalities?: string
+  output_modalities?: string
+  /** 价格展示项 JSON 字符串 */
+  price_items?: string
   // Runtime fields
   bound_channels?: BoundChannel[]
   enable_groups?: string[]
@@ -233,6 +247,8 @@ export const modelFormSchema = z.object({
   description: z.string().default(''),
   icon: z.string().default(''),
   tags: z.array(z.string()).default([]),
+  hot_label: z.string().default(''),
+  discount_label: z.string().default(''),
   vendor_id: z.number().optional(),
   endpoints: z.string().default(''),
   name_rule: z.number().min(0).max(3).default(0),

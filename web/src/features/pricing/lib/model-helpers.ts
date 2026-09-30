@@ -95,6 +95,42 @@ export function getDisplayGroupRatio(
 }
 
 /**
+ * 把分组倍率翻成中文折扣文案。
+ *
+ * 分组倍率是乘数：1 为原价，0.8 为八折（省 20%），1.2 为加价 20%。
+ */
+export function formatGroupDiscount(ratio: number | undefined): {
+  /** 主文案，如「8.0折」「加价 20%」 */
+  label: string
+  /** 副文案，仅打折时有值，如「省 20%」 */
+  saved?: string
+  /** 是否属于打折（用于着色） */
+  discounted: boolean
+} {
+  const value = typeof ratio === 'number' && Number.isFinite(ratio) ? ratio : 1
+  if (value <= 0) {
+    return { label: '免费', discounted: true }
+  }
+  if (value === 1) {
+    return { label: '—', discounted: false }
+  }
+  if (value < 1) {
+    const tenths = value * 10
+    // 9.99 折这类边界不四舍五入成 10.0 折，避免出现「10折」这种误导文案
+    const label = tenths >= 9.95 ? tenths.toFixed(2) : tenths.toFixed(1)
+    return {
+      label: `${label}折`,
+      saved: `省 ${((1 - value) * 100).toFixed(0)}%`,
+      discounted: true,
+    }
+  }
+  return {
+    label: `加价 ${((value - 1) * 100).toFixed(0)}%`,
+    discounted: false,
+  }
+}
+
+/**
  * Replace model placeholder in endpoint path
  */
 export function replaceModelInPath(path: string, modelName: string): string {

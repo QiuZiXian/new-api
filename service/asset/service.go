@@ -44,7 +44,7 @@ const (
 // 的 varchar(255) 对齐。
 const assetNameMaxLen = 255
 
-// PickAssetChannel 在已启用的 doubao / volcengine 渠道中选一个。
+// PickAssetChannels 列出所有可用的素材渠道（启用 + Key 非空），按候选顺序返回。
 //
 // 说明：当前 new-api 没有 "per-user enabled channel" 这一概念——所有用户共享
 // 全局渠道池。这里只按"渠道类型"+"启用状态"做过滤，等价于 dev 文档 2.5
@@ -54,8 +54,9 @@ const assetNameMaxLen = 255
 // 必须先按 type+status 挑一个候选，再用 GetChannelById(ch.Id, true) 取回含
 // 真实 Key 的完整记录，才能判断上游调用所需字段是否就绪。
 //
-// 优先级：priority desc, id desc；返回 nil 表示无可用渠道。
-func PickAssetChannel() (*model.Channel, error) {
+// 优先级：doubao video 优先于 volcengine；各自 priority desc, id desc。
+// 返回空切片 + error 表示无可用渠道。
+func PickAssetChannels() ([]*model.Channel, error) {
 	candidates, err := model.GetChannelsByType(0, 50, false, constant.ChannelTypeDoubaoVideo)
 	if err != nil {
 		return nil, err
@@ -67,6 +68,7 @@ func PickAssetChannel() (*model.Channel, error) {
 	candidates = append(candidates, volc...)
 
 	var firstErr error
+	out := make([]*model.Channel, 0, len(candidates))
 	for _, ch := range candidates {
 		if ch.Status != common.ChannelStatusEnabled {
 			continue
@@ -79,13 +81,25 @@ func PickAssetChannel() (*model.Channel, error) {
 			continue
 		}
 		if full.Status == common.ChannelStatusEnabled && full.Key != "" {
-			return full, nil
+			out = append(out, full)
 		}
 	}
-	if firstErr != nil {
-		return nil, firstErr
+	if len(out) == 0 {
+		if firstErr != nil {
+			return nil, firstErr
+		}
+		return nil, errors.New("no enabled doubao/volcengine channel")
 	}
-	return nil, errors.New("no enabled doubao/volcengine channel")
+	return out, nil
+}
+
+// PickAssetChannel 在已启用的 doubao / volcengine 渠道中选一个（取首个候选）。
+func PickAssetChannel() (*model.Channel, error) {
+	channels, err := PickAssetChannels()
+	if err != nil {
+		return nil, err
+	}
+	return channels[0], nil
 }
 
 // resolveAssetGroupApiPath 取 channel setting 里的 AssetGroupApiPath 覆盖值；

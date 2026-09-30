@@ -1,6 +1,9 @@
 package model
 
-import "errors"
+import (
+	"errors"
+	"strings"
+)
 
 // VisualValidateSession 记录一次"真人审核"认证会话。
 //
@@ -81,6 +84,30 @@ func GetVisualValidateSessionByPublicID(publicID string, ownerUserID int) (*Visu
 		q = q.Where("user_id = ?", ownerUserID)
 	}
 	if err := q.First(&s).Error; err != nil {
+		return nil, ErrVvSessionNotFound
+	}
+	return &s, nil
+}
+
+// GetVisualValidateSessionByUpstreamToken 通过上游 BytedToken 反查会话。
+//
+// 用途：纯透传查结果（只传 byted_token、不传 session_id）时，用它定位
+// "签发该 token 的那个渠道"，保证上游 results 打到同一个账号/站点。
+// BytedToken 30 分钟有效且仅能认证一次，同一时刻基本不存在重复，
+// 这里取 id 倒序的第一条。
+//
+// ownerUserID<=0 表示不限制 owner；否则只返回该用户的会话。
+func GetVisualValidateSessionByUpstreamToken(token string, ownerUserID int) (*VisualValidateSession, error) {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return nil, ErrVvSessionNotFound
+	}
+	var s VisualValidateSession
+	q := DB.Where("upstream_token = ?", token)
+	if ownerUserID > 0 {
+		q = q.Where("user_id = ?", ownerUserID)
+	}
+	if err := q.Order("id desc").First(&s).Error; err != nil {
 		return nil, ErrVvSessionNotFound
 	}
 	return &s, nil

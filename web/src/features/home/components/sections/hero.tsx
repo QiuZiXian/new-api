@@ -16,230 +16,336 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { CherryStudio } from '@lobehub/icons'
-import { Link } from '@tanstack/react-router'
-import { ArrowRight, BookOpen } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
+import { Link } from "@tanstack/react-router";
+import {
+  ArrowRight,
+  BrainCircuit,
+  Building2,
+  Clapperboard,
+  Image as ImageIcon,
+  Layers,
+  Sparkles,
+  Zap,
+} from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
-import { Button } from '@/components/ui/button'
-import { useStatus } from '@/hooks/use-status'
-
-import { HeroTerminalDemo } from '../hero-terminal-demo'
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface HeroProps {
-  className?: string
-  isAuthenticated?: boolean
+  className?: string;
+  isAuthenticated?: boolean;
 }
 
-// Stylized three-dots indicator representing "More"
-const MoreIcon = () => (
-  <svg
-    className='text-muted-foreground/60 group-hover:text-foreground size-6 shrink-0 transition-colors'
-    viewBox='0 0 24 24'
-    fill='none'
-    xmlns='http://www.w3.org/2000/svg'
-  >
-    <circle cx='6' cy='12' r='2' fill='currentColor' />
-    <circle cx='12' cy='12' r='2' fill='currentColor' />
-    <circle cx='18' cy='12' r='2' fill='currentColor' />
-  </svg>
-)
+const SLIDE_INTERVAL = 7000;
+const SLIDE_IDS = ["visual-aggregation", "glm-launch"] as const;
+const SLIDE_COUNT = SLIDE_IDS.length;
+const HERO_BACKGROUNDS = [
+  "/home/hero-slide-1.jpg",
+  "/home/hero-slide-2.jpg",
+] as const;
 
-export function Hero(props: HeroProps) {
-  const { t } = useTranslation()
-  const { status } = useStatus()
-  const docsUrl =
-    (status?.docs_link as string | undefined) || 'https://docs.newapi.pro'
+// §6.4 Hero / 首屏 CTA：蓝→蓝渐变、h-11、图标 size-4、文字 text-sm font-medium
+const HERO_BUTTON_CLASS =
+  "group h-11 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-6 text-sm font-medium text-white shadow-[0_8px_24px_-6px_rgba(37,99,235,0.55)] transition-all duration-200 hover:from-blue-700 hover:to-blue-600 hover:shadow-[0_12px_28px_-8px_rgba(37,99,235,0.6)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-blue-500/40 active:translate-y-px motion-safe:hover:-translate-y-0.5";
 
-  const renderDocsButton = () => {
-    const isExternal = docsUrl.startsWith('http')
-    if (isExternal) {
-      return (
-        <Button
-          variant='outline'
-          className='group border-border/50 hover:border-border hover:bg-muted/50 inline-flex h-11 items-center gap-1.5 rounded-lg px-5 text-sm font-medium'
-          render={
-            <a href={docsUrl} target='_blank' rel='noopener noreferrer' />
-          }
-        >
-          <BookOpen className='text-muted-foreground/80 group-hover:text-foreground size-4 transition-colors duration-200' />
-          <span>{t('Docs')}</span>
-        </Button>
-      )
-    }
-    return (
-      <Button
-        variant='outline'
-        className='group border-border/50 hover:border-border hover:bg-muted/50 inline-flex h-11 items-center gap-1.5 rounded-lg px-5 text-sm font-medium'
-        render={<Link to={docsUrl} />}
-      >
-        <BookOpen className='text-muted-foreground/80 group-hover:text-foreground size-4 transition-colors duration-200' />
-        <span>{t('Docs')}</span>
+function FeatureCard(props: {
+  icon: React.ReactNode;
+  title: string;
+  desc: string;
+}) {
+  return (
+    <div className="rounded-xl border border-blue-100/90 bg-white/80 p-3.5 shadow-[0_2px_10px_-4px_rgba(37,99,235,0.12)] backdrop-blur-xs dark:border-blue-400/10 dark:bg-white/5">
+      <div className="flex items-center gap-2">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600 dark:bg-blue-400/10 dark:text-blue-400">
+          {props.icon}
+        </span>
+        <span className="text-slate-900 text-[13px] font-semibold dark:text-slate-100">
+          {props.title}
+        </span>
+      </div>
+      <p className="text-slate-500 mt-2 text-xs leading-relaxed dark:text-slate-400">
+        {props.desc}
+      </p>
+    </div>
+  );
+}
+
+function BulletItem(props: { children: React.ReactNode }) {
+  return (
+    <li className="text-slate-500 flex items-start gap-1.5 text-[11px] leading-relaxed dark:text-slate-400">
+      <span className="bg-blue-500 mt-[5px] size-1 shrink-0 rounded-full" />
+      <span className="min-w-0">{props.children}</span>
+    </li>
+  );
+}
+
+function SlideCTA(props: {
+  isAuthenticated?: boolean;
+  label: string;
+  hint?: string;
+}) {
+  // 已登录直接进游乐场，未登录先引导到登录页
+  const target = props.isAuthenticated ? "/playground" : "/sign-in";
+  return (
+    <div className="mt-6 flex flex-wrap items-center gap-3">
+      <Button className={HERO_BUTTON_CLASS} render={<Link to={target} />}>
+        {props.label}
+        <ArrowRight className="ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
       </Button>
-    )
-  }
+      {props.hint && (
+        <span className="text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
+          {props.hint}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** Slide 2 — new flagship model launch. */
+function SlideGLM(props: { isAuthenticated?: boolean }) {
+  const { t } = useTranslation();
+  const features = [
+    {
+      icon: <BrainCircuit className="size-4" />,
+      title: t("Smarter general intelligence"),
+      desc: t("Logic, reasoning, long-form writing and coding all improved"),
+    },
+    {
+      icon: <Layers className="size-4" />,
+      title: t("Stronger complex task handling"),
+      desc: t(
+        "Stable performance on long documents and multi-turn professional scenarios",
+      ),
+    },
+    {
+      icon: <Zap className="size-4" />,
+      title: t("Faster responses"),
+      desc: t("Efficient invocation with less waiting for smoother workflows"),
+    },
+    {
+      icon: <Building2 className="size-4" />,
+      title: t("Enterprise-grade stability"),
+      desc: t(
+        "Built for business rollout, knowledge Q&A and assistant scenarios",
+      ),
+    },
+  ];
 
   return (
-    <section className='relative z-10 overflow-hidden px-6 pt-24 pb-16 md:pt-32 md:pb-24 lg:pt-36 lg:pb-28'>
-      {/* Radial gradient background */}
-      <div
-        aria-hidden
-        className='pointer-events-none absolute inset-0 -z-10 opacity-25 dark:opacity-[0.12]'
-        style={{
-          background: [
-            'radial-gradient(ellipse 60% 50% at 20% 20%, oklch(0.72 0.18 250 / 80%) 0%, transparent 70%)',
-            'radial-gradient(ellipse 50% 40% at 80% 15%, oklch(0.65 0.15 200 / 60%) 0%, transparent 70%)',
-            'radial-gradient(ellipse 40% 35% at 40% 80%, oklch(0.70 0.12 280 / 40%) 0%, transparent 70%)',
-          ].join(', '),
-        }}
+    <div>
+      <span className="inline-flex items-center rounded-full border border-indigo-200/80 bg-white/70 px-3 py-1 text-[11px] font-medium tracking-[0.18em] text-indigo-600 uppercase backdrop-blur-sm dark:border-white/15 dark:bg-white/10 dark:text-indigo-300">
+        {t("New Release")}
+      </span>
+      <h1 className="text-slate-900 mt-5 text-[clamp(1.9rem,3.4vw,2.75rem)] leading-[1.18] font-bold tracking-tight dark:text-slate-50">
+        <span className="bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-500 bg-clip-text text-transparent dark:from-blue-400 dark:via-indigo-400 dark:to-violet-400">
+          kimi-k3
+        </span>
+        {t(" is now live")}
+      </h1>
+      <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-slate-500 dark:text-slate-400">
+        {t(
+          "A smarter, faster, and more stable new-generation large model platform",
+        )}
+      </p>
+
+      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {features.map((feature) => (
+          <FeatureCard key={feature.title} {...feature} />
+        ))}
+      </div>
+
+      <SlideCTA
+        isAuthenticated={props.isAuthenticated}
+        label={t("Try kimi-k3 now")}
+        hint={t("Sign in to unlock the new-generation model capabilities")}
       />
-      {/* Grid pattern */}
-      <div
-        aria-hidden
-        className='absolute inset-0 -z-10 bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_30%,black_20%,transparent_100%)] bg-[size:4rem_4rem] opacity-[0.08]'
-      />
+    </div>
+  );
+}
 
-      <div className='mx-auto grid max-w-6xl grid-cols-1 items-start gap-12 lg:grid-cols-12 lg:gap-8'>
-        {/* Left Column: Title, description, action buttons and application support */}
-        <div className='flex flex-col items-start text-left lg:col-span-6'>
-          {/* Top Pill Badge */}
+/** Slide 1 — aggregated visual generation models. */
+function SlideAggregate() {
+  const { t } = useTranslation();
+  const cards = [
+    {
+      icon: <Clapperboard className="size-4" />,
+      name: "Seedance2.5",
+      bullets: [
+        t("Cinematic quality with strong long-take storytelling"),
+        t("Ideal for premium ads, short films and series-style footage"),
+        t("Consistent and stable frames"),
+      ],
+    },
+    {
+      icon: <ImageIcon className="size-4" />,
+      name: "seedream-4.0",
+      bullets: [
+        t("New-generation image model unifying generation and editing"),
+        t(
+          "Handles complex multimodal tasks: knowledge-based generation, reasoning and reference consistency",
+        ),
+        t("Much faster inference with up to 4K high-resolution output"),
+      ],
+    },
+    {
+      icon: <Sparkles className="size-4" />,
+      name: "gpt-image-1",
+      bullets: [
+        t("Generates images from plain text prompts"),
+        t(
+          "Built for concept art, social visuals, marketing mockups and product images",
+        ),
+        t("Turns natural-language ideas into visuals in seconds"),
+      ],
+    },
+  ];
+
+  return (
+    <div>
+      <span className="inline-flex items-center rounded-full border border-indigo-200/80 bg-white/70 px-3 py-1 text-[11px] font-medium tracking-[0.18em] text-indigo-600 uppercase backdrop-blur-sm dark:border-white/15 dark:bg-white/10 dark:text-indigo-300">
+        {t("Visual AI Suite")}
+      </span>
+      <h1 className="text-slate-900 mt-5 text-[clamp(1.9rem,3.4vw,2.75rem)] leading-[1.18] font-bold tracking-tight dark:text-slate-50">
+        {t("Aggregate")}{" "}
+        <span className="bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-500 bg-clip-text text-transparent dark:from-blue-400 dark:via-indigo-400 dark:to-violet-400">
+          Seedance2.5、seedream-4.0、gpt-image-1
+        </span>
+      </h1>
+      <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-slate-500 dark:text-slate-400">
+        {t(
+          "Top AI visual generation models in one place — image creation, text-to-video and image-to-video without switching tools.",
+        )}
+      </p>
+
+      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {cards.map((card) => (
           <div
-            className='landing-animate-fade-up mb-5 inline-flex items-center gap-1.5 rounded-full border border-blue-500/20 bg-blue-500/5 px-3 py-1.5 text-[11px] font-medium text-blue-600 opacity-0 shadow-xs dark:border-blue-400/20 dark:bg-blue-400/5 dark:text-blue-400'
-            style={{ animationDelay: '0ms' }}
+            key={card.name}
+            className="rounded-xl border border-blue-100/90 bg-white/80 p-3.5 shadow-[0_2px_10px_-4px_rgba(37,99,235,0.12)] backdrop-blur-xs dark:border-blue-400/10 dark:bg-white/5"
           >
-            <span className='relative flex size-1.5'>
-              <span className='absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75' />
-              <span className='relative inline-flex size-1.5 rounded-full bg-blue-500 dark:bg-blue-400' />
-            </span>
-            <span>{t('AI Application Infrastructure Foundation')}</span>
-          </div>
-
-          <h1
-            className='landing-animate-fade-up text-[clamp(2.25rem,4.5vw,3.25rem)] leading-[1.15] font-bold tracking-tight'
-            style={{ animationDelay: '60ms' }}
-          >
-            {t('Unified API Gateway for')}
-            <br />
-            <span className='bg-gradient-to-r from-blue-400 via-violet-400 to-purple-500 bg-clip-text text-transparent'>
-              {t('Vast Range of AI Models')}
-            </span>
-          </h1>
-          <p
-            className='landing-animate-fade-up text-muted-foreground/80 mt-5 max-w-xl text-base leading-relaxed opacity-0 md:text-[15px]'
-            style={{ animationDelay: '120ms' }}
-          >
-            {t(
-              'Access a vast selection of models via a standard, unified API protocol. Power AI applications, manage digital assets, and connect the Future.'
-            )}
-          </p>
-
-          <div
-            className='landing-animate-fade-up mt-8 flex flex-wrap items-center gap-3 opacity-0'
-            style={{ animationDelay: '180ms' }}
-          >
-            {props.isAuthenticated ? (
-              <>
-                <Button
-                  className='group h-11 rounded-lg px-5 text-sm font-medium'
-                  render={<Link to='/dashboard' />}
-                >
-                  {t('Go to Dashboard')}
-                  <ArrowRight className='ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5' />
-                </Button>
-                {renderDocsButton()}
-              </>
-            ) : (
-              <>
-                <Button
-                  className='group h-11 rounded-lg px-5 text-sm font-medium'
-                  render={<Link to='/sign-up' />}
-                >
-                  {t('Get Started')}
-                  <ArrowRight className='ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5' />
-                </Button>
-                <Button
-                  variant='outline'
-                  className='border-border/50 hover:border-border hover:bg-muted/50 h-11 rounded-lg px-5 text-sm font-medium'
-                  render={<Link to='/pricing' />}
-                >
-                  {t('View Pricing')}
-                </Button>
-                {renderDocsButton()}
-              </>
-            )}
-          </div>
-
-          {/* Supported Apps (参考图二样式，进行卡片化和信息扩充设计，增加视觉高度) */}
-          <div
-            className='landing-animate-fade-up mt-10 w-full max-w-xl opacity-0'
-            style={{ animationDelay: '240ms' }}
-          >
-            <div className='mb-4 flex flex-col gap-1'>
-              <span className='text-muted-foreground/50 text-[10px] font-bold tracking-[0.15em] uppercase'>
-                {t('Supported Applications')}
+            <div className="flex items-center gap-2">
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600 dark:bg-blue-400/10 dark:text-blue-400">
+                {card.icon}
               </span>
-              <p className='text-muted-foreground/60 text-xs leading-relaxed'>
-                {t(
-                  'Supports one-click configuration and perfectly adapts to NewAPI multi-protocol configuration.'
-                )}
-              </p>
+              <span className="text-slate-900 text-[13px] font-semibold dark:text-slate-100">
+                {card.name}
+              </span>
             </div>
-            <div className='flex flex-wrap items-center gap-3'>
-              {/* Cherry Studio */}
-              <a
-                href='https://cherry-ai.com'
-                target='_blank'
-                rel='noopener noreferrer'
-                className='group border-border/40 bg-muted/15 text-foreground/80 hover:border-border hover:bg-muted/30 hover:text-foreground flex items-center gap-3 rounded-full border px-5 py-2.5 text-sm font-medium shadow-[0_1px_2.5px_rgba(0,0,0,0.01)] backdrop-blur-xs transition-all duration-300 hover:scale-[1.02]'
-              >
-                <CherryStudio.Color size={24} className='shrink-0' />
-                <span>Cherry Studio</span>
-              </a>
-
-              {/* CC Switch */}
-              <a
-                href='https://ccswitch.io'
-                target='_blank'
-                rel='noopener noreferrer'
-                className='group border-border/40 bg-muted/15 text-foreground/80 hover:border-border hover:bg-muted/30 hover:text-foreground flex items-center gap-3 rounded-full border px-5 py-2.5 text-sm font-medium shadow-[0_1px_2.5px_rgba(0,0,0,0.01)] backdrop-blur-xs transition-all duration-300 hover:scale-[1.02]'
-              >
-                <img
-                  src='https://ccswitch.io/favicon.png'
-                  alt='CC Switch'
-                  className='size-6 shrink-0 rounded-md object-contain'
-                  onError={(e) => {
-                    // Fallback to a styled text avatar if the remote favicon fails to load in sandbox or local environments
-                    e.currentTarget.style.display = 'none'
-                    const fallback = e.currentTarget.nextSibling as HTMLElement
-                    if (fallback) fallback.style.display = 'flex'
-                  }}
-                />
-                <span
-                  style={{ display: 'none' }}
-                  className='size-6 shrink-0 items-center justify-center rounded-md bg-blue-500/10 text-[10px] font-bold text-blue-600 dark:bg-blue-400/10 dark:text-blue-400'
-                >
-                  CC
-                </span>
-                <span>CC Switch</span>
-              </a>
-
-              {/* "更多" */}
-              <div className='group border-border/40 bg-muted/15 text-foreground/55 hover:border-border hover:bg-muted/30 hover:text-foreground flex cursor-default items-center gap-2.5 rounded-full border px-5 py-2.5 text-sm font-medium shadow-[0_1px_2.5px_rgba(0,0,0,0.01)] backdrop-blur-xs transition-all duration-300 hover:scale-[1.02]'>
-                <MoreIcon />
-                <span>{t('More Apps')}</span>
-              </div>
-            </div>
+            <ul className="mt-2.5 space-y-1.5">
+              {card.bullets.map((bullet) => (
+                <BulletItem key={bullet}>{bullet}</BulletItem>
+              ))}
+            </ul>
           </div>
-        </div>
+        ))}
+      </div>
 
-        {/* Right Column: Hero Terminal API Demo */}
-        <div
-          className='landing-animate-fade-up flex w-full justify-center opacity-0 lg:col-span-6'
-          style={{ animationDelay: '320ms' }}
+      <div className="border-blue-100/90 mt-5 flex flex-col gap-3 rounded-xl border bg-white/75 px-4 py-3.5 backdrop-blur-xs sm:flex-row sm:items-center dark:border-blue-400/10 dark:bg-white/5">
+        <p className="text-slate-500 line-clamp-2 flex-1 text-[13px] leading-relaxed dark:text-slate-400">
+          {t(
+            "Enter a prompt to quickly generate HD images and videos — marketing posters, short-video covers, ad bumpers and batch content. For creators, operators and enterprises, it lowers the production barrier from idea to final cut.",
+          )}
+        </p>
+        <Button
+          className="group h-10 shrink-0 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-5 text-sm font-medium text-white shadow-[0_8px_24px_-6px_rgba(37,99,235,0.55)] transition-all duration-200 hover:from-blue-700 hover:to-blue-600 hover:shadow-[0_12px_28px_-8px_rgba(37,99,235,0.6)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-blue-500/40 active:translate-y-px motion-safe:hover:-translate-y-0.5"
+          render={<Link to="/pricing" />}
         >
-          <HeroTerminalDemo className='mt-8 lg:mt-0' />
+          {t("View experience")}
+          <ArrowRight className="ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+export function Hero(props: HeroProps) {
+  const { t } = useTranslation();
+  const reduced = useReducedMotion();
+  const [active, setActive] = useState(0);
+  const pausedRef = useRef(false);
+
+  useEffect(() => {
+    if (reduced) return;
+    const id = window.setInterval(() => {
+      if (!pausedRef.current) {
+        setActive((current) => (current + 1) % SLIDE_COUNT);
+      }
+    }, SLIDE_INTERVAL);
+    return () => window.clearInterval(id);
+  }, [reduced]);
+
+  const slideTransition = {
+    duration: reduced ? 0 : 0.45,
+    ease: "easeOut" as const,
+  };
+
+  return (
+    <section
+      className="relative isolate overflow-hidden"
+      onMouseEnter={() => (pausedRef.current = true)}
+      onMouseLeave={() => (pausedRef.current = false)}
+    >
+      {/* Rotating background artwork from design assets */}
+      <div aria-hidden className="absolute inset-0 -z-20">
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.img
+            key={active}
+            src={HERO_BACKGROUNDS[active]}
+            alt=""
+            initial={reduced ? { opacity: 1 } : { opacity: 0, scale: 1.03 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={reduced ? { opacity: 0 } : { opacity: 0 }}
+            transition={{ duration: reduced ? 0 : 0.6, ease: "easeOut" }}
+            className="absolute inset-0 h-full w-full object-cover object-[72%_center] sm:object-[78%_center]"
+          />
+        </AnimatePresence>
+        {/* Readability overlay: darken behind copy, fade out over artwork */}
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(238,244,255,0.92)_0%,rgba(238,244,255,0.55)_38%,rgba(238,244,255,0)_65%)] dark:bg-[linear-gradient(90deg,rgba(8,15,35,0.94)_0%,rgba(8,15,35,0.6)_38%,rgba(8,15,35,0.12)_65%)]" />
+        <div className="absolute inset-x-0 bottom-0 h-24 bg-[linear-gradient(180deg,transparent,var(--background))]" />
+      </div>
+
+      <div className="mx-auto max-w-7xl px-6 pt-24 pb-16 sm:pt-32 lg:pb-24">
+        {/* Left: rotating banner copy */}
+        <div className="landing-animate-fade-up min-w-0 max-w-2xl opacity-0">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={active}
+              initial={reduced ? { opacity: 1 } : { opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={reduced ? { opacity: 0 } : { opacity: 0, y: -18 }}
+              transition={slideTransition}
+            >
+              {active === 0 ? (
+                <SlideAggregate />
+              ) : (
+                <SlideGLM isAuthenticated={props.isAuthenticated} />
+              )}
+            </motion.div>
+          </AnimatePresence>
+
+          {/* Slide dots */}
+          <div className="mt-8 flex items-center gap-2">
+            {SLIDE_IDS.map((slideId, index) => (
+              <button
+                key={slideId}
+                type="button"
+                aria-label={t("Slide {{index}}", { index: index + 1 })}
+                aria-current={active === index}
+                onClick={() => setActive(index)}
+                className={cn(
+                  "h-2 rounded-full transition-all duration-300",
+                  active === index
+                    ? "bg-blue-600 w-6 dark:bg-blue-400"
+                    : "bg-blue-300/70 hover:bg-blue-400 w-2 dark:bg-slate-600 dark:hover:bg-slate-500",
+                )}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </section>
-  )
+  );
 }

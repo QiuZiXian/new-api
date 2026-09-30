@@ -16,226 +16,125 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import {
-  Zap,
-  Shield,
-  Globe,
-  Code,
-  Gauge,
-  DollarSign,
-  Users,
-  HeartHandshake,
-} from 'lucide-react'
-import { useTranslation } from 'react-i18next'
+import { KeyRound, Route, Wallet, ShieldCheck } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
-import { AnimateInView } from '@/components/animate-in-view'
+import { AnimateInView } from "@/components/animate-in-view";
 
 interface FeaturesProps {
-  className?: string
+  className?: string;
 }
 
 export function Features(_props: FeaturesProps) {
-  const { t } = useTranslation()
+  const { t } = useTranslation();
 
-  const features = [
+  const capabilities = [
     {
-      id: 'fast',
-      num: '01',
-      title: t('Lightning Fast'),
+      icon: <KeyRound className="size-6" strokeWidth={1.8} />,
+      title: t("Unified access"),
       desc: t(
-        'Optimized network architecture ensures millisecond response times'
+        "One API key calls text, image, video and multimodal models, cutting repeated vendor integration costs.",
       ),
-      span: 'md:col-span-2',
-      icon: <Zap className='size-4 text-blue-400' />,
-      visual: (
-        <div className='mt-4 grid grid-cols-3 gap-2'>
-          {['OpenAI', 'Claude', 'Gemini', 'DeepSeek', 'Qwen', 'Llama'].map(
-            (name) => (
-              <div
-                key={name}
-                className='border-border/30 bg-muted/20 text-muted-foreground flex items-center justify-center rounded-lg border px-3 py-2 text-xs transition-colors duration-300 hover:border-blue-500/30 hover:bg-blue-500/5'
-              >
-                {name}
-              </div>
-            )
-          )}
-        </div>
-      ),
+      iconClass:
+        "bg-blue-500/15 text-blue-600 dark:bg-blue-400/15 dark:text-blue-400",
     },
     {
-      id: 'secure',
-      num: '02',
-      title: t('Secure & Reliable'),
+      icon: <Wallet className="size-6" strokeWidth={1.8} />,
+      title: t("Predictable cost"),
       desc: t(
-        'Enterprise-grade security with comprehensive permission management'
+        "Pay-as-you-go and per-request billing with quota limits and usage stats keep every call accountable.",
       ),
-      span: 'md:col-span-1',
-      icon: <Shield className='size-4 text-emerald-400' />,
-      visual: (
-        <div className='mt-4 flex items-center justify-center'>
-          <div className='relative'>
-            <div className='flex size-16 items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/5'>
-              <Shield
-                className='size-7 text-emerald-500/70'
-                strokeWidth={1.5}
-              />
-            </div>
-            <div className='absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-emerald-500'>
-              <svg
-                className='size-2.5 text-white'
-                fill='none'
-                viewBox='0 0 24 24'
-                stroke='currentColor'
-                strokeWidth={3}
-              >
-                <path
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                  d='m4.5 12.75 6 6 9-13.5'
-                />
-              </svg>
-            </div>
-          </div>
-        </div>
+      iconClass:
+        "bg-amber-500/15 text-amber-600 dark:bg-amber-400/15 dark:text-amber-400",
+    },
+    {
+      icon: <ShieldCheck className="size-6" strokeWidth={1.8} />,
+      title: t("Permission control"),
+      desc: t(
+        "Key-level quotas, expiry, model restrictions and IP allowlists fit per-project and per-team governance.",
       ),
+      iconClass:
+        "bg-violet-500/15 text-violet-600 dark:bg-violet-400/15 dark:text-violet-400",
     },
     {
-      id: 'global',
-      num: '03',
-      title: t('Global Coverage'),
-      desc: t('Multi-region deployment for stable global access'),
-      span: 'md:col-span-1',
-      icon: <Globe className='size-4 text-violet-400' />,
-      visual: (
-        <div className='mt-4 space-y-2'>
-          {[t('Load Balancing'), t('Rate Limiting'), t('Cost Tracking')].map(
-            (step, i) => (
-              <div key={step} className='flex items-center gap-2'>
-                <div
-                  className={`flex size-6 items-center justify-center rounded-full text-[10px] font-bold ${
-                    i === 1
-                      ? 'border border-blue-500/30 bg-blue-500/20 text-blue-500'
-                      : 'border-border/40 bg-muted text-muted-foreground border'
-                  }`}
-                >
-                  {i + 1}
-                </div>
-                <div className='bg-border/40 h-px flex-1' />
-                <span className='text-muted-foreground text-xs'>{step}</span>
-              </div>
-            )
-          )}
-        </div>
+      icon: <Route className="size-6" strokeWidth={1.8} />,
+      title: t("Stable routing"),
+      desc: t(
+        "Unified scheduling across multiple channels reduces the impact of a single model or account outage.",
       ),
+      iconClass:
+        "bg-emerald-500/15 text-emerald-600 dark:bg-emerald-400/15 dark:text-emerald-400",
     },
-    {
-      id: 'developer',
-      num: '04',
-      title: t('Developer Friendly'),
-      desc: t('Compatible API routes for common AI application workflows'),
-      span: 'md:col-span-2',
-      icon: <Code className='size-4 text-amber-400' />,
-      visual: (
-        <div className='mt-4 flex items-center gap-3'>
-          <div className='flex -space-x-2'>
-            {['API', 'SDK', 'CLI', 'Docs'].map((n) => (
-              <div
-                key={n}
-                className='border-background from-muted to-muted/60 text-muted-foreground flex size-8 items-center justify-center rounded-full border-2 bg-gradient-to-br text-[9px] font-bold'
-              >
-                {n}
-              </div>
-            ))}
-          </div>
-          <div className='text-muted-foreground flex items-center gap-1.5 text-xs'>
-            <Code className='size-3.5 text-blue-500' />
-            {t('Multi-protocol Compatible')}
-          </div>
-        </div>
-      ),
-    },
-  ]
-
-  const additionalFeatures = [
-    {
-      icon: <Gauge className='size-5' strokeWidth={1.5} />,
-      title: t('High Performance'),
-      desc: t('Support for high concurrency with automatic load balancing'),
-    },
-    {
-      icon: <DollarSign className='size-5' strokeWidth={1.5} />,
-      title: t('Transparent Billing'),
-      desc: t('Pay-as-you-go with real-time usage monitoring'),
-    },
-    {
-      icon: <Users className='size-5' strokeWidth={1.5} />,
-      title: t('Team Collaboration'),
-      desc: t('Multi-user management with flexible permission allocation'),
-    },
-    {
-      icon: <HeartHandshake className='size-5' strokeWidth={1.5} />,
-      title: t('Open Source'),
-      desc: t('Community driven, self-hosted, and extensible'),
-    },
-  ]
+  ];
 
   return (
-    <section className='relative z-10 px-6 py-24 md:py-32'>
-      <div className='mx-auto max-w-6xl'>
-        <AnimateInView className='mb-16 max-w-lg'>
-          <p className='text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase'>
-            {t('Core Features')}
-          </p>
-          <h2 className='text-2xl leading-tight font-bold tracking-tight md:text-3xl'>
-            {t('Built for developers,')}
-            <br />
-            {t('designed for scale')}
-          </h2>
-        </AnimateInView>
+    <section
+      aria-labelledby="features-heading"
+      className="relative z-10 px-4 py-8 md:px-6 md:py-10"
+    >
+      {/* Background fills the panel with the left half of the design asset */}
+      <div className="relative isolate mx-auto max-w-[1400px] overflow-hidden rounded-[24px] border border-indigo-100/80 px-6 py-12 shadow-[0_30px_70px_-52px_rgba(79,70,229,0.5)] md:rounded-[32px] md:px-12 md:py-18 dark:border-white/10">
+        <img
+          aria-hidden
+          src="/home/hero-slide-2.jpg"
+          alt=""
+          className="absolute inset-0 -z-10 h-full w-full object-cover object-left"
+        />
 
-        {/* Bento grid */}
-        <div className='border-border/40 bg-border/40 grid gap-px overflow-hidden rounded-xl border md:grid-cols-3'>
-          {features.map((f, i) => (
-            <AnimateInView
-              key={f.id}
-              delay={i * 100}
-              animation='scale-in'
-              className={`bg-background group hover:bg-muted/20 p-7 transition-colors duration-300 md:p-8 ${f.span}`}
+        <div className="mx-auto max-w-6xl">
+          <AnimateInView className="mb-12 text-center md:mb-14">
+            <span className="inline-flex items-center rounded-full border border-indigo-200/80 bg-white/70 px-3 py-1 text-[11px] font-medium tracking-[0.18em] text-indigo-600 uppercase backdrop-blur-sm dark:border-white/15 dark:bg-white/10 dark:text-indigo-300">
+              {t("Enterprise Capabilities")}
+            </span>
+            <h2
+              id="features-heading"
+              className="mt-5 text-[clamp(1.75rem,3vw,2.5rem)] leading-[1.18] font-bold tracking-tight"
             >
-              <div className='mb-3 flex items-center gap-3'>
-                <span className='border-border/40 bg-muted text-muted-foreground flex size-7 items-center justify-center rounded-md border text-[10px] font-semibold tabular-nums'>
-                  {f.num}
+              <span className="bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-500 bg-clip-text text-transparent dark:from-blue-400 dark:via-indigo-400 dark:to-violet-400">
+                {t("Designed for enterprise-grade AI integration")}
+              </span>
+            </h2>
+            <p className="mx-auto mt-4 max-w-2xl text-[15px] leading-relaxed text-slate-500 dark:text-slate-400">
+              {t(
+                "From model calls to usage management, teams get unified access, unified billing and unified governance.",
+              )}
+            </p>
+          </AnimateInView>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {capabilities.map((capability, i) => (
+              <AnimateInView
+                key={capability.title}
+                delay={i * 110}
+                animation="fade-up"
+                className="group relative flex flex-col overflow-hidden rounded-[20px] border border-slate-200/70 bg-white/85 p-6 shadow-[0_18px_40px_-30px_rgba(15,23,42,0.35)] backdrop-blur-sm transition-all duration-300 motion-safe:hover:-translate-y-1 hover:border-indigo-300 hover:shadow-[0_28px_60px_-32px_rgba(79,70,229,0.45)] dark:border-white/10 dark:bg-white/5"
+              >
+                {/* Hover accent bar */}
+                <span
+                  aria-hidden
+                  className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                />
+                {/* Index */}
+                <span className="absolute top-5 right-5 text-[13px] font-semibold tabular-nums text-slate-300 transition-colors group-hover:text-slate-400 dark:text-white/25 dark:group-hover:text-white/50">
+                  {String(i + 1).padStart(2, "0")}
                 </span>
-                <h3 className='text-sm font-semibold'>{f.title}</h3>
-              </div>
-              <p className='text-muted-foreground text-sm leading-relaxed'>
-                {f.desc}
-              </p>
-              {f.visual}
-            </AnimateInView>
-          ))}
-        </div>
 
-        {/* Additional features row */}
-        <div className='mt-12 grid grid-cols-2 gap-8 md:grid-cols-4 md:gap-12'>
-          {additionalFeatures.map((f, i) => (
-            <AnimateInView
-              key={f.title}
-              delay={i * 100}
-              animation='fade-up'
-              className='flex flex-col items-center text-center'
-            >
-              <div className='text-muted-foreground border-border/50 bg-muted/30 group-hover:text-foreground mb-3 flex size-12 items-center justify-center rounded-xl border transition-colors'>
-                {f.icon}
-              </div>
-              <h3 className='mb-1.5 text-sm font-semibold'>{f.title}</h3>
-              <p className='text-muted-foreground max-w-[200px] text-xs leading-relaxed'>
-                {f.desc}
-              </p>
-            </AnimateInView>
-          ))}
+                <span
+                  className={`mb-5 inline-flex size-12 items-center justify-center rounded-[14px] transition-colors duration-300 ${capability.iconClass}`}
+                >
+                  {capability.icon}
+                </span>
+                <h3 className="mb-2 text-[17px] font-semibold text-slate-900 dark:text-slate-50">
+                  {capability.title}
+                </h3>
+                <p className="text-sm leading-relaxed text-slate-500 dark:text-slate-400">
+                  {capability.desc}
+                </p>
+              </AnimateInView>
+            ))}
+          </div>
         </div>
       </div>
     </section>
-  )
+  );
 }

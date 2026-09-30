@@ -192,11 +192,11 @@ export function LogStatCards(props: LogStatCardsProps) {
                   'col-span-2 sm:col-span-1'
               )}
             >
-              <div className='flex min-w-0 items-center gap-1.5 sm:gap-2'>
+              <div className='flex min-w-0 items-center gap-2 sm:gap-2.5'>
                 <IconBadge
                   tone={it.iconTone}
                   size='stat'
-                  className='size-4 rounded-sm sm:size-7 sm:rounded-md [&>svg]:size-2.5 sm:[&>svg]:size-3.5'
+                  className='size-6 rounded-md [&>svg]:size-3.5 sm:size-9 sm:rounded-lg sm:[&>svg]:size-5'
                 >
                   <Icon />
                 </IconBadge>

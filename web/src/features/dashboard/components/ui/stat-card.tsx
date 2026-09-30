@@ -70,9 +70,9 @@ const LINE_TONE_CLASSES: Record<StatCardTone, string> = {
 }
 
 const ICON_TONE_BY_STAT_TONE: Record<StatCardTone, IconBadgeTone> = {
-  'accent-1': 'chart-1',
-  'accent-2': 'chart-2',
-  'accent-3': 'chart-3',
+  'accent-1': 'vibrant-amber',
+  'accent-2': 'vibrant-blue',
+  'accent-3': 'vibrant-violet',
 }
 
 const DETAIL_TONE_CLASSES: Record<StatCardDetailTone, string> = {
@@ -309,10 +309,7 @@ export function StatCard(props: StatCardProps) {
           <IconBadge
             tone={iconTone}
             size='stat'
-            className={cn(
-              props.compactMobile &&
-                'size-4 rounded-sm [&>svg]:size-2.5 sm:size-7 sm:rounded-md sm:[&>svg]:size-3.5'
-            )}
+            className='size-6 rounded-md [&>svg]:size-3.5 sm:size-9 sm:rounded-lg sm:[&>svg]:size-5'
           >
             <Icon />
           </IconBadge>

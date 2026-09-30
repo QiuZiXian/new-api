@@ -22,18 +22,31 @@ type BoundChannel struct {
 }
 
 type Model struct {
-	Id           int            `json:"id"`
-	ModelName    string         `json:"model_name" gorm:"size:128;not null;uniqueIndex:uk_model_name_delete_at,priority:1"`
-	Description  string         `json:"description,omitempty" gorm:"type:text"`
-	Icon         string         `json:"icon,omitempty" gorm:"type:varchar(128)"`
-	Tags         string         `json:"tags,omitempty" gorm:"type:varchar(255)"`
-	VendorID     int            `json:"vendor_id,omitempty" gorm:"index"`
-	Endpoints    string         `json:"endpoints,omitempty" gorm:"type:text"`
-	Status       int            `json:"status" gorm:"default:1"`
-	SyncOfficial int            `json:"sync_official" gorm:"default:1"`
-	CreatedTime  int64          `json:"created_time" gorm:"bigint"`
-	UpdatedTime  int64          `json:"updated_time" gorm:"bigint"`
-	DeletedAt    gorm.DeletedAt `json:"-" gorm:"index;uniqueIndex:uk_model_name_delete_at,priority:2"`
+	Id            int            `json:"id"`
+	ModelName     string         `json:"model_name" gorm:"size:128;not null;uniqueIndex:uk_model_name_delete_at,priority:1"`
+	Description   string         `json:"description,omitempty" gorm:"type:text"`
+	Icon          string         `json:"icon,omitempty" gorm:"type:varchar(128)"`
+	Tags          string         `json:"tags,omitempty" gorm:"type:varchar(255)"`
+	HotLabel      string         `json:"hot_label,omitempty" gorm:"type:varchar(32)"`
+	DiscountLabel string         `json:"discount_label,omitempty" gorm:"type:varchar(32)"`
+	VendorID      int            `json:"vendor_id,omitempty" gorm:"index"`
+	Endpoints     string         `json:"endpoints,omitempty" gorm:"type:text"`
+	Status        int            `json:"status" gorm:"default:1"`
+	SyncOfficial  int            `json:"sync_official" gorm:"default:1"`
+	CreatedTime   int64          `json:"created_time" gorm:"bigint"`
+	UpdatedTime   int64          `json:"updated_time" gorm:"bigint"`
+	DeletedAt     gorm.DeletedAt `json:"-" gorm:"index;uniqueIndex:uk_model_name_delete_at,priority:2"`
+
+	// 展示补充字段：仅用于模型广场详情页渲染，不参与任何计费逻辑
+	ContextLength    int    `json:"context_length,omitempty"`
+	MaxOutputTokens  int    `json:"max_output_tokens,omitempty"`
+	Category         string `json:"category,omitempty" gorm:"type:varchar(64)"`
+	Capabilities     string `json:"capabilities,omitempty" gorm:"type:varchar(255)"`
+	InputModalities  string `json:"input_modalities,omitempty" gorm:"type:varchar(128)"`
+	OutputModalities string `json:"output_modalities,omitempty" gorm:"type:varchar(128)"`
+	// PriceItems 是管理员编排的「价格展示项」JSON，只描述展示形态（分组文案、
+	// 维度文案、原价、是否启用），价格数值由计量配置实时推导，见 pricing_item.go
+	PriceItems string `json:"price_items,omitempty" gorm:"type:text"`
 
 	BoundChannels []BoundChannel `json:"bound_channels,omitempty" gorm:"-"`
 	EnableGroups  []string       `json:"enable_groups,omitempty" gorm:"-"`
@@ -78,7 +91,8 @@ func (mi *Model) Update() error {
 	mi.UpdatedTime = common.GetTimestamp()
 	// 使用 Select 强制更新所有字段，包括零值
 	return DB.Model(&Model{}).Where("id = ?", mi.Id).
-		Select("model_name", "description", "icon", "tags", "vendor_id", "endpoints", "status", "sync_official", "name_rule", "updated_time").
+		Select("model_name", "description", "icon", "tags", "hot_label", "discount_label", "vendor_id", "endpoints", "status", "sync_official", "name_rule", "updated_time",
+			"context_length", "max_output_tokens", "category", "capabilities", "input_modalities", "output_modalities", "price_items").
 		Updates(mi).Error
 }
 

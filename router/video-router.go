@@ -42,6 +42,20 @@ func SetVideoRouter(router *gin.Engine) {
 		contentTaskV1Router.DELETE("/:task_id", controller.CancelContentTask)
 	}
 
+	// Seedance/CII-style content generation task submit & fetch aliases.
+	// Mirrors /v1/video/generations (POST) and /v1/video/generations/:task_id (GET),
+	// reusing controller.RelayTask / RelayTaskFetch so behavior stays in sync with
+	// the existing submit/fetch endpoints. A separate middleware chain (with
+	// Distribute()) is used here so the local-only list/cancel routes above remain
+	// free of channel-selection logic.
+	contentTaskSubmitV1Router := router.Group("/v1/contents/generations/tasks")
+	contentTaskSubmitV1Router.Use(middleware.RouteTag("relay"))
+	contentTaskSubmitV1Router.Use(middleware.TokenAuth(), middleware.Distribute())
+	{
+		contentTaskSubmitV1Router.POST("", controller.RelayTask)
+		contentTaskSubmitV1Router.GET("/:task_id", controller.RelayTaskFetch)
+	}
+
 	// 字幕擦除（独立路由，不与视频生成共享 /v1/videos）。
 	// Distribute 按 model 字段把请求分到 cii-subtitle-erase 模型对应的
 	// ChannelTypeCiiSubtitleErase 渠道。复用 controller.RelayTask / RelayTaskFetch
