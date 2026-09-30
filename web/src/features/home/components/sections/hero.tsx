@@ -96,7 +96,7 @@ function SlideCTA(props: {
         <ArrowRight className="ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
       </Button>
       {props.hint && (
-        <span className="text-slate-500 text-xs dark:text-slate-400">
+        <span className="text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
           {props.hint}
         </span>
       )}
@@ -136,11 +136,16 @@ function SlideGLM(props: { isAuthenticated?: boolean }) {
 
   return (
     <div>
-      <h1 className="text-slate-900 text-[clamp(1.9rem,3.4vw,2.75rem)] leading-[1.2] font-bold tracking-tight dark:text-slate-50">
-        <span className="text-blue-600 dark:text-blue-400">kimi-k3</span>
+      <span className="inline-flex items-center rounded-full border border-indigo-200/80 bg-white/70 px-3 py-1 text-[11px] font-medium tracking-[0.18em] text-indigo-600 uppercase backdrop-blur-sm dark:border-white/15 dark:bg-white/10 dark:text-indigo-300">
+        {t("New Release")}
+      </span>
+      <h1 className="text-slate-900 mt-5 text-[clamp(1.9rem,3.4vw,2.75rem)] leading-[1.18] font-bold tracking-tight dark:text-slate-50">
+        <span className="bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-500 bg-clip-text text-transparent dark:from-blue-400 dark:via-indigo-400 dark:to-violet-400">
+          kimi-k3
+        </span>
         {t(" is now live")}
       </h1>
-      <p className="text-slate-600 mt-3 text-sm leading-relaxed md:text-base dark:text-slate-400">
+      <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-slate-500 dark:text-slate-400">
         {t(
           "A smarter, faster, and more stable new-generation large model platform",
         )}
@@ -200,13 +205,16 @@ function SlideAggregate() {
 
   return (
     <div>
-      <h1 className="text-slate-900 text-[clamp(1.9rem,3.4vw,2.75rem)] leading-[1.2] font-bold tracking-tight dark:text-slate-50">
+      <span className="inline-flex items-center rounded-full border border-indigo-200/80 bg-white/70 px-3 py-1 text-[11px] font-medium tracking-[0.18em] text-indigo-600 uppercase backdrop-blur-sm dark:border-white/15 dark:bg-white/10 dark:text-indigo-300">
+        {t("Visual AI Suite")}
+      </span>
+      <h1 className="text-slate-900 mt-5 text-[clamp(1.9rem,3.4vw,2.75rem)] leading-[1.18] font-bold tracking-tight dark:text-slate-50">
         {t("Aggregate")}{" "}
-        <span className="text-blue-600 dark:text-blue-400">
+        <span className="bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-500 bg-clip-text text-transparent dark:from-blue-400 dark:via-indigo-400 dark:to-violet-400">
           Seedance2.5、seedream-4.0、gpt-image-1
         </span>
       </h1>
-      <p className="text-slate-600 mt-3 text-sm leading-relaxed md:text-base dark:text-slate-400">
+      <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-slate-500 dark:text-slate-400">
         {t(
           "Top AI visual generation models in one place — image creation, text-to-video and image-to-video without switching tools.",
         )}
@@ -236,7 +244,7 @@ function SlideAggregate() {
       </div>
 
       <div className="border-blue-100/90 mt-5 flex flex-col gap-3 rounded-xl border bg-white/75 px-4 py-3.5 backdrop-blur-xs sm:flex-row sm:items-center dark:border-blue-400/10 dark:bg-white/5">
-        <p className="text-slate-600 line-clamp-2 flex-1 text-xs leading-relaxed dark:text-slate-400">
+        <p className="text-slate-500 line-clamp-2 flex-1 text-[13px] leading-relaxed dark:text-slate-400">
           {t(
             "Enter a prompt to quickly generate HD images and videos — marketing posters, short-video covers, ad bumpers and batch content. For creators, operators and enterprises, it lowers the production barrier from idea to final cut.",
           )}
