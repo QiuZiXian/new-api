@@ -67,7 +67,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         />
         <div
           aria-hidden
-          className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgba(6,17,44,0.66)_0%,rgba(6,17,44,0.42)_45%,rgba(6,17,44,0.16)_100%)]"
+          className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgba(6,17,44,0.38)_0%,rgba(6,17,44,0.20)_45%,rgba(6,17,44,0.06)_100%)]"
         />
 
         {/* Left: brand panel (desktop only) */}

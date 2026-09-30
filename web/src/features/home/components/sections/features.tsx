@@ -64,7 +64,7 @@ export function Features(_props: FeaturesProps) {
       aria-labelledby="features-heading"
       className="relative z-10 px-4 py-8 md:px-6 md:py-10"
     >
-      {/* Deep gradient capability banner over the left half of the UI asset */}
+      {/* Background using the left half of the design asset */}
       <div className="relative isolate mx-auto max-w-[1400px] overflow-hidden rounded-[24px] px-6 py-12 shadow-[0_40px_90px_-45px_rgba(30,64,175,0.55)] ring-1 ring-white/10 md:rounded-[32px] md:px-12 md:py-18">
         <img
           aria-hidden
@@ -72,14 +72,7 @@ export function Features(_props: FeaturesProps) {
           alt=""
           className="absolute inset-y-0 left-0 -z-30 w-1/2 object-cover object-left"
         />
-        <div
-          aria-hidden
-          className="absolute inset-0 -z-20 bg-[linear-gradient(135deg,#0b2a6b_0%,#1d4ed8_42%,#4f46e5_74%,#06b6d4_100%)] opacity-[0.92] dark:opacity-100"
-        />
-        <div
-          aria-hidden
-          className="absolute inset-0 -z-10 bg-[linear-gradient(to_right,rgba(255,255,255,0.10)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.10)_1px,transparent_1px)] bg-[size:44px_44px] [mask-image:radial-gradient(ellipse_80%_70%_at_50%_30%,black_30%,transparent_100%)]"
-        />
+        <div aria-hidden className="absolute inset-0 -z-20 bg-slate-900/55" />
         <div
           aria-hidden
           className="absolute -top-24 -left-16 -z-10 size-80 rounded-full bg-cyan-300/25 blur-2xl"

@@ -38,20 +38,10 @@ export function Ecosystem() {
       className="relative z-10 px-4 py-8 md:px-6 md:py-10"
     >
       <div className="relative isolate mx-auto max-w-[1400px] overflow-hidden rounded-[24px] border border-blue-100/80 px-6 py-12 shadow-[0_30px_70px_-52px_rgba(37,99,235,0.55)] md:rounded-[32px] md:px-12 md:py-16 dark:border-white/10">
-        {/* Left-half image background + light fallback */}
-        <img
-          aria-hidden
-          src="/home/hero-slide-1.jpg"
-          alt=""
-          className="absolute inset-y-0 left-0 -z-20 w-1/2 object-cover object-left opacity-100 dark:opacity-0"
-        />
+        {/* Light blue panel base */}
         <div
           aria-hidden
-          className="absolute inset-0 -z-20 bg-[linear-gradient(135deg,#f9fbff_0%,#eaf2ff_48%,#f6f9ff_100%)] opacity-0 dark:opacity-100"
-        />
-        <div
-          aria-hidden
-          className="absolute inset-0 -z-19 bg-[linear-gradient(90deg,transparent_0%,transparent_45%,rgba(249,251,255,0.85)_62%,rgba(249,251,255,0.98)_100%)] opacity-100 dark:opacity-0"
+          className="absolute inset-0 -z-20 bg-[linear-gradient(135deg,#f9fbff_0%,#eaf2ff_48%,#f6f9ff_100%)] dark:bg-[linear-gradient(135deg,#0a1830_0%,#122242_50%,#0a1830_100%)]"
         />
         {/* Fine grid texture, faded towards the edges */}
         <div
