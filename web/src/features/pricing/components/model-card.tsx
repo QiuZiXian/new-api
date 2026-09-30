@@ -172,7 +172,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
     >
       {/* Top-left popularity badge, text comes from backend settings */}
       {hotBadgeText && (
-        <span className='absolute top-2.5 left-2.5 z-20 rounded-full bg-gradient-to-r from-orange-400 to-red-500 px-2 py-0.5 text-[10px] leading-none font-bold tracking-wide text-white shadow-[0_2px_6px_-1px_rgba(249,115,22,0.55)]'>
+        <span className='absolute top-2.5 left-2.5 z-20 rounded-full bg-gradient-to-r from-orange-400 to-red-500 px-2.5 py-[3px] text-[12px] leading-none font-bold tracking-wide text-white shadow-[0_2px_6px_-1px_rgba(249,115,22,0.55)]'>
           {hotBadgeText}
         </span>
       )}

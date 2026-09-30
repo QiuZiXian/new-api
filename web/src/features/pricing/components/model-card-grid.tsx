@@ -73,7 +73,7 @@ export function ModelCardGrid(props: ModelCardGridProps) {
   return (
     <div className='space-y-4 sm:space-y-5'>
       {/* Light tinted panel so the raised cards read as floating cards */}
-      <div className='border-border/50 rounded-2xl border bg-gradient-to-b from-slate-100/90 via-sky-50/70 to-slate-50/90 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] sm:p-4 dark:border-white/5 dark:from-muted/40 dark:via-muted/25 dark:to-muted/35 dark:shadow-none'>
+      <div className='border-amber-200/60 rounded-2xl border bg-gradient-to-b from-amber-50/90 via-yellow-50/70 to-amber-50/90 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] sm:p-4 dark:border-amber-400/10 dark:from-amber-500/10 dark:via-amber-400/5 dark:to-amber-500/10 dark:shadow-none'>
         <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5'>
           {pagedModels.map((model) => (
             <ModelCard

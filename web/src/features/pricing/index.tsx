@@ -73,7 +73,6 @@ export function Pricing() {
     setTagFilter,
     setTokenUnit,
     setViewMode,
-    setShowRechargePrice,
     filteredModels,
     hasActiveFilters,
     activeFilterCount,
@@ -168,7 +167,7 @@ export function Pricing() {
       <PricingHero total={models?.length ?? 0} />
 
       <PageTransition className='relative mx-auto w-full max-w-[1800px] px-3 pt-5 pb-8 sm:px-6 sm:pb-10 xl:px-8'>
-        {/* Search + price range + usage scale */}
+        {/* Search + price range + billing method */}
         <SearchFilterRow
           search={searchInput}
           onSearchChange={setSearchInput}
@@ -195,8 +194,6 @@ export function Pricing() {
           onSortChange={setSortBy}
           tokenUnit={tokenUnit}
           onTokenUnitChange={setTokenUnit}
-          showRechargePrice={showRechargePrice}
-          onRechargePriceChange={setShowRechargePrice}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
           quotaTypeFilter={quotaTypeFilter}

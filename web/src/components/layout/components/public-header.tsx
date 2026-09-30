@@ -16,49 +16,49 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
-import { useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
-import { Dialog } from '@/components/dialog'
-import { LanguageSwitcher } from '@/components/language-switcher'
-import { NotificationPopover } from '@/components/notification-popover'
-import { ProfileDropdown } from '@/components/profile-dropdown'
-import { ThemeSwitch } from '@/components/theme-switch'
-import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
-import { useNotifications } from '@/hooks/use-notifications'
-import { useSystemConfig } from '@/hooks/use-system-config'
-import { useTopNavLinks } from '@/hooks/use-top-nav-links'
-import { cn } from '@/lib/utils'
-import { useAuthStore } from '@/stores/auth-store'
+import { Dialog } from "@/components/dialog";
+import { LanguageSwitcher } from "@/components/language-switcher";
+import { NotificationPopover } from "@/components/notification-popover";
+import { ProfileDropdown } from "@/components/profile-dropdown";
+import { ThemeSwitch } from "@/components/theme-switch";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useNotifications } from "@/hooks/use-notifications";
+import { useSystemConfig } from "@/hooks/use-system-config";
+import { useTopNavLinks } from "@/hooks/use-top-nav-links";
+import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/stores/auth-store";
 
-import { defaultTopNavLinks } from '../config/top-nav.config'
-import type { TopNavLink } from '../types'
-import { HeaderLogo } from './header-logo'
+import { defaultTopNavLinks } from "../config/top-nav.config";
+import type { TopNavLink } from "../types";
+import { HeaderLogo } from "./header-logo";
 
-const AUTH_PROMPT_SECONDS = 5
+const AUTH_PROMPT_SECONDS = 5;
 
 type AuthPromptTarget = {
-  title: string
-  href: string
-}
+  title: string;
+  href: string;
+};
 
 export interface PublicHeaderProps {
-  navLinks?: TopNavLink[]
-  mobileLinks?: TopNavLink[]
-  navContent?: React.ReactNode
-  showThemeSwitch?: boolean
-  showLanguageSwitcher?: boolean
-  logo?: React.ReactNode
-  siteName?: string
-  homeUrl?: string
-  leftContent?: React.ReactNode
-  rightContent?: React.ReactNode
-  showNavigation?: boolean
-  showAuthButtons?: boolean
-  showNotifications?: boolean
-  className?: string
+  navLinks?: TopNavLink[];
+  mobileLinks?: TopNavLink[];
+  navContent?: React.ReactNode;
+  showThemeSwitch?: boolean;
+  showLanguageSwitcher?: boolean;
+  logo?: React.ReactNode;
+  siteName?: string;
+  homeUrl?: string;
+  leftContent?: React.ReactNode;
+  rightContent?: React.ReactNode;
+  showNavigation?: boolean;
+  showAuthButtons?: boolean;
+  showNotifications?: boolean;
+  className?: string;
 }
 
 export function PublicHeader(props: PublicHeaderProps) {
@@ -68,144 +68,149 @@ export function PublicHeader(props: PublicHeaderProps) {
     showLanguageSwitcher = true,
     logo: customLogo,
     siteName: customSiteName,
-    homeUrl = '/',
+    homeUrl = "/",
     showAuthButtons = true,
     showNotifications = true,
-  } = props
+  } = props;
 
-  const { t } = useTranslation()
-  const navigate = useNavigate()
-  const [scrolled, setScrolled] = useState(false)
-  const [mobileOpen, setMobileOpen] = useState(false)
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const [scrolled, setScrolled] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [authPromptTarget, setAuthPromptTarget] =
-    useState<AuthPromptTarget | null>(null)
+    useState<AuthPromptTarget | null>(null);
   const [authPromptSecondsLeft, setAuthPromptSecondsLeft] =
-    useState(AUTH_PROMPT_SECONDS)
-  const { auth } = useAuthStore()
+    useState(AUTH_PROMPT_SECONDS);
+  const { auth } = useAuthStore();
   const {
     systemName,
     logo: systemLogo,
     loading,
     logoLoaded,
-  } = useSystemConfig()
-  const dynamicLinks = useTopNavLinks()
-  const notifications = useNotifications()
-  const routerState = useRouterState()
-  const pathname = routerState.location.pathname
+  } = useSystemConfig();
+  const dynamicLinks = useTopNavLinks();
+  const notifications = useNotifications();
+  const routerState = useRouterState();
+  const pathname = routerState.location.pathname;
 
-  const user = auth.user
-  const isAuthenticated = !!user
-  const displaySiteName = customSiteName || systemName
-  const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20)
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
+  const user = auth.user;
+  const isAuthenticated = !!user;
+  const displaySiteName = customSiteName || systemName;
+  const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks;
 
   useEffect(() => {
-    document.body.style.overflow = mobileOpen ? 'hidden' : ''
+    const onScroll = () => setScrolled(window.scrollY > 20);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    document.body.style.overflow = mobileOpen ? "hidden" : "";
     return () => {
-      document.body.style.overflow = ''
-    }
-  }, [mobileOpen])
+      document.body.style.overflow = "";
+    };
+  }, [mobileOpen]);
 
   useEffect(() => {
-    if (!authPromptTarget) return
+    if (!authPromptTarget) return;
 
     const intervalId = window.setInterval(() => {
-      setAuthPromptSecondsLeft((seconds) => Math.max(seconds - 1, 0))
-    }, 1000)
+      setAuthPromptSecondsLeft((seconds) => Math.max(seconds - 1, 0));
+    }, 1000);
 
     const timeoutId = window.setTimeout(() => {
-      const redirect = authPromptTarget.href
-      setAuthPromptTarget(null)
-      navigate({ to: '/sign-in', search: { redirect } })
-    }, AUTH_PROMPT_SECONDS * 1000)
+      const redirect = authPromptTarget.href;
+      setAuthPromptTarget(null);
+      navigate({ to: "/sign-in", search: { redirect } });
+    }, AUTH_PROMPT_SECONDS * 1000);
 
     return () => {
-      window.clearInterval(intervalId)
-      window.clearTimeout(timeoutId)
-    }
-  }, [authPromptTarget, navigate])
+      window.clearInterval(intervalId);
+      window.clearTimeout(timeoutId);
+    };
+  }, [authPromptTarget, navigate]);
 
   const closeAuthPrompt = useCallback(() => {
-    setAuthPromptTarget(null)
-    setAuthPromptSecondsLeft(AUTH_PROMPT_SECONDS)
-  }, [])
+    setAuthPromptTarget(null);
+    setAuthPromptSecondsLeft(AUTH_PROMPT_SECONDS);
+  }, []);
 
   const navigateToSignIn = useCallback(() => {
-    const redirect = authPromptTarget?.href || '/'
-    setAuthPromptTarget(null)
-    navigate({ to: '/sign-in', search: { redirect } })
-  }, [authPromptTarget?.href, navigate])
+    const redirect = authPromptTarget?.href || "/";
+    setAuthPromptTarget(null);
+    navigate({ to: "/sign-in", search: { redirect } });
+  }, [authPromptTarget?.href, navigate]);
 
   const handleNavLinkClick = useCallback(
     (
       event: React.MouseEvent<HTMLAnchorElement>,
       link: TopNavLink,
-      closeMobile = false
+      closeMobile = false,
     ) => {
       if (link.disabled) {
-        event.preventDefault()
-        return
+        event.preventDefault();
+        return;
       }
 
       if (link.requiresAuth) {
-        event.preventDefault()
+        event.preventDefault();
         if (closeMobile) {
-          setMobileOpen(false)
+          setMobileOpen(false);
         }
-        setAuthPromptSecondsLeft(AUTH_PROMPT_SECONDS)
+        setAuthPromptSecondsLeft(AUTH_PROMPT_SECONDS);
         setAuthPromptTarget({
           title: t(link.title),
           href: link.href,
-        })
-        return
+        });
+        return;
       }
 
       if (closeMobile) {
-        setMobileOpen(false)
+        setMobileOpen(false);
       }
     },
-    [t]
-  )
+    [t],
+  );
 
   return (
     <>
-      <header className='pointer-events-none fixed inset-x-0 top-0 z-50'>
+      <header
+        className={cn(
+          "pointer-events-none fixed inset-x-0 top-0 z-50",
+          props.className,
+        )}
+      >
         <div
           className={cn(
-            'pointer-events-auto transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
+            "pointer-events-auto transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]",
             scrolled
-              ? 'mx-auto max-w-[80rem] px-4 pt-3'
-              : 'w-full pl-[8.333%] pr-[2.777%] pt-4 lg:pr-[14%]'
+              ? "mx-auto max-w-[80rem] px-4 pt-3"
+              : "w-full pl-[8.333%] pr-[2.777%] pt-4 lg:pr-[14%]",
           )}
         >
           <nav
             className={cn(
-              'flex flex-nowrap items-center justify-between transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
-              'h-16 md:h-20',
+              "flex flex-nowrap items-center justify-between transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]",
+              "h-16 md:h-20",
               scrolled
-                ? 'bg-background/60 ring-border/50 rounded-2xl pr-2 pl-4 shadow-[0_2px_16px_-6px_rgba(0,0,0,0.08),0_0_0_0.5px_rgba(0,0,0,0.02)] ring-[0.5px] backdrop-blur-2xl dark:shadow-[0_2px_16px_-6px_rgba(0,0,0,0.4)]'
-                : 'px-2'
+                ? "bg-background/60 ring-border/50 rounded-2xl pr-2 pl-4 shadow-[0_2px_16px_-6px_rgba(0,0,0,0.08),0_0_0_0.5px_rgba(0,0,0,0.02)] ring-[0.5px] backdrop-blur-2xl dark:shadow-[0_2px_16px_-6px_rgba(0,0,0,0.4)]"
+                : "px-2",
             )}
           >
             {/* Logo */}
             <Link
               to={homeUrl}
-              className='group flex shrink-0 items-center gap-3'
+              className="group flex shrink-0 items-center gap-3"
             >
               <div
                 className={cn(
-                  'flex shrink-0 items-center justify-center transition-all duration-300 group-hover:scale-105',
-                  scrolled ? 'size-9 md:size-11' : 'size-10 md:size-14'
+                  "flex shrink-0 items-center justify-center transition-all duration-300 group-hover:scale-105",
+                  scrolled ? "size-9 md:size-11" : "size-10 md:size-14",
                 )}
               >
                 {loading ? (
-                  <Skeleton className='size-full rounded-lg' />
+                  <Skeleton className="size-full rounded-lg" />
                 ) : customLogo ? (
                   customLogo
                 ) : (
@@ -213,46 +218,42 @@ export function PublicHeader(props: PublicHeaderProps) {
                     src={systemLogo}
                     loading={loading}
                     logoLoaded={logoLoaded}
-                    className='size-full rounded-lg object-contain'
+                    className="size-full rounded-lg object-contain"
                   />
                 )}
               </div>
               <span
                 className={cn(
-                  'font-semibold whitespace-nowrap tracking-tight',
-                  scrolled ? 'text-base md:text-lg' : 'text-xl md:text-2xl'
+                  "relative z-50 font-semibold whitespace-nowrap tracking-tight drop-shadow-sm",
+                  scrolled ? "text-base md:text-lg" : "text-xl md:text-2xl",
                 )}
               >
-                {loading ? (
-                  <Skeleton className='h-7 w-32' />
-                ) : (
-                  displaySiteName
-                )}
+                {loading ? <Skeleton className="h-7 w-32" /> : displaySiteName}
               </span>
             </Link>
 
             {/* Desktop nav */}
-            <div className='hidden flex-nowrap items-center gap-0.5 whitespace-nowrap sm:flex'>
+            <div className="hidden flex-nowrap items-center gap-0.5 whitespace-nowrap sm:flex">
               {links.map((link, i) => {
-                const isActive = pathname === link.href
+                const isActive = pathname === link.href;
                 if (link.external) {
                   return (
                     <a
                       key={i}
                       href={link.href}
-                      target='_blank'
-                      rel='noopener noreferrer'
+                      target="_blank"
+                      rel="noopener noreferrer"
                       aria-disabled={link.disabled}
                       tabIndex={link.disabled ? -1 : undefined}
                       onClick={(event) => handleNavLinkClick(event, link)}
                       className={cn(
-                        'hover:text-blue-600 rounded-lg border-b-2 border-transparent px-3 py-1.5 text-base font-medium whitespace-nowrap transition-colors duration-200 md:text-xl dark:hover:text-blue-400',
-                        link.disabled && 'pointer-events-none opacity-50'
+                        "hover:text-blue-600 rounded-lg border-b-2 border-transparent px-3 py-1.5 text-base font-medium whitespace-nowrap transition-colors duration-200 md:text-xl dark:hover:text-blue-400",
+                        link.disabled && "pointer-events-none opacity-50",
                       )}
                     >
                       {t(link.title)}
                     </a>
-                  )
+                  );
                 }
                 return (
                   <Link
@@ -261,22 +262,22 @@ export function PublicHeader(props: PublicHeaderProps) {
                     disabled={link.disabled}
                     onClick={(event) => handleNavLinkClick(event, link)}
                     className={cn(
-                      'rounded-lg border-b-2 px-3 py-1.5 text-base font-medium whitespace-nowrap transition-colors duration-200 md:text-xl',
+                      "rounded-lg border-b-2 px-3 py-1.5 text-base font-medium whitespace-nowrap transition-colors duration-200 md:text-xl",
                       isActive
-                        ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
-                        : 'border-transparent text-foreground hover:text-blue-600 dark:hover:text-blue-400',
-                      link.disabled && 'pointer-events-none opacity-50'
+                        ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400"
+                        : "border-transparent text-foreground hover:text-blue-600 dark:hover:text-blue-400",
+                      link.disabled && "pointer-events-none opacity-50",
                     )}
                   >
                     {t(link.title)}
                   </Link>
-                )
+                );
               })}
 
               {(showLanguageSwitcher ||
                 showThemeSwitch ||
                 showNotifications) && (
-                <div className='bg-border/40 mx-2 h-4 w-px' />
+                <div className="bg-border/40 mx-2 h-4 w-px" />
               )}
 
               {showLanguageSwitcher && <LanguageSwitcher />}
@@ -296,18 +297,18 @@ export function PublicHeader(props: PublicHeaderProps) {
 
               {showAuthButtons && (
                 <>
-                  <div className='bg-border/40 mx-1 h-4 w-px' />
+                  <div className="bg-border/40 mx-1 h-4 w-px" />
                   {loading ? (
-                    <Skeleton className='h-8 w-20 rounded-lg' />
+                    <Skeleton className="h-8 w-20 rounded-lg" />
                   ) : isAuthenticated ? (
                     <ProfileDropdown />
                   ) : (
                     <Button
-                      size='sm'
-                      className='h-9 rounded-lg px-4 text-sm font-medium md:h-10 md:px-5'
-                      render={<Link to='/sign-in' />}
+                      size="sm"
+                      className="h-9 rounded-lg px-4 text-sm font-medium md:h-10 md:px-5"
+                      render={<Link to="/sign-in" />}
                     >
-                      {t('Sign in')}
+                      {t("Sign in")}
                     </Button>
                   )}
                 </>
@@ -315,36 +316,36 @@ export function PublicHeader(props: PublicHeaderProps) {
             </div>
 
             {/* Mobile: compact actions + hamburger */}
-            <div className='flex items-center gap-2 sm:hidden'>
+            <div className="flex items-center gap-2 sm:hidden">
               {showThemeSwitch && <ThemeSwitch />}
               {showAuthButtons && !loading && isAuthenticated && (
                 <ProfileDropdown />
               )}
               <Button
-                type='button'
-                variant='ghost'
-                size='icon'
-                className='size-9'
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-9"
                 onClick={() => setMobileOpen((v) => !v)}
-                aria-label={t('Toggle navigation menu')}
+                aria-label={t("Toggle navigation menu")}
               >
-                <div className='relative size-4'>
+                <div className="relative size-4">
                   <span
                     className={cn(
-                      'absolute inset-x-0 block h-[1.5px] origin-center rounded-full bg-current transition-all duration-300',
-                      mobileOpen ? 'top-[7px] rotate-45' : 'top-[3px]'
+                      "absolute inset-x-0 block h-[1.5px] origin-center rounded-full bg-current transition-all duration-300",
+                      mobileOpen ? "top-[7px] rotate-45" : "top-[3px]",
                     )}
                   />
                   <span
                     className={cn(
-                      'absolute inset-x-0 top-[7px] block h-[1.5px] rounded-full bg-current transition-all duration-300',
-                      mobileOpen ? 'scale-x-0 opacity-0' : 'opacity-100'
+                      "absolute inset-x-0 top-[7px] block h-[1.5px] rounded-full bg-current transition-all duration-300",
+                      mobileOpen ? "scale-x-0 opacity-0" : "opacity-100",
                     )}
                   />
                   <span
                     className={cn(
-                      'absolute inset-x-0 block h-[1.5px] origin-center rounded-full bg-current transition-all duration-300',
-                      mobileOpen ? 'top-[7px] -rotate-45' : 'top-[11px]'
+                      "absolute inset-x-0 block h-[1.5px] origin-center rounded-full bg-current transition-all duration-300",
+                      mobileOpen ? "top-[7px] -rotate-45" : "top-[11px]",
                     )}
                   />
                 </div>
@@ -357,34 +358,34 @@ export function PublicHeader(props: PublicHeaderProps) {
       {/* Mobile full-screen overlay */}
       <div
         className={cn(
-          'bg-background/98 fixed inset-0 z-40 backdrop-blur-2xl transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] sm:pointer-events-none sm:hidden',
+          "bg-background/98 fixed inset-0 z-40 backdrop-blur-2xl transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] sm:pointer-events-none sm:hidden",
           mobileOpen
-            ? 'pointer-events-auto opacity-100'
-            : 'pointer-events-none opacity-0'
+            ? "pointer-events-auto opacity-100"
+            : "pointer-events-none opacity-0",
         )}
       >
-        <div className='flex h-full flex-col justify-between px-8 pt-28 pb-10'>
-          <nav className='flex flex-col gap-1'>
+        <div className="flex h-full flex-col justify-between px-8 pt-28 pb-10">
+          <nav className="flex flex-col gap-1">
             {links.map((link, i) => {
-              const isActive = pathname === link.href
+              const isActive = pathname === link.href;
               const linkClassName = cn(
-                'flex items-center gap-3 py-3 text-base font-medium tracking-tight transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]',
+                "flex items-center gap-3 py-3 text-base font-medium tracking-tight transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
                 mobileOpen
-                  ? 'translate-y-0 opacity-100'
-                  : 'translate-y-4 opacity-0',
-                isActive ? 'text-foreground' : 'text-muted-foreground',
-                link.disabled && 'pointer-events-none opacity-50'
-              )
+                  ? "translate-y-0 opacity-100"
+                  : "translate-y-4 opacity-0",
+                isActive ? "text-foreground" : "text-muted-foreground",
+                link.disabled && "pointer-events-none opacity-50",
+              );
               const transitionStyle = {
-                transitionDelay: mobileOpen ? `${100 + i * 50}ms` : '0ms',
-              }
+                transitionDelay: mobileOpen ? `${100 + i * 50}ms` : "0ms",
+              };
               if (link.external) {
                 return (
                   <a
                     key={i}
                     href={link.href}
-                    target='_blank'
-                    rel='noopener noreferrer'
+                    target="_blank"
+                    rel="noopener noreferrer"
                     aria-disabled={link.disabled}
                     tabIndex={link.disabled ? -1 : undefined}
                     onClick={(event) => handleNavLinkClick(event, link, true)}
@@ -393,7 +394,7 @@ export function PublicHeader(props: PublicHeaderProps) {
                   >
                     {t(link.title)}
                   </a>
-                )
+                );
               }
               return (
                 <Link
@@ -406,26 +407,26 @@ export function PublicHeader(props: PublicHeaderProps) {
                 >
                   {t(link.title)}
                 </Link>
-              )
+              );
             })}
           </nav>
 
           <div
             className={cn(
-              'flex flex-col gap-3 transition-all duration-500',
+              "flex flex-col gap-3 transition-all duration-500",
               mobileOpen
-                ? 'translate-y-0 opacity-100'
-                : 'translate-y-4 opacity-0'
+                ? "translate-y-0 opacity-100"
+                : "translate-y-4 opacity-0",
             )}
-            style={{ transitionDelay: mobileOpen ? '250ms' : '0ms' }}
+            style={{ transitionDelay: mobileOpen ? "250ms" : "0ms" }}
           >
             {showAuthButtons && (
               <Link
-                to={isAuthenticated ? '/dashboard' : '/sign-in'}
+                to={isAuthenticated ? "/dashboard" : "/sign-in"}
                 onClick={() => setMobileOpen(false)}
-                className='bg-foreground text-background inline-flex h-10 items-center justify-center rounded-lg text-sm font-medium transition-opacity hover:opacity-90 active:opacity-80'
+                className="bg-foreground text-background inline-flex h-10 items-center justify-center rounded-lg text-sm font-medium transition-opacity hover:opacity-90 active:opacity-80"
               >
-                {isAuthenticated ? t('Go to Dashboard') : t('Sign in')}
+                {isAuthenticated ? t("Go to Dashboard") : t("Sign in")}
               </Link>
             )}
           </div>
@@ -436,30 +437,30 @@ export function PublicHeader(props: PublicHeaderProps) {
         open={!!authPromptTarget}
         onOpenChange={(open) => {
           if (!open) {
-            closeAuthPrompt()
+            closeAuthPrompt();
           }
         }}
-        title={t('Sign in required')}
-        description={t('Please sign in to view {{module}}.', {
-          module: authPromptTarget?.title || '',
+        title={t("Sign in required")}
+        description={t("Please sign in to view {{module}}.", {
+          module: authPromptTarget?.title || "",
         })}
-        contentClassName='sm:max-w-md'
-        contentHeight='auto'
+        contentClassName="sm:max-w-md"
+        contentHeight="auto"
         footer={
           <>
-            <Button variant='outline' onClick={closeAuthPrompt}>
-              {t('Cancel')}
+            <Button variant="outline" onClick={closeAuthPrompt}>
+              {t("Cancel")}
             </Button>
-            <Button onClick={navigateToSignIn}>{t('Sign in now')}</Button>
+            <Button onClick={navigateToSignIn}>{t("Sign in now")}</Button>
           </>
         }
       >
-        <div className='bg-muted/40 text-muted-foreground rounded-lg px-3 py-2 text-sm'>
-          {t('Redirecting to sign in in {{seconds}} seconds.', {
+        <div className="bg-muted/40 text-muted-foreground rounded-lg px-3 py-2 text-sm">
+          {t("Redirecting to sign in in {{seconds}} seconds.", {
             seconds: authPromptSecondsLeft,
           })}
         </div>
       </Dialog>
     </>
-  )
+  );
 }

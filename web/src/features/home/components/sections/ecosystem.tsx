@@ -16,12 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { ArrowRight, Rocket, Sparkles, Tags, UserPlus } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
+import { ArrowRight, Rocket, Sparkles, Tags, UserPlus } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
-import { AnimateInView } from '@/components/animate-in-view'
-import { Button } from '@/components/ui/button'
-import { Link } from '@tanstack/react-router'
+import { AnimateInView } from "@/components/animate-in-view";
+import { Button } from "@/components/ui/button";
+import { Link } from "@tanstack/react-router";
 
 /**
  * Second screen — the "one gateway" value proposition with the three primary
@@ -29,108 +29,126 @@ import { Link } from '@tanstack/react-router'
  * hero and the deep-gradient capability banner that follows.
  */
 export function Ecosystem() {
-  const { t } = useTranslation()
-  const isAuthenticated = false
+  const { t } = useTranslation();
+  const isAuthenticated = false;
 
   return (
     <section
-      aria-labelledby='ecosystem-heading'
-      className='relative z-10 px-4 py-8 md:px-6 md:py-10'
+      aria-labelledby="ecosystem-heading"
+      className="relative z-10 px-4 py-8 md:px-6 md:py-10"
     >
-      <div className='relative isolate mx-auto max-w-[1400px] overflow-hidden rounded-[24px] border border-blue-100/80 px-6 py-12 shadow-[0_30px_70px_-52px_rgba(37,99,235,0.55)] md:rounded-[32px] md:px-12 md:py-16 dark:border-white/10'>
-        {/* Light blue panel base */}
+      <div className="relative isolate mx-auto max-w-[1400px] overflow-hidden rounded-[24px] border border-blue-100/80 px-6 py-12 shadow-[0_30px_70px_-52px_rgba(37,99,235,0.55)] md:rounded-[32px] md:px-12 md:py-16 dark:border-white/10">
+        {/* Left-half image background + light fallback */}
+        <img
+          aria-hidden
+          src="/home/hero-slide-1.jpg"
+          alt=""
+          className="absolute inset-y-0 left-0 -z-20 w-1/2 object-cover object-left opacity-100 dark:opacity-0"
+        />
         <div
           aria-hidden
-          className='absolute inset-0 -z-20 bg-[linear-gradient(135deg,#f9fbff_0%,#eaf2ff_48%,#f6f9ff_100%)] dark:bg-[linear-gradient(135deg,#0a1830_0%,#122242_50%,#0a1830_100%)]'
+          className="absolute inset-0 -z-20 bg-[linear-gradient(135deg,#f9fbff_0%,#eaf2ff_48%,#f6f9ff_100%)] opacity-0 dark:opacity-100"
+        />
+        <div
+          aria-hidden
+          className="absolute inset-0 -z-19 bg-[linear-gradient(90deg,transparent_0%,transparent_45%,rgba(249,251,255,0.85)_62%,rgba(249,251,255,0.98)_100%)] opacity-100 dark:opacity-0"
         />
         {/* Fine grid texture, faded towards the edges */}
         <div
           aria-hidden
-          className='absolute inset-0 -z-10 bg-[linear-gradient(to_right,rgba(37,99,235,0.07)_1px,transparent_1px),linear-gradient(to_bottom,rgba(37,99,235,0.07)_1px,transparent_1px)] bg-[size:44px_44px] [mask-image:radial-gradient(ellipse_75%_70%_at_50%_35%,black_25%,transparent_100%)]'
+          className="absolute inset-0 -z-10 bg-[linear-gradient(to_right,rgba(37,99,235,0.07)_1px,transparent_1px),linear-gradient(to_bottom,rgba(37,99,235,0.07)_1px,transparent_1px)] bg-[size:44px_44px] [mask-image:radial-gradient(ellipse_75%_70%_at_50%_35%,black_25%,transparent_100%)]"
         />
         {/* Glows */}
         <div
           aria-hidden
-          className='absolute -top-28 left-1/2 -z-10 size-[420px] -translate-x-1/2 rounded-full bg-blue-300/30 blur-2xl dark:bg-blue-500/15'
+          className="absolute -top-28 left-1/2 -z-10 size-[420px] -translate-x-1/2 rounded-full bg-blue-300/30 blur-2xl dark:bg-blue-500/15"
         />
         <div
           aria-hidden
-          className='absolute -right-24 -bottom-24 -z-10 size-72 rounded-full bg-indigo-200/30 blur-2xl dark:bg-indigo-500/10'
+          className="absolute -right-24 -bottom-24 -z-10 size-72 rounded-full bg-indigo-200/30 blur-2xl dark:bg-indigo-500/10"
         />
 
-        <div className='mx-auto max-w-3xl text-center'>
-          <AnimateInView animation='fade-in'>
-            <span className='inline-flex items-center gap-1.5 rounded-full border border-blue-200/70 bg-white/70 px-3 py-1 text-[11px] font-medium tracking-[0.18em] text-blue-600 uppercase backdrop-blur-sm dark:border-white/15 dark:bg-white/10 dark:text-blue-300'>
-              <Sparkles className='size-3' />
-              {t('Application Ecosystem')}
+        <div className="mx-auto max-w-3xl text-center">
+          <AnimateInView animation="fade-in">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200/70 bg-white/70 px-3 py-1 text-[11px] font-medium tracking-[0.18em] text-blue-600 uppercase backdrop-blur-sm dark:border-white/15 dark:bg-white/10 dark:text-blue-300">
+              <Sparkles className="size-3" />
+              {t("Application Ecosystem")}
             </span>
           </AnimateInView>
 
           <AnimateInView delay={80}>
             <h2
-              id='ecosystem-heading'
-              className='mt-5 text-[clamp(1.75rem,3.2vw,2.5rem)] leading-[1.18] font-bold tracking-tight text-slate-900 dark:text-slate-50'
+              id="ecosystem-heading"
+              className="mt-5 text-[clamp(1.75rem,3.2vw,2.5rem)] leading-[1.18] font-bold tracking-tight text-slate-900 dark:text-slate-50"
             >
-              {t('One gateway, connected to')}
+              {t("One gateway, connected to")}
               <br />
-              <span className='bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-500 bg-clip-text text-transparent dark:from-blue-400 dark:via-indigo-400 dark:to-violet-400'>
-                {t('the tools you already use')}
+              <span className="bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-500 bg-clip-text text-transparent dark:from-blue-400 dark:via-indigo-400 dark:to-violet-400">
+                {t("the tools you already use")}
               </span>
             </h2>
           </AnimateInView>
 
           <AnimateInView delay={140}>
-            <p className='mx-auto mt-4 max-w-xl text-[15px] leading-relaxed text-slate-500 dark:text-slate-400'>
+            <p className="mx-auto mt-4 max-w-xl text-[15px] leading-relaxed text-slate-500 dark:text-slate-400">
               {t(
-                'One gateway for every model — no changes to your existing apps.'
+                "One gateway for every model — no changes to your existing apps.",
               )}
             </p>
           </AnimateInView>
         </div>
 
         <AnimateInView
-          className='mt-10 flex flex-col items-center justify-center gap-3.5 sm:flex-row sm:gap-4'
-          animation='fade-up'
+          className="mt-10 flex flex-col items-center justify-center gap-3.5 sm:flex-row sm:gap-4"
+          animation="fade-up"
           delay={200}
         >
           <Button
-            className='h-[54px] w-full rounded-xl bg-gradient-to-br from-blue-600 via-blue-600 to-indigo-600 px-7 text-[15px] font-medium text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_14px_30px_-12px_rgba(37,99,235,0.6)] transition-all duration-300 motion-safe:hover:-translate-y-0.5 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_20px_40px_-14px_rgba(37,99,235,0.7)] sm:w-auto'
+            className="h-[54px] w-full rounded-xl bg-gradient-to-br from-blue-600 via-blue-600 to-indigo-600 px-7 text-[15px] font-medium text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_14px_30px_-12px_rgba(37,99,235,0.6)] transition-all duration-300 motion-safe:hover:-translate-y-0.5 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_20px_40px_-14px_rgba(37,99,235,0.7)] sm:w-auto"
             render={
-              isAuthenticated ? <Link to='/dashboard' /> : <Link to='/sign-up' />
+              isAuthenticated ? (
+                <Link to="/dashboard" />
+              ) : (
+                <Link to="/sign-up" />
+              )
             }
           >
-            <UserPlus className='mr-2 size-[18px]' />
-            {t('Register now')}
-            <ArrowRight className='ml-2 size-4 transition-transform duration-300 group-hover/button:translate-x-0.5' />
+            <UserPlus className="mr-2 size-[18px]" />
+            {t("Register now")}
+            <ArrowRight className="ml-2 size-4 transition-transform duration-300 group-hover/button:translate-x-0.5" />
           </Button>
           <Button
-            className='h-[54px] w-full rounded-xl border-blue-200 bg-white px-7 text-[15px] font-medium text-blue-700 shadow-[0_10px_24px_-14px_rgba(37,99,235,0.45)] transition-all duration-300 motion-safe:hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50/70 hover:shadow-[0_16px_32px_-14px_rgba(37,99,235,0.5)] sm:w-auto dark:border-blue-400/30 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/20'
-            variant='outline'
+            className="h-[54px] w-full rounded-xl border-blue-200 bg-white px-7 text-[15px] font-medium text-blue-700 shadow-[0_10px_24px_-14px_rgba(37,99,235,0.45)] transition-all duration-300 motion-safe:hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50/70 hover:shadow-[0_16px_32px_-14px_rgba(37,99,235,0.5)] sm:w-auto dark:border-blue-400/30 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/20"
+            variant="outline"
             render={
-              isAuthenticated ? <Link to='/dashboard' /> : <Link to='/sign-in' />
+              isAuthenticated ? (
+                <Link to="/dashboard" />
+              ) : (
+                <Link to="/sign-in" />
+              )
             }
           >
-            <Rocket className='mr-2 size-[18px]' />
-            {t('Get Started')}
+            <Rocket className="mr-2 size-[18px]" />
+            {t("Get Started")}
           </Button>
           <Button
-            className='h-[54px] w-full rounded-xl border-slate-200 bg-white/70 px-7 text-[15px] font-medium text-slate-700 backdrop-blur-sm transition-all duration-300 motion-safe:hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white hover:shadow-[0_16px_32px_-16px_rgba(15,23,42,0.28)] sm:w-auto dark:border-white/15 dark:bg-white/5 dark:text-slate-200'
-            variant='outline'
-            render={<Link to='/pricing' />}
+            className="h-[54px] w-full rounded-xl border-slate-200 bg-white/70 px-7 text-[15px] font-medium text-slate-700 backdrop-blur-sm transition-all duration-300 motion-safe:hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white hover:shadow-[0_16px_32px_-16px_rgba(15,23,42,0.28)] sm:w-auto dark:border-white/15 dark:bg-white/5 dark:text-slate-200"
+            variant="outline"
+            render={<Link to="/pricing" />}
           >
-            <Tags className='mr-2 size-[18px]' />
-            {t('View Pricing')}
+            <Tags className="mr-2 size-[18px]" />
+            {t("View Pricing")}
           </Button>
         </AnimateInView>
 
         <AnimateInView
-          className='mt-7 text-center text-xs text-slate-400 dark:text-slate-500'
-          animation='fade-in'
+          className="mt-7 text-center text-xs text-slate-400 dark:text-slate-500"
+          animation="fade-in"
           delay={260}
         >
-          {t('Sign up with free trial credits — email, phone or WeChat login')}
+          {t("Sign up with free trial credits — email, phone or WeChat login")}
         </AnimateInView>
       </div>
     </section>
-  )
+  );
 }

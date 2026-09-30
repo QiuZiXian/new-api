@@ -48,7 +48,7 @@ interface SearchFilterRowProps {
 
 /**
  * Reference-style toolbar: centered search plus two compact dropdowns
- * (price ordering and billing scale) shown to the right of it.
+ * (price range and billing method) shown to the right of it.
  */
 export function SearchFilterRow(props: SearchFilterRowProps) {
   const { t } = useTranslation()
@@ -58,6 +58,18 @@ export function SearchFilterRow(props: SearchFilterRowProps) {
     { value: SORT_OPTIONS.PRICE_LOW, label: t('Price: Low to High') },
     { value: SORT_OPTIONS.PRICE_HIGH, label: t('Price: High to Low') },
   ]
+  // Select.Value renders the raw stored value unless the root knows the
+  // option labels, so every dropdown must pass its items explicitly.
+  const sortItems = sortOptions.map((option) => ({
+    value: option.value,
+    label: option.label,
+  }))
+  const quotaItems = (
+    [QUOTA_TYPES.ALL, QUOTA_TYPES.TOKEN, QUOTA_TYPES.REQUEST] as string[]
+  ).map((option) => ({
+    value: option,
+    label: quotaLabels[option as QuotaTypeOption],
+  }))
 
   return (
     <div
@@ -84,10 +96,15 @@ export function SearchFilterRow(props: SearchFilterRowProps) {
             {t('Price range')}
           </span>
           <Select
+            items={sortItems}
             value={props.sortBy}
             onValueChange={(value) => props.onSortChange(value ?? props.sortBy)}
           >
-            <SelectTrigger size='sm' className='min-w-28' aria-label={t('Price range')}>
+            <SelectTrigger
+              size='sm'
+              className='min-w-28'
+              aria-label={t('Price range')}
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -102,23 +119,26 @@ export function SearchFilterRow(props: SearchFilterRowProps) {
 
         <div className='flex items-center gap-1.5'>
           <span className='text-muted-foreground hidden text-sm whitespace-nowrap sm:inline'>
-            {t('Usage scale')}
+            {t('Billing method')}
           </span>
           <Select
+            items={quotaItems}
             value={props.quotaType}
             onValueChange={(value) =>
               props.onQuotaTypeChange(value ?? props.quotaType)
             }
           >
-            <SelectTrigger size='sm' className='min-w-28' aria-label={t('Usage scale')}>
+            <SelectTrigger
+              size='sm'
+              className='min-w-28'
+              aria-label={t('Billing method')}
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {(
-                [QUOTA_TYPES.ALL, QUOTA_TYPES.TOKEN, QUOTA_TYPES.REQUEST] as string[]
-              ).map((option) => (
-                <SelectItem key={option} value={option}>
-                  {quotaLabels[option as QuotaTypeOption]}
+              {quotaItems.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
                 </SelectItem>
               ))}
             </SelectContent>
