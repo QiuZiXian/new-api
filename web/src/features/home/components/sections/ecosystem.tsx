@@ -94,7 +94,7 @@ export function Ecosystem() {
           delay={200}
         >
           <Button
-            className="h-[54px] w-full rounded-xl bg-gradient-to-br from-blue-600 via-blue-600 to-indigo-600 px-7 text-[15px] font-medium text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_14px_30px_-12px_rgba(37,99,235,0.6)] transition-all duration-300 motion-safe:hover:-translate-y-0.5 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_20px_40px_-14px_rgba(37,99,235,0.7)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-blue-500/40 active:translate-y-px sm:w-auto"
+            className="h-[54px] w-full rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-7 text-[15px] font-medium text-white shadow-[0_8px_24px_-6px_rgba(37,99,235,0.55)] transition-all duration-200 hover:from-blue-700 hover:to-blue-600 hover:shadow-[0_12px_28px_-8px_rgba(37,99,235,0.6)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-blue-500/40 active:translate-y-px motion-safe:hover:-translate-y-0.5 sm:w-auto"
             render={
               isAuthenticated ? (
                 <Link to="/dashboard" />
@@ -108,7 +108,7 @@ export function Ecosystem() {
             <ArrowRight className="ml-2 size-4 transition-transform duration-300 group-hover/button:translate-x-0.5" />
           </Button>
           <Button
-            className="h-[54px] w-full rounded-xl border-blue-200 bg-white px-7 text-[15px] font-medium text-blue-700 shadow-[0_10px_24px_-14px_rgba(37,99,235,0.45)] transition-all duration-300 motion-safe:hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50/70 hover:shadow-[0_16px_32px_-14px_rgba(37,99,235,0.5)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-blue-500/40 active:translate-y-px sm:w-auto dark:border-blue-400/30 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/20"
+            className="h-[54px] w-full rounded-xl border-blue-200 bg-white px-7 text-[15px] font-medium text-blue-700 shadow-[0_8px_20px_-14px_rgba(37,99,235,0.45)] transition-all duration-200 hover:border-blue-300 hover:bg-blue-50/70 hover:shadow-[0_12px_24px_-12px_rgba(37,99,235,0.5)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-blue-500/40 active:translate-y-px motion-safe:hover:-translate-y-0.5 sm:w-auto dark:border-blue-400/30 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/20"
             variant="outline"
             render={
               isAuthenticated ? (
@@ -122,7 +122,7 @@ export function Ecosystem() {
             {t("Get Started")}
           </Button>
           <Button
-            className="h-[54px] w-full rounded-xl border-slate-200 bg-white/70 px-7 text-[15px] font-medium text-slate-700 backdrop-blur-sm transition-all duration-300 motion-safe:hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white hover:shadow-[0_16px_32px_-16px_rgba(15,23,42,0.28)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-slate-500/30 active:translate-y-px sm:w-auto dark:border-white/15 dark:bg-white/5 dark:text-slate-200"
+            className="h-[54px] w-full rounded-xl border-slate-200 bg-white/70 px-7 text-[15px] font-medium text-slate-700 shadow-[0_8px_20px_-16px_rgba(15,23,42,0.28)] backdrop-blur-sm transition-all duration-200 hover:border-slate-300 hover:bg-white hover:shadow-[0_12px_24px_-14px_rgba(15,23,42,0.3)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-slate-500/30 active:translate-y-px motion-safe:hover:-translate-y-0.5 sm:w-auto dark:border-white/15 dark:bg-white/5 dark:text-slate-200"
             variant="outline"
             render={<Link to="/pricing" />}
           >

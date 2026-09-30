@@ -330,3 +330,11 @@ service.DeleteAsset
   - SheetTitle 加 IconBadge `vibrant-blue / Settings2` 前缀。
   - 顶部新增「概览快照」卡片实时显示 model_name / 描述 / hot_label / discount_label / tags。
   - 5 个 SideDrawerSection 改用 `<SideDrawerSectionHeader icon iconTone>`：基础信息 `vibrant-blue / Info`、价格展示 `vibrant-amber / Tag`、匹配规则 `vibrant-violet / Filter`、端点 `vibrant-emerald / Network`、计费配置 `vibrant-pink / Wallet`。
+
+## 按钮统一 / 轮播调换 / 定价表格美化（2026-09-30）
+
+- 导航菜单字体回退为 `text-base md:text-xl`（`public-header.tsx`），保留 hover 与激活态。
+- 主页全部按钮按规范 §6.4 统一：`hero.tsx`（抽出 `HERO_BUTTON_CLASS`）、`ecosystem.tsx`（3 个 h-[54px] CTA）、`cta.tsx`（2 个按钮）。
+- Hero 轮播顺序调换：视觉聚合（hero-slide-1.jpg）在前，kimi-k3 首发（hero-slide-2.jpg）在后；文案随图走。
+- 轮播按钮语义：kimi-k3 CTA → 已登录 `/playground`、未登录 `/sign-in`；原「登录体验」改为「查看体验」（新 i18n `View experience`），跳 `/pricing`。
+- 模型详情抽屉定价：表头 `font-semibold`；价格 `font-mono text-[15px] font-bold text-red-500`；折扣用模型卡「热门」橙红渐变胶囊，省 x% 用红色小字。

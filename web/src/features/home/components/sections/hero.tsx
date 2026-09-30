@@ -40,12 +40,16 @@ interface HeroProps {
 }
 
 const SLIDE_INTERVAL = 7000;
-const SLIDE_IDS = ["glm-launch", "visual-aggregation"] as const;
+const SLIDE_IDS = ["visual-aggregation", "glm-launch"] as const;
 const SLIDE_COUNT = SLIDE_IDS.length;
 const HERO_BACKGROUNDS = [
-  "/home/hero-slide-2.jpg",
   "/home/hero-slide-1.jpg",
+  "/home/hero-slide-2.jpg",
 ] as const;
+
+// §6.4 Hero / 首屏 CTA：蓝→蓝渐变、h-11、图标 size-4、文字 text-sm font-medium
+const HERO_BUTTON_CLASS =
+  "group h-11 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-6 text-sm font-medium text-white shadow-[0_8px_24px_-6px_rgba(37,99,235,0.55)] transition-all duration-200 hover:from-blue-700 hover:to-blue-600 hover:shadow-[0_12px_28px_-8px_rgba(37,99,235,0.6)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-blue-500/40 active:translate-y-px motion-safe:hover:-translate-y-0.5";
 
 function FeatureCard(props: {
   icon: React.ReactNode;
@@ -82,17 +86,13 @@ function SlideCTA(props: {
   isAuthenticated?: boolean;
   label: string;
   hint?: string;
-  to: string;
 }) {
-  const { t } = useTranslation();
-  const target = props.isAuthenticated ? "/dashboard" : props.to;
+  // 已登录直接进游乐场，未登录先引导到登录页
+  const target = props.isAuthenticated ? "/playground" : "/sign-in";
   return (
     <div className="mt-6 flex flex-wrap items-center gap-3">
-      <Button
-        className="group h-11 rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 px-6 text-sm font-medium text-white shadow-[0_8px_20px_-6px_rgba(37,99,235,0.55)] transition-all duration-200 hover:from-blue-700 hover:to-blue-600 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-blue-500/40 active:translate-y-px motion-safe:hover:-translate-y-0.5"
-        render={<Link to={target} />}
-      >
-        {props.isAuthenticated ? t("Go to Dashboard") : props.label}
+      <Button className={HERO_BUTTON_CLASS} render={<Link to={target} />}>
+        {props.label}
         <ArrowRight className="ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
       </Button>
       {props.hint && (
@@ -104,7 +104,7 @@ function SlideCTA(props: {
   );
 }
 
-/** Slide 1 — new flagship model launch. */
+/** Slide 2 — new flagship model launch. */
 function SlideGLM(props: { isAuthenticated?: boolean }) {
   const { t } = useTranslation();
   const features = [
@@ -156,14 +156,13 @@ function SlideGLM(props: { isAuthenticated?: boolean }) {
         isAuthenticated={props.isAuthenticated}
         label={t("Try kimi-k3 now")}
         hint={t("Sign in to unlock the new-generation model capabilities")}
-        to="/pricing"
       />
     </div>
   );
 }
 
-/** Slide 2 — aggregated visual generation models. */
-function SlideAggregate(props: { isAuthenticated?: boolean }) {
+/** Slide 1 — aggregated visual generation models. */
+function SlideAggregate() {
   const { t } = useTranslation();
   const cards = [
     {
@@ -243,14 +242,10 @@ function SlideAggregate(props: { isAuthenticated?: boolean }) {
           )}
         </p>
         <Button
-          className="group h-10 shrink-0 rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 px-5 text-sm font-medium text-white shadow-[0_8px_20px_-6px_rgba(37,99,235,0.55)] transition-all duration-200 hover:from-blue-700 hover:to-blue-600 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-blue-500/40 active:translate-y-px"
-          render={
-            <Link to={props.isAuthenticated ? "/dashboard" : "/sign-in"} />
-          }
+          className="group h-10 shrink-0 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-5 text-sm font-medium text-white shadow-[0_8px_24px_-6px_rgba(37,99,235,0.55)] transition-all duration-200 hover:from-blue-700 hover:to-blue-600 hover:shadow-[0_12px_28px_-8px_rgba(37,99,235,0.6)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-blue-500/40 active:translate-y-px motion-safe:hover:-translate-y-0.5"
+          render={<Link to="/pricing" />}
         >
-          {props.isAuthenticated
-            ? t("Go to Dashboard")
-            : t("Sign in to experience")}
+          {t("View experience")}
           <ArrowRight className="ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
         </Button>
       </div>
@@ -316,9 +311,9 @@ export function Hero(props: HeroProps) {
               transition={slideTransition}
             >
               {active === 0 ? (
-                <SlideGLM isAuthenticated={props.isAuthenticated} />
+                <SlideAggregate />
               ) : (
-                <SlideAggregate isAuthenticated={props.isAuthenticated} />
+                <SlideGLM isAuthenticated={props.isAuthenticated} />
               )}
             </motion.div>
           </AnimatePresence>

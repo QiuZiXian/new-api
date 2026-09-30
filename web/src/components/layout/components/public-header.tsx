@@ -247,7 +247,7 @@ export function PublicHeader(props: PublicHeaderProps) {
                       tabIndex={link.disabled ? -1 : undefined}
                       onClick={(event) => handleNavLinkClick(event, link)}
                       className={cn(
-                        "hover:bg-accent/60 hover:text-foreground inline-flex h-9 items-center rounded-md border-b-2 border-transparent px-3 text-sm font-medium tracking-tight transition-colors duration-200",
+                        "hover:bg-accent/60 hover:text-foreground inline-flex items-center rounded-md border-b-2 border-transparent px-3 py-1.5 text-base font-medium whitespace-nowrap transition-colors duration-200 md:text-xl",
                         link.disabled && "pointer-events-none opacity-50",
                       )}
                     >
@@ -262,7 +262,7 @@ export function PublicHeader(props: PublicHeaderProps) {
                     disabled={link.disabled}
                     onClick={(event) => handleNavLinkClick(event, link)}
                     className={cn(
-                      "hover:bg-accent/60 hover:text-foreground inline-flex h-9 items-center rounded-md border-b-2 px-3 text-sm font-medium tracking-tight transition-colors duration-200",
+                      "hover:bg-accent/60 hover:text-foreground inline-flex items-center rounded-md border-b-2 px-3 py-1.5 text-base font-medium whitespace-nowrap transition-colors duration-200 md:text-xl",
                       isActive
                         ? "border-primary text-foreground"
                         : "border-transparent text-muted-foreground",
