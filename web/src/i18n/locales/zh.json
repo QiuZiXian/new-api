@@ -5510,6 +5510,24 @@
     "Zhipu V4": "智谱 V4",
     "Zoom": "缩放",
     "One gateway for every model — no changes to your existing apps.": "一个网关接入全部模型，既有应用零改造。",
-    "Sign up with free trial credits — email, phone or WeChat login": "注册即赠体验额度，支持邮箱 / 手机号 / 微信登录"
+    "Sign up with free trial credits — email, phone or WeChat login": "注册即赠体验额度，支持邮箱 / 手机号 / 微信登录",
+    "Billing ID": "模型计费标识",
+    "Cached tokens": "缓存 tokens",
+    "Cache write tokens": "缓存写入 tokens",
+    "Function": "功能",
+    "Save {{percent}}": "节省 {{percent}}",
+    "Unit": "单位",
+    "Unit image": "张",
+    "Unit request": "次",
+    "Unit second": "秒",
+    "Variant": "维度",
+    "Price Display": "价格展示",
+    "Custom label": "自定义名称",
+    "Origin price": "原价",
+    "Add price item": "添加价格项",
+    "Optional, enables the discount badge": "可选，填写后展示折扣角标",
+    "e.g. Fast 480p": "例如：Fast 480p",
+    "Leave empty to derive standard input / output / cache rows from the billing configuration": "留空则按计费配置自动生成输入 / 输出 / 缓存标准行",
+    "Controls how the model square renders this model price table. Prices are derived from the billing configuration, not typed here.": "控制模型广场中该模型价格表的排版。价格由计费配置推导，不在此录入。"
   }
 }

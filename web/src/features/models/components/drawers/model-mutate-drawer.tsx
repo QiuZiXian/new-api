@@ -20,7 +20,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, Loader2 } from 'lucide-react'
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import * as z from 'zod'
@@ -85,6 +85,12 @@ import { createModel, updateModel, getModel, getVendors } from '../../api'
 import { getNameRuleOptions, ENDPOINT_TEMPLATES } from '../../constants'
 import { modelsQueryKeys, vendorsQueryKeys, parseModelTags } from '../../lib'
 import type { Model } from '../../types'
+import {
+  parsePriceItems,
+  serializePriceItems,
+  type PriceItemDraft,
+} from '../../lib/price-items'
+import { PriceItemsEditor } from '../price-items-editor'
 
 // Extended schema for ratio configuration (internal form state only)
 const extendedModelFormSchema = z.object({
@@ -107,6 +113,13 @@ const extendedModelFormSchema = z.object({
   imageRatio: z.string().optional(),
   audioRatio: z.string().optional(),
   audioCompletionRatio: z.string().optional(),
+  // 模型广场展示补充字段，只影响详情页渲染，不参与计费
+  context_length: z.string(),
+  max_output_tokens: z.string(),
+  category: z.string(),
+  capabilities: z.string(),
+  input_modalities: z.string(),
+  output_modalities: z.string(),
 })
 
 type ExtendedModelFormValues = z.infer<typeof extendedModelFormSchema>
@@ -150,6 +163,18 @@ const EMPTY_PRICING_CONFIG: PricingConfig = {
   promptPrice: '',
   completionPrice: '',
   advancedOpen: false,
+}
+
+// 后端把 capabilities / modalities 下发为数组，表单里按逗号分隔编辑。
+function joinListValue(value: string[] | string | undefined): string {
+  if (Array.isArray(value)) return value.join(',')
+  return value || ''
+}
+
+// 空字符串不能当数字提交给后端 int 列，未填写时整字段省略。
+function toIntOrUndefined(value: string): number | undefined {
+  const parsed = Number.parseInt(value, 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
 }
 
 function lookupModelRatio(
@@ -250,6 +275,7 @@ export function ModelMutateDrawer({
   const [promptPrice, setPromptPrice] = useState('')
   const [completionPrice, setCompletionPrice] = useState('')
   const [oldModelName, setOldModelName] = useState<string>('')
+  const [priceItems, setPriceItems] = useState<PriceItemDraft[]>([])
   // Model name whose pricing was read into the form when the drawer opened.
   // Submit may only rewrite pricing for this name, or for a name the user
   // explicitly priced; anything else it never saw and must leave alone.
@@ -381,7 +407,18 @@ export function ModelMutateDrawer({
       imageRatio: '',
       audioRatio: '',
       audioCompletionRatio: '',
+      context_length: '',
+      max_output_tokens: '',
+      category: '',
+      capabilities: '',
+      input_modalities: '',
+      output_modalities: '',
     },
+  })
+
+  const watchedModelName = useWatch({
+    control: form.control,
+    name: 'model_name',
   })
 
   const validateNumber = (value: string) => {
@@ -444,8 +481,19 @@ export function ModelMutateDrawer({
         name_rule: model.name_rule || 0,
         status: model.status === 1,
         sync_official: model.sync_official === 1,
+        context_length: model.context_length
+          ? String(model.context_length)
+          : '',
+        max_output_tokens: model.max_output_tokens
+          ? String(model.max_output_tokens)
+          : '',
+        category: model.category || '',
+        capabilities: joinListValue(model.capabilities),
+        input_modalities: joinListValue(model.input_modalities),
+        output_modalities: joinListValue(model.output_modalities),
         ...pricing.fields,
       })
+      setPriceItems(parsePriceItems(model.price_items))
     } else if (open && !isEditing) {
       // Pre-fill model name if passed from missing models, along with any
       // pricing that name already has, so the user edits it instead of being
@@ -471,8 +519,15 @@ export function ModelMutateDrawer({
         name_rule: 0,
         status: true,
         sync_official: true,
+        context_length: '',
+        max_output_tokens: '',
+        category: '',
+        capabilities: '',
+        input_modalities: '',
+        output_modalities: '',
         ...pricing.fields,
       })
+      setPriceItems([])
     }
   }, [open, isEditing, modelData, currentRow, form, hasModelSettings])
 
@@ -486,6 +541,8 @@ export function ModelMutateDrawer({
           tags: Array.isArray(values.tags) ? values.tags.join(',') : '',
           status: values.status ? 1 : 0,
           sync_official: values.sync_official ? 1 : 0,
+          context_length: toIntOrUndefined(values.context_length),
+          max_output_tokens: toIntOrUndefined(values.max_output_tokens),
         }
 
         // Remove ratio fields from model data (they're stored in system settings)
@@ -502,8 +559,15 @@ export function ModelMutateDrawer({
 
         const response =
           isEditing && currentModelId
-            ? await updateModel({ ...modelData, id: currentModelId })
-            : await createModel(modelData)
+            ? await updateModel({
+                ...modelData,
+                id: currentModelId,
+                price_items: serializePriceItems(priceItems),
+              })
+            : await createModel({
+                ...modelData,
+                price_items: serializePriceItems(priceItems),
+              })
 
         if (response.success) {
           // Handle ratio configuration updates in system settings
@@ -723,6 +787,7 @@ export function ModelMutateDrawer({
       loadedPricingName,
       modelSettings,
       updateOption,
+      priceItems,
     ]
   )
 
@@ -927,6 +992,21 @@ export function ModelMutateDrawer({
                   )}
                 />
               </div>
+            </SideDrawerSection>
+
+            {/* Price display items (model square) */}
+            <SideDrawerSection>
+              <h3 className='text-sm font-semibold'>{t('Price Display')}</h3>
+              <FormDescription>
+                {t(
+                  'Controls how the model square renders this model price table. Prices are derived from the billing configuration, not typed here.'
+                )}
+              </FormDescription>
+              <PriceItemsEditor
+                value={priceItems}
+                onChange={setPriceItems}
+                modelName={watchedModelName || ''}
+              />
             </SideDrawerSection>
 
             {/* Matching Configuration */}

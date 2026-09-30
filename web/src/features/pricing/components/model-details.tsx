@@ -77,6 +77,7 @@ import type {
 } from '../types'
 import { DynamicPricingBreakdown } from './dynamic-pricing-breakdown'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
+import { PriceItemTable } from './price-item-table'
 import { ModelDetailsApi } from './model-details-api'
 import { ModelDetailsPerformance } from './model-details-performance'
 
@@ -331,6 +332,15 @@ function ModelBackendQuickStats(props: { model: PricingModel }) {
           <ModalityLabels items={outputModalities} />
         </span>
       ),
+    })
+  }
+
+  if (model.category) {
+    stats.push({
+      key: 'category',
+      icon: Layers,
+      label: t('Category'),
+      value: model.category,
     })
   }
 
@@ -623,6 +633,20 @@ function PriceSection(props: {
         props.model.audio_completion_ratio != null,
     },
   ]
+
+  // 后端下发了展示项时直接渲染：价格数值由计量配置实时推导，四种详情页共用
+  // 同一套排版。没有展示项时才回落到按 quota_type / 表达式推断的旧分支。
+  if (props.model.price_items && props.model.price_items.length > 0) {
+    return (
+      <section>
+        <SectionTitle>{t('Base Price')}</SectionTitle>
+        <PriceItemTable
+          items={props.model.price_items}
+          tokenUnit={props.tokenUnit}
+        />
+      </section>
+    )
+  }
 
   if (dynamicSummary) {
     if (dynamicSummary.isSpecialExpression) {

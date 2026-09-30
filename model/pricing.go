@@ -38,6 +38,16 @@ type Pricing struct {
 	BillingMode            string                  `json:"billing_mode,omitempty"`
 	BillingExpr            string                  `json:"billing_expr,omitempty"`
 	PricingVersion         string                  `json:"pricing_version,omitempty"`
+
+	// 展示补充字段：来自 models 表，只供模型广场详情页渲染
+	ContextLength    int      `json:"context_length,omitempty"`
+	MaxOutputTokens  int      `json:"max_output_tokens,omitempty"`
+	Category         string   `json:"category,omitempty"`
+	Capabilities     []string `json:"capabilities,omitempty"`
+	InputModalities  []string `json:"input_modalities,omitempty"`
+	OutputModalities []string `json:"output_modalities,omitempty"`
+	// PriceItems 为派生展示行，价格由既有计量配置实时推导
+	PriceItems []PriceItem `json:"price_items,omitempty"`
 }
 
 type PricingVendor struct {
@@ -365,17 +375,25 @@ func updatePricing() {
 		}
 
 		// 补充模型元数据（描述、标签、供应商、状态）
-		if meta, ok := metaMap[model]; ok {
+		var meta *Model
+		if m, ok := metaMap[model]; ok {
 			// 若模型被禁用(status!=1)，则直接跳过，不返回给前端
-			if meta.Status != 1 {
+			if m.Status != 1 {
 				continue
 			}
-			pricing.Description = meta.Description
-			pricing.Icon = meta.Icon
-			pricing.Tags = meta.Tags
-			pricing.HotLabel = meta.HotLabel
-			pricing.DiscountLabel = meta.DiscountLabel
-			pricing.VendorID = meta.VendorID
+			pricing.Description = m.Description
+			pricing.Icon = m.Icon
+			pricing.Tags = m.Tags
+			pricing.HotLabel = m.HotLabel
+			pricing.DiscountLabel = m.DiscountLabel
+			pricing.VendorID = m.VendorID
+			pricing.ContextLength = m.ContextLength
+			pricing.MaxOutputTokens = m.MaxOutputTokens
+			pricing.Category = m.Category
+			pricing.Capabilities = SplitMetaList(m.Capabilities)
+			pricing.InputModalities = SplitMetaList(m.InputModalities)
+			pricing.OutputModalities = SplitMetaList(m.OutputModalities)
+			meta = m
 		}
 		modelPrice, findPrice := ratio_setting.GetModelPrice(model, false)
 		if findPrice {
@@ -409,6 +427,26 @@ func updatePricing() {
 				pricing.BillingMode = billingMode
 				pricing.BillingExpr = expr
 			}
+		}
+
+		// 派生展示行。表达式模型的价格由 billing_expr 决定，用倍率推导会算出
+		// 与实扣不一致的展示价，这类模型继续走前端既有的阶梯表达式渲染分支。
+		// 其余模型：管理员显式编排过就按编排渲染，没编排过只给按 token 计费的
+		// 模型派生标准「输入 / 输出 / 缓存」行。
+		var storedItems string
+		if meta != nil {
+			storedItems = meta.PriceItems
+		}
+		if pricing.BillingMode == "" {
+			pricing.PriceItems = BuildPriceItems(model, storedItems, !findPrice, PriceRatioSource{
+				Ratio:                pricing.ModelRatio,
+				CompletionRatio:      pricing.CompletionRatio,
+				CacheRatio:           pricing.CacheRatio,
+				CreateCacheRatio:     pricing.CreateCacheRatio,
+				AudioRatio:           pricing.AudioRatio,
+				AudioCompletionRatio: pricing.AudioCompletionRatio,
+				ModelPrice:           pricing.ModelPrice,
+			})
 		}
 		pricingMap = append(pricingMap, pricing)
 	}

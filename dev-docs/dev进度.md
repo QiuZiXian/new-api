@@ -308,3 +308,13 @@ service.DeleteAsset
 - `pickAssetChannel` 不区分 user——所有用户共享全局 doubao/volcengine 渠道池，与现有 task_content 体系一致。
 
 
+
+## UI 风格规范沉淀（2026-09-30）
+
+- 新增 `dev-docs/UI风格规范.md`，固化色彩 / 字体 / 圆角 / 阴影 / 间距 / 组件 / IconBadge 等设计令牌与组件样板。
+- 小图标 IconBadge 走 vibrant 色板（blue/cyan/emerald/amber/violet/pink/orange/indigo），已落地映射：
+  - Features（企业能力）：统一接口→vibrant-blue，可控成本→vibrant-amber，权限管控→vibrant-violet，稳定路由→vibrant-emerald。
+  - HowItWorks（适用团队）：开发团队→vibrant-blue，内容团队→vibrant-pink，企业管理→vibrant-indigo。
+- 标题字体统一 `bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-500 bg-clip-text`。
+- 后续新增页面 / 组件须按本规范自检，不允许绕开令牌新增临时色或字号。
+

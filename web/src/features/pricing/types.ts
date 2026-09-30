@@ -69,9 +69,36 @@ export type PricingModel = {
   knowledge_cutoff?: string
   release_date?: string
   parameter_count?: string
+  category?: string
   input_modalities?: Modality[]
   output_modalities?: Modality[]
   capabilities?: ModelCapability[]
+  /**
+   * 价格展示项。价格数值由后端从计量配置实时推导，前端只负责排版与单位换算，
+   * 不在这里做价格计算，避免与计量配置脱钩。
+   */
+  price_items?: PriceItem[]
+}
+
+/** 展示行的计量单位。 */
+export type PriceUnit = 'tokens' | 'image' | 'second' | 'request'
+
+/** 展示行。对应模型广场详情页「价格信息」表的一行。 */
+export type PriceItem = {
+  /** 计费标识，纯展示文案 */
+  id: string
+  /** 语义分组键，走 i18n；为空时回退到 group_label */
+  group_key?: string
+  /** 管理员自定义分组文案，优先于 group_key */
+  group_label?: string
+  /** 维度文案，如「基础价格」「Fast快速·480p」 */
+  variant?: string
+  unit: PriceUnit
+  /** 每单位价格。tokens 为 USD/1M tokens，其余为 USD/单位 */
+  price: number
+  origin_price?: number | null
+  discount_label?: string
+  saved_percent?: string
 }
 
 /** Input/output modalities supported by a model. */

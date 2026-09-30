@@ -143,3 +143,74 @@ export type ViewMode = (typeof VIEW_MODES)[keyof typeof VIEW_MODES]
 
 /** Default page size for pricing table */
 export const DEFAULT_PRICING_PAGE_SIZE = 20
+
+// ----------------------------------------------------------------------------
+// Price display items
+// ----------------------------------------------------------------------------
+
+/** 分组语义键 → i18n 源串。后端只下发语义键，文案由前端翻译。 */
+export const PRICE_GROUP_KEYS = {
+  INPUT_TOKENS: 'input_tokens',
+  OUTPUT_TOKENS: 'output_tokens',
+  CACHED_INPUT: 'cached_input_tokens',
+  CACHE_WRITE: 'cache_write_tokens',
+  IMAGE_INPUT_TOKENS: 'image_input_tokens',
+  AUDIO_INPUT: 'audio_input',
+  AUDIO_OUTPUT: 'audio_output',
+  IMAGE_OUTPUT: 'image_output',
+  VIDEO_OUTPUT: 'video_output',
+} as const
+
+export type PriceGroupKey =
+  (typeof PRICE_GROUP_KEYS)[keyof typeof PRICE_GROUP_KEYS]
+
+/**
+ * 分组语义键 → i18n 源串（「功能」列）。
+ * 存英文源串是为了让多语言走既有 i18n 链路，不要在这里写死中文。
+ */
+export const PRICE_GROUP_LABELS: Record<PriceGroupKey, string> = {
+  input_tokens: 'Input tokens',
+  output_tokens: 'Output tokens',
+  cached_input_tokens: 'Cached tokens',
+  cache_write_tokens: 'Cache write tokens',
+  image_input_tokens: 'Image input',
+  audio_input: 'Audio input',
+  audio_output: 'Audio output',
+  image_output: 'Output',
+  video_output: 'Output',
+}
+
+/** 默认维度文案（「维度」列），走已有 i18n 键 */
+export const DEFAULT_PRICE_VARIANT_LABEL = 'Base Price'
+
+/**
+ * 分组语义键 → 计量绑定（billing_ref）。
+ * 管理端新增展示行时按分组自动带出，避免管理员手填错绑定。
+ */
+export const PRICE_GROUP_BILLING_REF: Record<PriceGroupKey, string> = {
+  input_tokens: 'input_tokens',
+  output_tokens: 'output_tokens',
+  cached_input_tokens: 'cached_input_tokens',
+  cache_write_tokens: 'cache_write_tokens',
+  image_input_tokens: 'input_tokens',
+  audio_input: 'audio_input_tokens',
+  audio_output: 'audio_output_tokens',
+  image_output: 'image_output_count',
+  video_output: 'video_output_second',
+}
+
+/** 展示单位 → i18n 源串（「单位」列） */
+export const PRICE_UNIT_LABELS: Record<string, string> = {
+  image: 'Unit image',
+  second: 'Unit second',
+  request: 'Unit request',
+}
+
+/** 表格列头 i18n 源串 */
+export const PRICE_TABLE_COLUMNS = {
+  FUNCTION: 'Function',
+  VARIANT: 'Variant',
+  PRICE: 'Price',
+  UNIT: 'Unit',
+  BILLING_ID: 'Billing ID',
+} as const

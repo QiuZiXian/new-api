@@ -5510,6 +5510,24 @@
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom",
     "One gateway for every model — no changes to your existing apps.": "One gateway for every model — no changes to your existing apps.",
-    "Sign up with free trial credits — email, phone or WeChat login": "Sign up with free trial credits — email, phone or WeChat login"
+    "Sign up with free trial credits — email, phone or WeChat login": "Sign up with free trial credits — email, phone or WeChat login",
+    "Billing ID": "Billing ID",
+    "Cached tokens": "Cached tokens",
+    "Cache write tokens": "Cache write tokens",
+    "Function": "Function",
+    "Save {{percent}}": "Save {{percent}}",
+    "Unit": "Unit",
+    "Unit image": "Unit image",
+    "Unit request": "Unit request",
+    "Unit second": "Unit second",
+    "Variant": "Variant",
+    "Price Display": "Price Display",
+    "Custom label": "Custom label",
+    "Origin price": "Origin price",
+    "Add price item": "Add price item",
+    "Optional, enables the discount badge": "Optional, enables the discount badge",
+    "e.g. Fast 480p": "e.g. Fast 480p",
+    "Leave empty to derive standard input / output / cache rows from the billing configuration": "Leave empty to derive standard input / output / cache rows from the billing configuration",
+    "Controls how the model square renders this model price table. Prices are derived from the billing configuration, not typed here.": "Controls how the model square renders this model price table. Prices are derived from the billing configuration, not typed here."
   }
 }
