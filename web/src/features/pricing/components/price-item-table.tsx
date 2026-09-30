@@ -134,9 +134,6 @@ export function PriceItemTable(props: {
             <th className='px-3 py-2 text-left font-medium'>
               {t(PRICE_TABLE_COLUMNS.UNIT)}
             </th>
-            <th className='px-3 py-2 text-left font-medium'>
-              {t(PRICE_TABLE_COLUMNS.BILLING_ID)}
-            </th>
           </tr>
         </thead>
         <tbody>
@@ -192,9 +189,6 @@ export function PriceItemTable(props: {
                 </td>
                 <td className='text-muted-foreground px-3 py-2.5 align-top'>
                   {unitText(item.unit, props.tokenUnit, t)}
-                </td>
-                <td className='text-muted-foreground/70 px-3 py-2.5 align-top font-mono text-xs'>
-                  {item.id}
                 </td>
               </tr>
             )

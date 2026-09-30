@@ -28,7 +28,10 @@ import {
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
+import { formatGroupDiscount } from '../lib/model-helpers'
+
 import {
+  FILTER_ALL,
   getQuotaTypeLabels,
   QUOTA_TYPES,
   SORT_OPTIONS,
@@ -43,6 +46,11 @@ interface SearchFilterRowProps {
   onSortChange: (value: string) => void
   quotaType: string
   onQuotaTypeChange: (value: string) => void
+  /** 可选分组；为空时不渲染分组下拉 */
+  groups?: string[]
+  group?: string
+  onGroupChange?: (value: string) => void
+  groupRatios?: Record<string, number>
   className?: string
 }
 
@@ -71,6 +79,15 @@ export function SearchFilterRow(props: SearchFilterRowProps) {
     label: quotaLabels[option as QuotaTypeOption],
   }))
 
+  // 分组下拉：选中分组后列表只保留该组可用的模型，卡片价格也按该组倍率折算
+  const groupOptions = props.groups ?? []
+  const showGroupFilter = groupOptions.length > 0 && props.onGroupChange
+  const groupItems = [
+    { value: FILTER_ALL, label: t('All Groups') },
+    ...groupOptions.map((group) => ({ value: group, label: group })),
+  ]
+  const currentGroup = props.group ?? FILTER_ALL
+
   return (
     <div
       className={cn(
@@ -90,7 +107,50 @@ export function SearchFilterRow(props: SearchFilterRowProps) {
         />
       </div>
 
-      <div className='flex items-center gap-2.5'>
+      <div className='flex flex-wrap items-center gap-2.5'>
+        {showGroupFilter && (
+          <div className='flex items-center gap-1.5'>
+            <span className='text-muted-foreground hidden text-sm whitespace-nowrap sm:inline'>
+              {t('Group')}
+            </span>
+            <Select
+              items={groupItems}
+              value={currentGroup}
+              onValueChange={(value) =>
+                props.onGroupChange?.(value ?? FILTER_ALL)
+              }
+            >
+              <SelectTrigger
+                size='sm'
+                className='min-w-28'
+                aria-label={t('Group')}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent alignItemWithTrigger={false}>
+                {groupItems.map((option) => {
+                  const discount =
+                    option.value === FILTER_ALL
+                      ? null
+                      : formatGroupDiscount(props.groupRatios?.[option.value])
+                  return (
+                    <SelectItem key={option.value} value={option.value}>
+                      <span className='flex items-center gap-1.5'>
+                        <span>{option.label}</span>
+                        {discount && discount.discounted && (
+                          <span className='text-muted-foreground text-[10px]'>
+                            {discount.label}
+                          </span>
+                        )}
+                      </span>
+                    </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         <div className='flex items-center gap-1.5'>
           <span className='text-muted-foreground hidden text-sm whitespace-nowrap sm:inline'>
             {t('Price range')}

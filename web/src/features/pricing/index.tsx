@@ -175,6 +175,10 @@ export function Pricing() {
           onSortChange={setSortBy}
           quotaType={quotaTypeFilter}
           onQuotaTypeChange={setQuotaTypeFilter}
+          groups={availableGroups}
+          group={groupFilter}
+          onGroupChange={setGroupFilter}
+          groupRatios={groupRatio}
         />
 
         {/* Vendor tabs */}

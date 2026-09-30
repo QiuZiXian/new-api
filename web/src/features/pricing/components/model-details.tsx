@@ -67,7 +67,11 @@ import {
   isDynamicPricingModel,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
-import { getAvailableGroups, isTokenBasedModel } from '../lib/model-helpers'
+import {
+  formatGroupDiscount,
+  getAvailableGroups,
+  isTokenBasedModel,
+} from '../lib/model-helpers'
 import { formatFixedPrice, formatGroupPrice } from '../lib/price'
 import type {
   ModelCapability,
@@ -1085,11 +1089,32 @@ function GroupPricingSection(props: {
             cell: (group) => <GroupBadge group={group} size='sm' />,
           },
           {
-            id: 'ratio',
-            header: t('Ratio'),
+            id: 'discount',
+            header: t('Discount'),
             className: thClass,
-            cellClassName: 'text-muted-foreground py-2.5 font-mono',
-            cell: (group) => `${props.groupRatio[group] || 1}x`,
+            cellClassName: 'py-2.5',
+            cell: (group: string) => {
+              const discount = formatGroupDiscount(props.groupRatio[group])
+              return (
+                <span className='flex flex-col'>
+                  <span
+                    className={cn(
+                      'font-mono tabular-nums',
+                      discount.discounted
+                        ? 'font-medium text-foreground'
+                        : 'text-muted-foreground'
+                    )}
+                  >
+                    {discount.label}
+                  </span>
+                  {discount.saved && (
+                    <span className='text-muted-foreground/60 text-[10px]'>
+                      {discount.saved}
+                    </span>
+                  )}
+                </span>
+              )
+            },
           },
           ...(isTokenBased
             ? [

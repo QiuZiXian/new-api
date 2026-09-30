@@ -212,5 +212,4 @@ export const PRICE_TABLE_COLUMNS = {
   VARIANT: 'Variant',
   PRICE: 'Price',
   UNIT: 'Unit',
-  BILLING_ID: 'Billing ID',
 } as const
