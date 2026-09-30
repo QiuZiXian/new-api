@@ -30,32 +30,40 @@ export function Features(_props: FeaturesProps) {
 
   const capabilities = [
     {
-      icon: <KeyRound className="size-5" strokeWidth={1.6} />,
+      icon: <KeyRound className="size-6" strokeWidth={1.8} />,
       title: t("Unified access"),
       desc: t(
         "One API key calls text, image, video and multimodal models, cutting repeated vendor integration costs.",
       ),
+      iconClass:
+        "bg-blue-500/15 text-blue-600 dark:bg-blue-400/15 dark:text-blue-400",
     },
     {
-      icon: <Wallet className="size-5" strokeWidth={1.6} />,
+      icon: <Wallet className="size-6" strokeWidth={1.8} />,
       title: t("Predictable cost"),
       desc: t(
         "Pay-as-you-go and per-request billing with quota limits and usage stats keep every call accountable.",
       ),
+      iconClass:
+        "bg-amber-500/15 text-amber-600 dark:bg-amber-400/15 dark:text-amber-400",
     },
     {
-      icon: <ShieldCheck className="size-5" strokeWidth={1.6} />,
+      icon: <ShieldCheck className="size-6" strokeWidth={1.8} />,
       title: t("Permission control"),
       desc: t(
         "Key-level quotas, expiry, model restrictions and IP allowlists fit per-project and per-team governance.",
       ),
+      iconClass:
+        "bg-violet-500/15 text-violet-600 dark:bg-violet-400/15 dark:text-violet-400",
     },
     {
-      icon: <Route className="size-5" strokeWidth={1.6} />,
+      icon: <Route className="size-6" strokeWidth={1.8} />,
       title: t("Stable routing"),
       desc: t(
         "Unified scheduling across multiple channels reduces the impact of a single model or account outage.",
       ),
+      iconClass:
+        "bg-emerald-500/15 text-emerald-600 dark:bg-emerald-400/15 dark:text-emerald-400",
     },
   ];
 
@@ -64,41 +72,29 @@ export function Features(_props: FeaturesProps) {
       aria-labelledby="features-heading"
       className="relative z-10 px-4 py-8 md:px-6 md:py-10"
     >
-      {/* Background using the left half of the design asset */}
-      <div className="relative isolate mx-auto max-w-[1400px] overflow-hidden rounded-[24px] px-6 py-12 shadow-[0_40px_90px_-45px_rgba(30,64,175,0.55)] ring-1 ring-white/10 md:rounded-[32px] md:px-12 md:py-18">
+      {/* Background fills the panel with the left half of the design asset */}
+      <div className="relative isolate mx-auto max-w-[1400px] overflow-hidden rounded-[24px] border border-indigo-100/80 px-6 py-12 shadow-[0_30px_70px_-52px_rgba(79,70,229,0.5)] md:rounded-[32px] md:px-12 md:py-18 dark:border-white/10">
         <img
           aria-hidden
           src="/home/hero-slide-2.jpg"
           alt=""
-          className="absolute inset-y-0 left-0 -z-30 w-1/2 object-cover object-left"
-        />
-        <div aria-hidden className="absolute inset-0 -z-20 bg-slate-900/55" />
-        <div
-          aria-hidden
-          className="absolute -top-24 -left-16 -z-10 size-80 rounded-full bg-cyan-300/25 blur-2xl"
-        />
-        <div
-          aria-hidden
-          className="absolute -right-20 -bottom-24 -z-10 size-96 rounded-full bg-fuchsia-400/20 blur-2xl"
-        />
-        {/* Top highlight arc */}
-        <div
-          aria-hidden
-          className="absolute inset-x-0 top-0 -z-10 h-px bg-gradient-to-r from-transparent via-white/50 to-transparent"
+          className="absolute inset-0 -z-10 h-full w-full object-cover object-left"
         />
 
         <div className="mx-auto max-w-6xl">
           <AnimateInView className="mb-12 text-center md:mb-14">
-            <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-medium tracking-[0.18em] text-blue-100 uppercase backdrop-blur-sm">
+            <span className="inline-flex items-center rounded-full border border-indigo-200/80 bg-white/70 px-3 py-1 text-[11px] font-medium tracking-[0.18em] text-indigo-600 uppercase backdrop-blur-sm dark:border-white/15 dark:bg-white/10 dark:text-indigo-300">
               {t("Enterprise Capabilities")}
             </span>
             <h2
               id="features-heading"
-              className="mt-5 text-[clamp(1.75rem,3vw,2.5rem)] leading-[1.18] font-bold tracking-tight text-white"
+              className="mt-5 text-[clamp(1.75rem,3vw,2.5rem)] leading-[1.18] font-bold tracking-tight"
             >
-              {t("Designed for enterprise-grade AI integration")}
+              <span className="bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-500 bg-clip-text text-transparent dark:from-blue-400 dark:via-indigo-400 dark:to-violet-400">
+                {t("Designed for enterprise-grade AI integration")}
+              </span>
             </h2>
-            <p className="mx-auto mt-4 max-w-2xl text-[15px] leading-relaxed text-blue-50/85">
+            <p className="mx-auto mt-4 max-w-2xl text-[15px] leading-relaxed text-slate-500 dark:text-slate-400">
               {t(
                 "From model calls to usage management, teams get unified access, unified billing and unified governance.",
               )}
@@ -111,25 +107,27 @@ export function Features(_props: FeaturesProps) {
                 key={capability.title}
                 delay={i * 110}
                 animation="fade-up"
-                className="group relative flex flex-col overflow-hidden rounded-[20px] border border-white/15 bg-white/10 p-6 backdrop-blur-sm transition-all duration-300 motion-safe:hover:-translate-y-1 hover:border-white/30 hover:bg-white/15 hover:shadow-[0_24px_50px_-28px_rgba(2,6,23,0.7)]"
+                className="group relative flex flex-col overflow-hidden rounded-[20px] border border-slate-200/70 bg-white/85 p-6 shadow-[0_18px_40px_-30px_rgba(15,23,42,0.35)] backdrop-blur-sm transition-all duration-300 motion-safe:hover:-translate-y-1 hover:border-indigo-300 hover:shadow-[0_28px_60px_-32px_rgba(79,70,229,0.45)] dark:border-white/10 dark:bg-white/5"
               >
-                {/* Hover highlight bar */}
+                {/* Hover accent bar */}
                 <span
                   aria-hidden
-                  className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/70 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                  className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
                 />
                 {/* Index */}
-                <span className="absolute top-5 right-5 text-[13px] font-semibold tabular-nums text-white/25 transition-colors group-hover:text-white/50">
+                <span className="absolute top-5 right-5 text-[13px] font-semibold tabular-nums text-slate-300 transition-colors group-hover:text-slate-400 dark:text-white/25 dark:group-hover:text-white/50">
                   {String(i + 1).padStart(2, "0")}
                 </span>
 
-                <span className="mb-5 inline-flex size-12 items-center justify-center rounded-[14px] border border-white/15 bg-white/12 text-white transition-colors duration-300 group-hover:border-white/30 group-hover:bg-white/20">
+                <span
+                  className={`mb-5 inline-flex size-12 items-center justify-center rounded-[14px] transition-colors duration-300 ${capability.iconClass}`}
+                >
                   {capability.icon}
                 </span>
-                <h3 className="mb-2 text-[17px] font-semibold text-white">
+                <h3 className="mb-2 text-[17px] font-semibold text-slate-900 dark:text-slate-50">
                   {capability.title}
                 </h3>
-                <p className="text-sm leading-relaxed text-blue-50/80">
+                <p className="text-sm leading-relaxed text-slate-500 dark:text-slate-400">
                   {capability.desc}
                 </p>
               </AnimateInView>

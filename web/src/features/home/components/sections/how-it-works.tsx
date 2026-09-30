@@ -26,15 +26,17 @@ export function HowItWorks() {
 
   const teams = [
     {
-      icon: <Code2 className="size-5" strokeWidth={1.6} />,
+      icon: <Code2 className="size-6" strokeWidth={1.8} />,
       title: t("Developer teams"),
       desc: t(
         "Integrate multi-model capabilities quickly and cut vendor adaptation and API maintenance costs.",
       ),
       tags: [t("API access"), t("Model switching"), t("Call logs")],
+      iconClass:
+        "bg-blue-500/15 text-blue-600 dark:bg-blue-400/15 dark:text-blue-400",
     },
     {
-      icon: <PenTool className="size-5" strokeWidth={1.6} />,
+      icon: <PenTool className="size-6" strokeWidth={1.8} />,
       title: t("Content teams"),
       desc: t(
         "Call image, video and speech models in one place to speed up marketing assets and short-video production.",
@@ -44,14 +46,18 @@ export function HowItWorks() {
         t("Video generation"),
         t("Speech generation"),
       ],
+      iconClass:
+        "bg-pink-500/15 text-pink-600 dark:bg-pink-400/15 dark:text-pink-400",
     },
     {
-      icon: <Building2 className="size-5" strokeWidth={1.6} />,
+      icon: <Building2 className="size-6" strokeWidth={1.8} />,
       title: t("Enterprise admins"),
       desc: t(
         "Review usage, cost, key permissions and call records centrally across teams with less overhead.",
       ),
       tags: [t("Cost management"), t("Permission control"), t("Usage stats")],
+      iconClass:
+        "bg-indigo-500/15 text-indigo-600 dark:bg-indigo-400/15 dark:text-indigo-400",
     },
   ];
 
@@ -60,17 +66,18 @@ export function HowItWorks() {
       aria-labelledby="how-it-works-heading"
       className="relative z-10 px-4 py-8 md:px-6 md:py-10"
     >
-      {/* Background using the left half of the design asset */}
+      {/* Background fills the panel with the left half of the design asset */}
       <div className="relative isolate mx-auto max-w-[1400px] overflow-hidden rounded-[24px] border border-indigo-100/80 px-6 py-12 shadow-[0_30px_70px_-52px_rgba(79,70,229,0.5)] md:rounded-[32px] md:px-12 md:py-18 dark:border-white/10">
         <img
           aria-hidden
           src="/home/hero-slide-1.jpg"
           alt=""
-          className="absolute inset-y-0 left-0 -z-30 w-1/2 object-cover object-left"
+          className="absolute inset-0 -z-10 h-full w-full object-cover object-left"
         />
+        {/* Subtle scrim to keep text readable over the artwork */}
         <div
           aria-hidden
-          className="absolute inset-0 -z-20 bg-white/30 dark:bg-slate-900/60"
+          className="absolute inset-0 -z-10 bg-white/25 dark:bg-slate-900/55"
         />
 
         <div className="mx-auto max-w-6xl">
@@ -80,9 +87,11 @@ export function HowItWorks() {
             </span>
             <h2
               id="how-it-works-heading"
-              className="mt-5 text-[clamp(1.75rem,3vw,2.5rem)] leading-[1.18] font-bold tracking-tight text-slate-900 dark:text-slate-50"
+              className="mt-5 text-[clamp(1.75rem,3vw,2.5rem)] leading-[1.18] font-bold tracking-tight"
             >
-              {t("Built for every AI-powered team")}
+              <span className="bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-500 bg-clip-text text-transparent dark:from-blue-400 dark:via-indigo-400 dark:to-violet-400">
+                {t("Built for every AI-powered team")}
+              </span>
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-[15px] leading-relaxed text-slate-500 dark:text-slate-400">
               {t(
@@ -104,7 +113,9 @@ export function HowItWorks() {
                   aria-hidden
                   className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
                 />
-                <span className="mb-5 inline-flex size-12 items-center justify-center rounded-[14px] bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-[0_10px_22px_-12px_rgba(37,99,235,0.7)]">
+                <span
+                  className={`mb-5 inline-flex size-12 items-center justify-center rounded-[14px] transition-colors duration-300 ${team.iconClass}`}
+                >
                   {team.icon}
                 </span>
                 <h3 className="mb-2 text-[17px] font-semibold text-slate-900 dark:text-slate-50">
