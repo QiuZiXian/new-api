@@ -16,31 +16,42 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { zodResolver } from '@hookform/resolvers/zod'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, Loader2 } from 'lucide-react'
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
-import { useForm, useWatch } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
-import * as z from 'zod'
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  ChevronDown,
+  Filter,
+  Info,
+  Network,
+  Loader2,
+  Settings2,
+  Tag,
+  Wallet,
+} from "lucide-react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useForm, useWatch } from "react-hook-form";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+import * as z from "zod";
 
 import {
   SideDrawerSection,
+  SideDrawerSectionHeader,
   sideDrawerContentClassName,
   sideDrawerFooterClassName,
   sideDrawerFormClassName,
   sideDrawerHeaderClassName,
   sideDrawerSwitchItemClassName,
-} from '@/components/drawer-layout'
-import { JsonEditor } from '@/components/json-editor'
-import { TagInput } from '@/components/tag-input'
-import { Button } from '@/components/ui/button'
+} from "@/components/drawer-layout";
+import { JsonEditor } from "@/components/json-editor";
+import { TagInput } from "@/components/tag-input";
+import { IconBadge } from "@/components/ui/icon-badge";
+import { Button } from "@/components/ui/button";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from '@/components/ui/collapsible'
+} from "@/components/ui/collapsible";
 import {
   Form,
   FormControl,
@@ -49,10 +60,10 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -60,7 +71,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from "@/components/ui/select";
 import {
   Sheet,
   SheetClose,
@@ -69,33 +80,33 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
-} from '@/components/ui/sheet'
-import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
+} from "@/components/ui/sheet";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import {
   useSystemOptions,
   getOptionValue,
-} from '@/features/system-settings/hooks/use-system-options'
-import { useUpdateOption } from '@/features/system-settings/hooks/use-update-option'
-import { normalizeJsonString } from '@/features/system-settings/models/utils'
-import type { ModelSettings } from '@/features/system-settings/types'
-import { safeJsonParse } from '@/features/system-settings/utils/json-parser'
+} from "@/features/system-settings/hooks/use-system-options";
+import { useUpdateOption } from "@/features/system-settings/hooks/use-update-option";
+import { normalizeJsonString } from "@/features/system-settings/models/utils";
+import type { ModelSettings } from "@/features/system-settings/types";
+import { safeJsonParse } from "@/features/system-settings/utils/json-parser";
 
-import { createModel, updateModel, getModel, getVendors } from '../../api'
-import { getNameRuleOptions, ENDPOINT_TEMPLATES } from '../../constants'
-import { modelsQueryKeys, vendorsQueryKeys, parseModelTags } from '../../lib'
-import type { Model } from '../../types'
+import { createModel, updateModel, getModel, getVendors } from "../../api";
+import { getNameRuleOptions, ENDPOINT_TEMPLATES } from "../../constants";
+import { modelsQueryKeys, vendorsQueryKeys, parseModelTags } from "../../lib";
+import type { Model } from "../../types";
 import {
   parsePriceItems,
   serializePriceItems,
   type PriceItemDraft,
-} from '../../lib/price-items'
-import { PriceItemsEditor } from '../price-items-editor'
+} from "../../lib/price-items";
+import { PriceItemsEditor } from "../price-items-editor";
 
 // Extended schema for ratio configuration (internal form state only)
 const extendedModelFormSchema = z.object({
   id: z.number().optional(),
-  model_name: z.string().min(1, 'Model name is required'),
+  model_name: z.string().min(1, "Model name is required"),
   description: z.string(),
   icon: z.string(),
   tags: z.array(z.string()),
@@ -120,71 +131,71 @@ const extendedModelFormSchema = z.object({
   capabilities: z.string(),
   input_modalities: z.string(),
   output_modalities: z.string(),
-})
+});
 
-type ExtendedModelFormValues = z.infer<typeof extendedModelFormSchema>
+type ExtendedModelFormValues = z.infer<typeof extendedModelFormSchema>;
 
-type PricingMode = 'per-token' | 'per-request'
-type PricingSubMode = 'ratio' | 'price'
+type PricingMode = "per-token" | "per-request";
+type PricingSubMode = "ratio" | "price";
 
 type PricingFields = Pick<
   ExtendedModelFormValues,
-  | 'price'
-  | 'ratio'
-  | 'cacheRatio'
-  | 'completionRatio'
-  | 'imageRatio'
-  | 'audioRatio'
-  | 'audioCompletionRatio'
->
+  | "price"
+  | "ratio"
+  | "cacheRatio"
+  | "completionRatio"
+  | "imageRatio"
+  | "audioRatio"
+  | "audioCompletionRatio"
+>;
 
 // Form state describing the pricing currently configured for one model name.
 type PricingConfig = {
-  mode: PricingMode
-  fields: PricingFields
-  promptPrice: string
-  completionPrice: string
-  advancedOpen: boolean
-}
+  mode: PricingMode;
+  fields: PricingFields;
+  promptPrice: string;
+  completionPrice: string;
+  advancedOpen: boolean;
+};
 
 const EMPTY_PRICING_FIELDS: PricingFields = {
-  price: '',
-  ratio: '',
-  cacheRatio: '',
-  completionRatio: '',
-  imageRatio: '',
-  audioRatio: '',
-  audioCompletionRatio: '',
-}
+  price: "",
+  ratio: "",
+  cacheRatio: "",
+  completionRatio: "",
+  imageRatio: "",
+  audioRatio: "",
+  audioCompletionRatio: "",
+};
 
 const EMPTY_PRICING_CONFIG: PricingConfig = {
-  mode: 'per-token',
+  mode: "per-token",
   fields: EMPTY_PRICING_FIELDS,
-  promptPrice: '',
-  completionPrice: '',
+  promptPrice: "",
+  completionPrice: "",
   advancedOpen: false,
-}
+};
 
 // 后端把 capabilities / modalities 下发为数组，表单里按逗号分隔编辑。
 function joinListValue(value: string[] | string | undefined): string {
-  if (Array.isArray(value)) return value.join(',')
-  return value || ''
+  if (Array.isArray(value)) return value.join(",");
+  return value || "";
 }
 
 // 空字符串不能当数字提交给后端 int 列，未填写时整字段省略。
 function toIntOrUndefined(value: string): number | undefined {
-  const parsed = Number.parseInt(value, 10)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 function lookupModelRatio(
   rawMap: string,
-  modelName: string
+  modelName: string,
 ): number | undefined {
   return safeJsonParse<Record<string, number>>(rawMap, {
     fallback: {},
     silent: true,
-  })[modelName]
+  })[modelName];
 }
 
 // Pricing is not stored on the model row: it lives in system options as
@@ -193,20 +204,20 @@ function lookupModelRatio(
 // the maps from the form and would otherwise drop pricing it never loaded.
 function readPricingConfig(
   settings: ModelSettings | null,
-  modelName: string
+  modelName: string,
 ): PricingConfig {
-  if (!settings || !modelName) return EMPTY_PRICING_CONFIG
+  if (!settings || !modelName) return EMPTY_PRICING_CONFIG;
 
-  const price = lookupModelRatio(settings.ModelPrice, modelName)
-  const ratio = lookupModelRatio(settings.ModelRatio, modelName)
-  const cacheRatio = lookupModelRatio(settings.CacheRatio, modelName)
-  const completionRatio = lookupModelRatio(settings.CompletionRatio, modelName)
-  const imageRatio = lookupModelRatio(settings.ImageRatio, modelName)
-  const audioRatio = lookupModelRatio(settings.AudioRatio, modelName)
+  const price = lookupModelRatio(settings.ModelPrice, modelName);
+  const ratio = lookupModelRatio(settings.ModelRatio, modelName);
+  const cacheRatio = lookupModelRatio(settings.CacheRatio, modelName);
+  const completionRatio = lookupModelRatio(settings.CompletionRatio, modelName);
+  const imageRatio = lookupModelRatio(settings.ImageRatio, modelName);
+  const audioRatio = lookupModelRatio(settings.AudioRatio, modelName);
   const audioCompletionRatio = lookupModelRatio(
     settings.AudioCompletionRatio,
-    modelName
-  )
+    modelName,
+  );
 
   // A fixed per-request price wins outright at billing time (see
   // GetModelRatioOrPrice), so a name that has one is shown, and saved back, as
@@ -214,31 +225,31 @@ function readPricingConfig(
   if (price !== undefined && price !== null) {
     return {
       ...EMPTY_PRICING_CONFIG,
-      mode: 'per-request',
+      mode: "per-request",
       fields: { ...EMPTY_PRICING_FIELDS, price: price.toString() },
-    }
+    };
   }
 
-  let promptPrice = ''
-  let completionPrice = ''
+  let promptPrice = "";
+  let completionPrice = "";
   if (ratio !== undefined && ratio !== null) {
-    const tokenPrice = ratio * 2
-    promptPrice = tokenPrice.toString()
+    const tokenPrice = ratio * 2;
+    promptPrice = tokenPrice.toString();
     if (completionRatio !== undefined && completionRatio !== null) {
-      completionPrice = (tokenPrice * completionRatio).toString()
+      completionPrice = (tokenPrice * completionRatio).toString();
     }
   }
 
   return {
-    mode: 'per-token',
+    mode: "per-token",
     fields: {
-      price: '',
-      ratio: ratio?.toString() || '',
-      cacheRatio: cacheRatio?.toString() || '',
-      completionRatio: completionRatio?.toString() || '',
-      imageRatio: imageRatio?.toString() || '',
-      audioRatio: audioRatio?.toString() || '',
-      audioCompletionRatio: audioCompletionRatio?.toString() || '',
+      price: "",
+      ratio: ratio?.toString() || "",
+      cacheRatio: cacheRatio?.toString() || "",
+      completionRatio: completionRatio?.toString() || "",
+      imageRatio: imageRatio?.toString() || "",
+      audioRatio: audioRatio?.toString() || "",
+      audioCompletionRatio: audioCompletionRatio?.toString() || "",
     },
     promptPrice,
     completionPrice,
@@ -250,194 +261,194 @@ function readPricingConfig(
       audioRatio,
       audioCompletionRatio,
     ].some((value) => value !== undefined && value !== null),
-  }
+  };
 }
 
 type ModelMutateDrawerProps = {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  currentRow?: Model | null
-}
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  currentRow?: Model | null;
+};
 
 export function ModelMutateDrawer({
   open,
   onOpenChange,
   currentRow,
 }: ModelMutateDrawerProps) {
-  const { t } = useTranslation()
-  const queryClient = useQueryClient()
-  const currentModelId = currentRow?.id
-  const isEditing = Boolean(currentModelId)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [pricingMode, setPricingMode] = useState<PricingMode>('per-token')
-  const [pricingSubMode, setPricingSubMode] = useState<PricingSubMode>('ratio')
-  const [advancedOpen, setAdvancedOpen] = useState(false)
-  const [promptPrice, setPromptPrice] = useState('')
-  const [completionPrice, setCompletionPrice] = useState('')
-  const [oldModelName, setOldModelName] = useState<string>('')
-  const [priceItems, setPriceItems] = useState<PriceItemDraft[]>([])
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const currentModelId = currentRow?.id;
+  const isEditing = Boolean(currentModelId);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pricingMode, setPricingMode] = useState<PricingMode>("per-token");
+  const [pricingSubMode, setPricingSubMode] = useState<PricingSubMode>("ratio");
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [promptPrice, setPromptPrice] = useState("");
+  const [completionPrice, setCompletionPrice] = useState("");
+  const [oldModelName, setOldModelName] = useState<string>("");
+  const [priceItems, setPriceItems] = useState<PriceItemDraft[]>([]);
   // Model name whose pricing was read into the form when the drawer opened.
   // Submit may only rewrite pricing for this name, or for a name the user
   // explicitly priced; anything else it never saw and must leave alone.
-  const [loadedPricingName, setLoadedPricingName] = useState<string>('')
+  const [loadedPricingName, setLoadedPricingName] = useState<string>("");
   // Keep a ref so the load effect can read the latest modelSettings without
   // depending on it: modelSettings is a fresh object on every system-options
   // refetch, and including it in the deps would reset the form under the user.
-  const modelSettingsRef = useRef<ModelSettings | null>(null)
+  const modelSettingsRef = useRef<ModelSettings | null>(null);
 
   // Fetch vendors for dropdown
   const { data: vendorsData } = useQuery({
     queryKey: vendorsQueryKeys.list(),
     queryFn: () => getVendors({ page_size: 1000 }),
     enabled: open,
-  })
+  });
 
-  const vendors = vendorsData?.data?.items || []
+  const vendors = vendorsData?.data?.items || [];
 
   // Fetch model detail if editing
   const { data: modelData } = useQuery({
     queryKey: modelsQueryKeys.detail(currentModelId || 0),
     queryFn: () => {
       if (!currentModelId) {
-        throw new Error('Model ID is required')
+        throw new Error("Model ID is required");
       }
-      return getModel(currentModelId)
+      return getModel(currentModelId);
     },
     enabled: open && isEditing,
-  })
+  });
 
   // Fetch system options for ratio configuration
-  const { data: systemOptionsData } = useSystemOptions()
+  const { data: systemOptionsData } = useSystemOptions();
 
-  const updateOption = useUpdateOption()
+  const updateOption = useUpdateOption();
 
   // Get model settings from system options
   const modelSettings = useMemo(() => {
-    if (!systemOptionsData?.data) return null
+    if (!systemOptionsData?.data) return null;
     const defaultModelSettings: ModelSettings = {
-      'global.pass_through_request_enabled': false,
-      'global.thinking_model_blacklist': '[]',
-      'global.chat_completions_to_responses_policy': '{}',
-      'general_setting.ping_interval_enabled': false,
-      'general_setting.ping_interval_seconds': 60,
-      'gemini.safety_settings': '',
-      'gemini.version_settings': '',
-      'gemini.supported_imagine_models': '',
-      'gemini.thinking_adapter_enabled': false,
-      'gemini.thinking_adapter_budget_tokens_percentage': 0.6,
-      'gemini.function_call_thought_signature_enabled': false,
-      'gemini.remove_function_response_id_enabled': true,
-      'claude.model_headers_settings': '',
-      'claude.default_max_tokens': '',
-      'claude.thinking_adapter_enabled': true,
-      'claude.thinking_adapter_budget_tokens_percentage': 0.8,
-      ModelPrice: '',
-      ModelRatio: '',
-      CacheRatio: '',
-      CompletionRatio: '',
-      ImageRatio: '',
-      AudioRatio: '',
-      AudioCompletionRatio: '',
+      "global.pass_through_request_enabled": false,
+      "global.thinking_model_blacklist": "[]",
+      "global.chat_completions_to_responses_policy": "{}",
+      "general_setting.ping_interval_enabled": false,
+      "general_setting.ping_interval_seconds": 60,
+      "gemini.safety_settings": "",
+      "gemini.version_settings": "",
+      "gemini.supported_imagine_models": "",
+      "gemini.thinking_adapter_enabled": false,
+      "gemini.thinking_adapter_budget_tokens_percentage": 0.6,
+      "gemini.function_call_thought_signature_enabled": false,
+      "gemini.remove_function_response_id_enabled": true,
+      "claude.model_headers_settings": "",
+      "claude.default_max_tokens": "",
+      "claude.thinking_adapter_enabled": true,
+      "claude.thinking_adapter_budget_tokens_percentage": 0.8,
+      ModelPrice: "",
+      ModelRatio: "",
+      CacheRatio: "",
+      CompletionRatio: "",
+      ImageRatio: "",
+      AudioRatio: "",
+      AudioCompletionRatio: "",
       ExposeRatioEnabled: false,
-      'billing_setting.billing_mode': '{}',
-      'billing_setting.billing_expr': '{}',
-      'tool_price_setting.prices': '{}',
-      TopupGroupRatio: '',
-      GroupRatio: '',
-      UserUsableGroups: '',
-      GroupGroupRatio: '',
-      AutoGroups: '',
+      "billing_setting.billing_mode": "{}",
+      "billing_setting.billing_expr": "{}",
+      "tool_price_setting.prices": "{}",
+      TopupGroupRatio: "",
+      GroupRatio: "",
+      UserUsableGroups: "",
+      GroupGroupRatio: "",
+      AutoGroups: "",
       MaxTokenAutoGroups: 5,
       DefaultUseAutoGroup: false,
-      CreateCacheRatio: '',
-      'group_ratio_setting.group_special_usable_group': '{}',
-      'grok.violation_deduction_enabled': false,
-      'grok.violation_deduction_amount': 0,
+      CreateCacheRatio: "",
+      "group_ratio_setting.group_special_usable_group": "{}",
+      "grok.violation_deduction_enabled": false,
+      "grok.violation_deduction_amount": 0,
       RetryTimes: 0,
-      ChannelDisableThreshold: '',
+      ChannelDisableThreshold: "",
       AutomaticDisableChannelEnabled: false,
       AutomaticEnableChannelEnabled: false,
-      AutomaticDisableKeywords: '',
-      AutomaticDisableStatusCodes: '401',
+      AutomaticDisableKeywords: "",
+      AutomaticDisableStatusCodes: "401",
       AutomaticRetryStatusCodes:
-        '100-199,300-399,401-407,409-499,500-503,505-523,525-599',
-      'monitor_setting.auto_test_channel_enabled': false,
-      'monitor_setting.auto_test_channel_minutes': 10,
-      'monitor_setting.channel_test_concurrency': 1,
-      'monitor_setting.channel_test_mode': 'scheduled_all',
-      'channel_affinity_setting.enabled': false,
-      'channel_affinity_setting.switch_on_success': true,
-      'channel_affinity_setting.keep_on_channel_disabled': false,
-      'channel_affinity_setting.max_entries': 100000,
-      'channel_affinity_setting.default_ttl_seconds': 3600,
-      'channel_affinity_setting.rules': '[]',
-      'model_deployment.ionet.api_key': '',
-      'model_deployment.ionet.enabled': false,
-    }
-    return getOptionValue(systemOptionsData.data, defaultModelSettings)
-  }, [systemOptionsData])
+        "100-199,300-399,401-407,409-499,500-503,505-523,525-599",
+      "monitor_setting.auto_test_channel_enabled": false,
+      "monitor_setting.auto_test_channel_minutes": 10,
+      "monitor_setting.channel_test_concurrency": 1,
+      "monitor_setting.channel_test_mode": "scheduled_all",
+      "channel_affinity_setting.enabled": false,
+      "channel_affinity_setting.switch_on_success": true,
+      "channel_affinity_setting.keep_on_channel_disabled": false,
+      "channel_affinity_setting.max_entries": 100000,
+      "channel_affinity_setting.default_ttl_seconds": 3600,
+      "channel_affinity_setting.rules": "[]",
+      "model_deployment.ionet.api_key": "",
+      "model_deployment.ionet.enabled": false,
+    };
+    return getOptionValue(systemOptionsData.data, defaultModelSettings);
+  }, [systemOptionsData]);
 
   // The load effect keys off this boolean, not the object: it re-runs once
   // when the settings first arrive (so a drawer opened before that still gets
   // its pricing prefilled), while later refetches only produce a new object
   // reference and must not reset a form the user may be editing.
-  const hasModelSettings = modelSettings !== null
+  const hasModelSettings = modelSettings !== null;
   useEffect(() => {
-    modelSettingsRef.current = modelSettings
-  })
+    modelSettingsRef.current = modelSettings;
+  });
 
   const form = useForm<ExtendedModelFormValues>({
     resolver: zodResolver(extendedModelFormSchema),
     defaultValues: {
-      model_name: '',
-      description: '',
-      icon: '',
+      model_name: "",
+      description: "",
+      icon: "",
       tags: [],
-      hot_label: '',
-      discount_label: '',
+      hot_label: "",
+      discount_label: "",
       vendor_id: undefined,
-      endpoints: '',
+      endpoints: "",
       name_rule: 0,
       status: true,
       sync_official: true,
-      price: '',
-      ratio: '',
-      cacheRatio: '',
-      completionRatio: '',
-      imageRatio: '',
-      audioRatio: '',
-      audioCompletionRatio: '',
-      context_length: '',
-      max_output_tokens: '',
-      category: '',
-      capabilities: '',
-      input_modalities: '',
-      output_modalities: '',
+      price: "",
+      ratio: "",
+      cacheRatio: "",
+      completionRatio: "",
+      imageRatio: "",
+      audioRatio: "",
+      audioCompletionRatio: "",
+      context_length: "",
+      max_output_tokens: "",
+      category: "",
+      capabilities: "",
+      input_modalities: "",
+      output_modalities: "",
     },
-  })
+  });
 
   const watchedModelName = useWatch({
     control: form.control,
-    name: 'model_name',
-  })
+    name: "model_name",
+  });
 
   const validateNumber = (value: string) => {
-    if (value === '') return true
-    return !Number.isNaN(Number.parseFloat(value))
-  }
+    if (value === "") return true;
+    return !Number.isNaN(Number.parseFloat(value));
+  };
 
   const handlePromptPriceChange = (value: string) => {
-    setPromptPrice(value)
+    setPromptPrice(value);
     if (value && !Number.isNaN(Number.parseFloat(value))) {
-      const ratio = Number.parseFloat(value) / 2
-      form.setValue('ratio', ratio.toString())
+      const ratio = Number.parseFloat(value) / 2;
+      form.setValue("ratio", ratio.toString());
     } else {
-      form.setValue('ratio', '')
+      form.setValue("ratio", "");
     }
-  }
+  };
 
   const handleCompletionPriceChange = (value: string) => {
-    setCompletionPrice(value)
+    setCompletionPrice(value);
     if (
       value &&
       !Number.isNaN(Number.parseFloat(value)) &&
@@ -446,104 +457,104 @@ export function ModelMutateDrawer({
       Number.parseFloat(promptPrice) > 0
     ) {
       const completionRatio =
-        Number.parseFloat(value) / Number.parseFloat(promptPrice)
-      form.setValue('completionRatio', completionRatio.toString())
+        Number.parseFloat(value) / Number.parseFloat(promptPrice);
+      form.setValue("completionRatio", completionRatio.toString());
     } else {
-      form.setValue('completionRatio', '')
+      form.setValue("completionRatio", "");
     }
-  }
+  };
 
   // Load model data for editing and ratio configuration
   useEffect(() => {
     if (open && isEditing && modelData?.data) {
-      const model = modelData.data
-      setOldModelName(model.model_name)
+      const model = modelData.data;
+      setOldModelName(model.model_name);
 
       const pricing = readPricingConfig(
         modelSettingsRef.current,
-        model.model_name
-      )
-      setLoadedPricingName(model.model_name)
-      setPricingMode(pricing.mode)
-      setPromptPrice(pricing.promptPrice)
-      setCompletionPrice(pricing.completionPrice)
-      setAdvancedOpen(pricing.advancedOpen)
+        model.model_name,
+      );
+      setLoadedPricingName(model.model_name);
+      setPricingMode(pricing.mode);
+      setPromptPrice(pricing.promptPrice);
+      setCompletionPrice(pricing.completionPrice);
+      setAdvancedOpen(pricing.advancedOpen);
       form.reset({
         id: model.id,
         model_name: model.model_name,
-        description: model.description || '',
-        icon: model.icon || '',
+        description: model.description || "",
+        icon: model.icon || "",
         tags: parseModelTags(model.tags),
-        hot_label: model.hot_label || '',
-        discount_label: model.discount_label || '',
+        hot_label: model.hot_label || "",
+        discount_label: model.discount_label || "",
         vendor_id: model.vendor_id,
-        endpoints: model.endpoints || '',
+        endpoints: model.endpoints || "",
         name_rule: model.name_rule || 0,
         status: model.status === 1,
         sync_official: model.sync_official === 1,
         context_length: model.context_length
           ? String(model.context_length)
-          : '',
+          : "",
         max_output_tokens: model.max_output_tokens
           ? String(model.max_output_tokens)
-          : '',
-        category: model.category || '',
+          : "",
+        category: model.category || "",
         capabilities: joinListValue(model.capabilities),
         input_modalities: joinListValue(model.input_modalities),
         output_modalities: joinListValue(model.output_modalities),
         ...pricing.fields,
-      })
-      setPriceItems(parsePriceItems(model.price_items))
+      });
+      setPriceItems(parsePriceItems(model.price_items));
     } else if (open && !isEditing) {
       // Pre-fill model name if passed from missing models, along with any
       // pricing that name already has, so the user edits it instead of being
       // shown an empty form that hides existing configuration.
-      const modelName = currentRow?.model_name || ''
-      const pricing = readPricingConfig(modelSettingsRef.current, modelName)
-      setOldModelName('')
-      setLoadedPricingName(modelName)
-      setPricingSubMode('ratio')
-      setPricingMode(pricing.mode)
-      setPromptPrice(pricing.promptPrice)
-      setCompletionPrice(pricing.completionPrice)
-      setAdvancedOpen(pricing.advancedOpen)
+      const modelName = currentRow?.model_name || "";
+      const pricing = readPricingConfig(modelSettingsRef.current, modelName);
+      setOldModelName("");
+      setLoadedPricingName(modelName);
+      setPricingSubMode("ratio");
+      setPricingMode(pricing.mode);
+      setPromptPrice(pricing.promptPrice);
+      setCompletionPrice(pricing.completionPrice);
+      setAdvancedOpen(pricing.advancedOpen);
       form.reset({
         model_name: modelName,
-        description: '',
-        icon: '',
+        description: "",
+        icon: "",
         tags: [],
-        hot_label: '',
-        discount_label: '',
+        hot_label: "",
+        discount_label: "",
         vendor_id: undefined,
-        endpoints: '',
+        endpoints: "",
         name_rule: 0,
         status: true,
         sync_official: true,
-        context_length: '',
-        max_output_tokens: '',
-        category: '',
-        capabilities: '',
-        input_modalities: '',
-        output_modalities: '',
+        context_length: "",
+        max_output_tokens: "",
+        category: "",
+        capabilities: "",
+        input_modalities: "",
+        output_modalities: "",
         ...pricing.fields,
-      })
-      setPriceItems([])
+      });
+      setPriceItems([]);
     }
-  }, [open, isEditing, modelData, currentRow, form, hasModelSettings])
+  }, [open, isEditing, modelData, currentRow, form, hasModelSettings]);
 
   const onSubmit = useCallback(
     async (values: ExtendedModelFormValues): Promise<void> => {
-      setIsSubmitting(true)
+      setIsSubmitting(true);
       try {
         const submitData = {
           ...values,
           id: isEditing ? currentModelId : undefined,
-          tags: Array.isArray(values.tags) ? values.tags.join(',') : '',
+          tags: Array.isArray(values.tags) ? values.tags.join(",") : "",
           status: values.status ? 1 : 0,
           sync_official: values.sync_official ? 1 : 0,
           context_length: toIntOrUndefined(values.context_length),
           max_output_tokens: toIntOrUndefined(values.max_output_tokens),
-        }
+        };
 
         // Remove ratio fields from model data (they're stored in system settings)
         const {
@@ -555,7 +566,7 @@ export function ModelMutateDrawer({
           audioRatio,
           audioCompletionRatio,
           ...modelData
-        } = submitData
+        } = submitData;
 
         const response =
           isEditing && currentModelId
@@ -567,22 +578,22 @@ export function ModelMutateDrawer({
             : await createModel({
                 ...modelData,
                 price_items: serializePriceItems(priceItems),
-              })
+              });
 
         if (response.success) {
           // Handle ratio configuration updates in system settings
-          const finalModelName = values.model_name
+          const finalModelName = values.model_name;
           const hasRatioConfig =
-            (pricingMode === 'per-request' &&
+            (pricingMode === "per-request" &&
               values.price &&
-              values.price !== '') ||
-            (pricingMode === 'per-token' &&
+              values.price !== "") ||
+            (pricingMode === "per-token" &&
               (values.ratio ||
                 values.cacheRatio ||
                 values.completionRatio ||
                 values.imageRatio ||
                 values.audioRatio ||
-                values.audioCompletionRatio))
+                values.audioCompletionRatio));
 
           // Always process system settings updates if we have modelSettings
           // This ensures we can remove stale entries even when clearing all pricing fields
@@ -590,42 +601,42 @@ export function ModelMutateDrawer({
             // Read existing configurations
             const priceMap = safeJsonParse<Record<string, number>>(
               modelSettings.ModelPrice,
-              { fallback: {}, silent: true }
-            )
+              { fallback: {}, silent: true },
+            );
             const ratioMap = safeJsonParse<Record<string, number>>(
               modelSettings.ModelRatio,
-              { fallback: {}, silent: true }
-            )
+              { fallback: {}, silent: true },
+            );
             const cacheMap = safeJsonParse<Record<string, number>>(
               modelSettings.CacheRatio,
-              { fallback: {}, silent: true }
-            )
+              { fallback: {}, silent: true },
+            );
             const completionMap = safeJsonParse<Record<string, number>>(
               modelSettings.CompletionRatio,
-              { fallback: {}, silent: true }
-            )
+              { fallback: {}, silent: true },
+            );
             const imageMap = safeJsonParse<Record<string, number>>(
               modelSettings.ImageRatio,
-              { fallback: {}, silent: true }
-            )
+              { fallback: {}, silent: true },
+            );
             const audioMap = safeJsonParse<Record<string, number>>(
               modelSettings.AudioRatio,
-              { fallback: {}, silent: true }
-            )
+              { fallback: {}, silent: true },
+            );
             const audioCompletionMap = safeJsonParse<Record<string, number>>(
               modelSettings.AudioCompletionRatio,
-              { fallback: {}, silent: true }
-            )
+              { fallback: {}, silent: true },
+            );
 
             // Remove old model name entries if model name changed (always, even if no new config)
             if (isEditing && oldModelName && oldModelName !== finalModelName) {
-              delete priceMap[oldModelName]
-              delete ratioMap[oldModelName]
-              delete cacheMap[oldModelName]
-              delete completionMap[oldModelName]
-              delete imageMap[oldModelName]
-              delete audioMap[oldModelName]
-              delete audioCompletionMap[oldModelName]
+              delete priceMap[oldModelName];
+              delete ratioMap[oldModelName];
+              delete cacheMap[oldModelName];
+              delete completionMap[oldModelName];
+              delete imageMap[oldModelName];
+              delete audioMap[oldModelName];
+              delete audioCompletionMap[oldModelName];
             }
 
             // Rebuild this model name's entries from the form, but only when
@@ -638,143 +649,143 @@ export function ModelMutateDrawer({
             // wipe it -- that covers creating a model over an existing name,
             // and renaming onto one.
             if (hasRatioConfig || finalModelName === loadedPricingName) {
-              delete priceMap[finalModelName]
-              delete ratioMap[finalModelName]
-              delete cacheMap[finalModelName]
-              delete completionMap[finalModelName]
-              delete imageMap[finalModelName]
-              delete audioMap[finalModelName]
-              delete audioCompletionMap[finalModelName]
+              delete priceMap[finalModelName];
+              delete ratioMap[finalModelName];
+              delete cacheMap[finalModelName];
+              delete completionMap[finalModelName];
+              delete imageMap[finalModelName];
+              delete audioMap[finalModelName];
+              delete audioCompletionMap[finalModelName];
             }
 
             // Only add new entries if user provided new configuration
             if (hasRatioConfig) {
               if (
-                pricingMode === 'per-request' &&
+                pricingMode === "per-request" &&
                 values.price &&
-                values.price !== ''
+                values.price !== ""
               ) {
-                priceMap[finalModelName] = Number.parseFloat(values.price)
-              } else if (pricingMode === 'per-token') {
-                if (values.ratio && values.ratio !== '') {
-                  ratioMap[finalModelName] = Number.parseFloat(values.ratio)
+                priceMap[finalModelName] = Number.parseFloat(values.price);
+              } else if (pricingMode === "per-token") {
+                if (values.ratio && values.ratio !== "") {
+                  ratioMap[finalModelName] = Number.parseFloat(values.ratio);
                 }
-                if (values.cacheRatio && values.cacheRatio !== '') {
+                if (values.cacheRatio && values.cacheRatio !== "") {
                   cacheMap[finalModelName] = Number.parseFloat(
-                    values.cacheRatio
-                  )
+                    values.cacheRatio,
+                  );
                 }
-                if (values.completionRatio && values.completionRatio !== '') {
+                if (values.completionRatio && values.completionRatio !== "") {
                   completionMap[finalModelName] = Number.parseFloat(
-                    values.completionRatio
-                  )
+                    values.completionRatio,
+                  );
                 }
-                if (values.imageRatio && values.imageRatio !== '') {
+                if (values.imageRatio && values.imageRatio !== "") {
                   imageMap[finalModelName] = Number.parseFloat(
-                    values.imageRatio
-                  )
+                    values.imageRatio,
+                  );
                 }
-                if (values.audioRatio && values.audioRatio !== '') {
+                if (values.audioRatio && values.audioRatio !== "") {
                   audioMap[finalModelName] = Number.parseFloat(
-                    values.audioRatio
-                  )
+                    values.audioRatio,
+                  );
                 }
                 if (
                   values.audioCompletionRatio &&
-                  values.audioCompletionRatio !== ''
+                  values.audioCompletionRatio !== ""
                 ) {
                   audioCompletionMap[finalModelName] = Number.parseFloat(
-                    values.audioCompletionRatio
-                  )
+                    values.audioCompletionRatio,
+                  );
                 }
               }
             }
 
             // Update system options if there are changes
-            const updates: Array<{ key: string; value: string }> = []
+            const updates: Array<{ key: string; value: string }> = [];
 
-            const newModelPrice = normalizeJsonString(JSON.stringify(priceMap))
+            const newModelPrice = normalizeJsonString(JSON.stringify(priceMap));
             if (
               newModelPrice !== normalizeJsonString(modelSettings.ModelPrice)
             ) {
-              updates.push({ key: 'ModelPrice', value: newModelPrice })
+              updates.push({ key: "ModelPrice", value: newModelPrice });
             }
 
-            const newModelRatio = normalizeJsonString(JSON.stringify(ratioMap))
+            const newModelRatio = normalizeJsonString(JSON.stringify(ratioMap));
             if (
               newModelRatio !== normalizeJsonString(modelSettings.ModelRatio)
             ) {
-              updates.push({ key: 'ModelRatio', value: newModelRatio })
+              updates.push({ key: "ModelRatio", value: newModelRatio });
             }
 
-            const newCacheRatio = normalizeJsonString(JSON.stringify(cacheMap))
+            const newCacheRatio = normalizeJsonString(JSON.stringify(cacheMap));
             if (
               newCacheRatio !== normalizeJsonString(modelSettings.CacheRatio)
             ) {
-              updates.push({ key: 'CacheRatio', value: newCacheRatio })
+              updates.push({ key: "CacheRatio", value: newCacheRatio });
             }
 
             const newCompletionRatio = normalizeJsonString(
-              JSON.stringify(completionMap)
-            )
+              JSON.stringify(completionMap),
+            );
             if (
               newCompletionRatio !==
               normalizeJsonString(modelSettings.CompletionRatio)
             ) {
               updates.push({
-                key: 'CompletionRatio',
+                key: "CompletionRatio",
                 value: newCompletionRatio,
-              })
+              });
             }
 
-            const newImageRatio = normalizeJsonString(JSON.stringify(imageMap))
+            const newImageRatio = normalizeJsonString(JSON.stringify(imageMap));
             if (
               newImageRatio !== normalizeJsonString(modelSettings.ImageRatio)
             ) {
-              updates.push({ key: 'ImageRatio', value: newImageRatio })
+              updates.push({ key: "ImageRatio", value: newImageRatio });
             }
 
-            const newAudioRatio = normalizeJsonString(JSON.stringify(audioMap))
+            const newAudioRatio = normalizeJsonString(JSON.stringify(audioMap));
             if (
               newAudioRatio !== normalizeJsonString(modelSettings.AudioRatio)
             ) {
-              updates.push({ key: 'AudioRatio', value: newAudioRatio })
+              updates.push({ key: "AudioRatio", value: newAudioRatio });
             }
 
             const newAudioCompletionRatio = normalizeJsonString(
-              JSON.stringify(audioCompletionMap)
-            )
+              JSON.stringify(audioCompletionMap),
+            );
             if (
               newAudioCompletionRatio !==
               normalizeJsonString(modelSettings.AudioCompletionRatio)
             ) {
               updates.push({
-                key: 'AudioCompletionRatio',
+                key: "AudioCompletionRatio",
                 value: newAudioCompletionRatio,
-              })
+              });
             }
 
             // Apply all updates (including deletions when clearing fields)
             for (const update of updates) {
-              await updateOption.mutateAsync(update)
+              await updateOption.mutateAsync(update);
             }
           }
 
           toast.success(
             isEditing
-              ? 'Model updated successfully'
-              : 'Model created successfully'
-          )
-          queryClient.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
-          queryClient.invalidateQueries({ queryKey: ['system-options'] })
-          onOpenChange(false)
+              ? "Model updated successfully"
+              : "Model created successfully",
+          );
+          queryClient.invalidateQueries({ queryKey: modelsQueryKeys.lists() });
+          queryClient.invalidateQueries({ queryKey: ["system-options"] });
+          onOpenChange(false);
         } else {
-          toast.error(response.message || 'Operation failed')
+          toast.error(response.message || "Operation failed");
         }
       } catch (error: unknown) {
-        toast.error((error as Error)?.message || 'Operation failed')
+        toast.error((error as Error)?.message || "Operation failed");
       } finally {
-        setIsSubmitting(false)
+        setIsSubmitting(false);
       }
     },
     [
@@ -788,61 +799,123 @@ export function ModelMutateDrawer({
       modelSettings,
       updateOption,
       priceItems,
-    ]
-  )
+    ],
+  );
 
   const handleFillEndpointTemplate = (templateKey: string) => {
-    const template = ENDPOINT_TEMPLATES[templateKey]
+    const template = ENDPOINT_TEMPLATES[templateKey];
     if (template) {
-      const templateJson = JSON.stringify({ [templateKey]: template }, null, 2)
-      form.setValue('endpoints', templateJson)
+      const templateJson = JSON.stringify({ [templateKey]: template }, null, 2);
+      form.setValue("endpoints", templateJson);
     }
-  }
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className={sideDrawerContentClassName('sm:max-w-2xl')}>
+      <SheetContent className={sideDrawerContentClassName("sm:max-w-2xl")}>
         <SheetHeader className={sideDrawerHeaderClassName()}>
-          <SheetTitle>
-            {isEditing ? t('Edit Model') : t('Create Model')}
-          </SheetTitle>
-          <SheetDescription>
-            {isEditing
-              ? t("Update model configuration and click save when you're done.")
-              : t(
-                  'Add a new model to the system by providing the necessary information.'
-                )}
-          </SheetDescription>
+          <div className="flex items-start gap-3">
+            <IconBadge tone="vibrant-blue" size="title">
+              <Settings2 className="size-4" strokeWidth={1.8} />
+            </IconBadge>
+            <div className="min-w-0 flex-1">
+              <SheetTitle>
+                {isEditing ? t("Edit Model") : t("Create Model")}
+              </SheetTitle>
+              <SheetDescription>
+                {isEditing
+                  ? t(
+                      "Update model configuration and click save when you're done.",
+                    )
+                  : t(
+                      "Add a new model to the system by providing the necessary information.",
+                    )}
+              </SheetDescription>
+            </div>
+          </div>
         </SheetHeader>
 
         <Form {...form}>
           <form
-            id='model-form'
+            id="model-form"
             onSubmit={form.handleSubmit(
-              onSubmit as Parameters<typeof form.handleSubmit>[0]
+              onSubmit as Parameters<typeof form.handleSubmit>[0],
             )}
             className={sideDrawerFormClassName()}
           >
+            {/* Overview snapshot — reads from the live form values so the
+                preview stays in sync as the user types. Only renders when a
+                model_name has been entered (or the drawer is in edit mode). */}
+            {(isEditing || watchedModelName) && (
+              <div className="relative overflow-hidden rounded-xl border border-slate-200/70 bg-gradient-to-br from-white via-white to-slate-50 p-5 shadow-[0_18px_40px_-30px_rgba(15,23,42,0.35)] dark:border-white/10 dark:from-white/5 dark:via-white/5 dark:to-white/[0.03]">
+                <div className="flex items-start gap-4">
+                  <div className="bg-blue-500/15 text-blue-600 dark:bg-blue-400/15 dark:text-blue-400 flex size-12 shrink-0 items-center justify-center rounded-xl">
+                    <Info className="size-5" strokeWidth={1.8} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-muted-foreground text-[11px] font-medium tracking-[0.18em] uppercase">
+                      {t("Overview")}
+                    </p>
+                    <h3 className="mt-1 truncate text-[17px] font-semibold tracking-tight">
+                      {watchedModelName || (
+                        <span className="text-muted-foreground italic">
+                          {t("Unnamed model")}
+                        </span>
+                      )}
+                    </h3>
+                    <p className="text-muted-foreground mt-1 line-clamp-2 text-sm leading-relaxed">
+                      {form.watch("description") || t("No description yet.")}
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                      {form.watch("hot_label") && (
+                        <span className="rounded-full bg-gradient-to-r from-orange-400 to-red-500 px-2.5 py-1 text-[11px] font-bold tracking-wide text-white shadow-[0_2px_6px_-1px_rgba(249,115,22,0.55)]">
+                          {form.watch("hot_label")}
+                        </span>
+                      )}
+                      {form.watch("discount_label") && (
+                        <span className="rounded-full bg-gradient-to-r from-rose-500 to-pink-500 px-2.5 py-1 text-[11px] font-bold tracking-wide text-white shadow-[0_2px_6px_-1px_rgba(244,63,94,0.5)]">
+                          {form.watch("discount_label")}
+                        </span>
+                      )}
+                      {form.watch("tags")?.map((tag) => (
+                        <span
+                          key={tag}
+                          className="rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[11px] font-medium text-blue-700 dark:border-blue-400/25 dark:bg-blue-500/10 dark:text-blue-300"
+                        >
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Basic Information */}
             <SideDrawerSection>
-              <h3 className='text-sm font-semibold'>
-                {t('Basic Information')}
-              </h3>
+              <SideDrawerSectionHeader
+                title={t("Basic Information")}
+                description={t(
+                  "Core fields shown on the model card and used as the canonical identifier.",
+                )}
+                icon={<Info className="size-4" strokeWidth={1.8} />}
+                iconTone="vibrant-blue"
+              />
 
               <FormField
                 control={form.control}
-                name='model_name'
+                name="model_name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Model Name *')}</FormLabel>
+                    <FormLabel>{t("Model Name *")}</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder={t('gpt-4, claude-3-opus, etc.')}
+                        placeholder={t("gpt-4, claude-3-opus, etc.")}
                         {...field}
                       />
                     </FormControl>
                     <FormDescription>
-                      {t('The unique identifier for this model')}
+                      {t("The unique identifier for this model")}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -851,13 +924,13 @@ export function ModelMutateDrawer({
 
               <FormField
                 control={form.control}
-                name='description'
+                name="description"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Description')}</FormLabel>
+                    <FormLabel>{t("Description")}</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder={t('Describe this model...')}
+                        placeholder={t("Describe this model...")}
                         rows={3}
                         {...field}
                       />
@@ -869,18 +942,18 @@ export function ModelMutateDrawer({
 
               <FormField
                 control={form.control}
-                name='icon'
+                name="icon"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Icon')}</FormLabel>
+                    <FormLabel>{t("Icon")}</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder={t('OpenAI, Anthropic, etc.')}
+                        placeholder={t("OpenAI, Anthropic, etc.")}
                         {...field}
                       />
                     </FormControl>
-                    <FormDescription className='text-xs'>
-                      {t('@lobehub/icons key')}
+                    <FormDescription className="text-xs">
+                      {t("@lobehub/icons key")}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -889,10 +962,10 @@ export function ModelMutateDrawer({
 
               <FormField
                 control={form.control}
-                name='vendor_id'
+                name="vendor_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Vendor')}</FormLabel>
+                    <FormLabel>{t("Vendor")}</FormLabel>
                     <Select
                       items={vendors.map((vendor) => ({
                         value: String(vendor.id),
@@ -900,14 +973,14 @@ export function ModelMutateDrawer({
                       }))}
                       onValueChange={(value) =>
                         field.onChange(
-                          value ? Number.parseInt(value) : undefined
+                          value ? Number.parseInt(value) : undefined,
                         )
                       }
                       value={field.value ? String(field.value) : undefined}
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder={t('Select vendor')} />
+                          <SelectValue placeholder={t("Select vendor")} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent alignItemWithTrigger={false}>
@@ -930,41 +1003,41 @@ export function ModelMutateDrawer({
 
               <FormField
                 control={form.control}
-                name='tags'
+                name="tags"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Tags')}</FormLabel>
+                    <FormLabel>{t("Tags")}</FormLabel>
                     <FormControl>
                       <TagInput
                         value={field.value || []}
                         onChange={field.onChange}
-                        placeholder={t('Add tags...')}
+                        placeholder={t("Add tags...")}
                       />
                     </FormControl>
                     <FormDescription>
-                      {t('Press Enter or comma to add tags')}
+                      {t("Press Enter or comma to add tags")}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              <div className='grid gap-4 sm:grid-cols-2'>
+              <div className="grid gap-4 sm:grid-cols-2">
                 <FormField
                   control={form.control}
-                  name='hot_label'
+                  name="hot_label"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t('Hot Label')}</FormLabel>
+                      <FormLabel>{t("Hot Label")}</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder={t('e.g. Hot')}
+                          placeholder={t("e.g. Hot")}
                           maxLength={32}
                           {...field}
                         />
                       </FormControl>
-                      <FormDescription className='text-xs'>
-                        {t('Shown at the top-left of the model square card')}
+                      <FormDescription className="text-xs">
+                        {t("Shown at the top-left of the model square card")}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -973,19 +1046,19 @@ export function ModelMutateDrawer({
 
                 <FormField
                   control={form.control}
-                  name='discount_label'
+                  name="discount_label"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t('Discount Label')}</FormLabel>
+                      <FormLabel>{t("Discount Label")}</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder={t('e.g. 20% off')}
+                          placeholder={t("e.g. 20% off")}
                           maxLength={32}
                           {...field}
                         />
                       </FormControl>
-                      <FormDescription className='text-xs'>
-                        {t('Shown as a ribbon at the top-right of the card')}
+                      <FormDescription className="text-xs">
+                        {t("Shown as a ribbon at the top-right of the card")}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -996,41 +1069,55 @@ export function ModelMutateDrawer({
 
             {/* Price display items (model square) */}
             <SideDrawerSection>
-              <h3 className='text-sm font-semibold'>{t('Price Display')}</h3>
+              <SideDrawerSectionHeader
+                title={t("Price Display")}
+                description={t(
+                  "Customise the per-model card shown on the model square.",
+                )}
+                icon={<Tag className="size-4" strokeWidth={1.8} />}
+                iconTone="vibrant-amber"
+              />
               <FormDescription>
                 {t(
-                  'Controls how the model square renders this model price table. Prices are derived from the billing configuration, not typed here.'
+                  "Controls how the model square renders this model price table. Prices are derived from the billing configuration, not typed here.",
                 )}
               </FormDescription>
               <PriceItemsEditor
                 value={priceItems}
                 onChange={setPriceItems}
-                modelName={watchedModelName || ''}
+                modelName={watchedModelName || ""}
               />
             </SideDrawerSection>
 
             {/* Matching Configuration */}
             <SideDrawerSection>
-              <h3 className='text-sm font-semibold'>{t('Matching Rules')}</h3>
+              <SideDrawerSectionHeader
+                title={t("Matching Rules")}
+                description={t(
+                  "Decide how incoming requests map to this model name.",
+                )}
+                icon={<Filter className="size-4" strokeWidth={1.8} />}
+                iconTone="vibrant-violet"
+              />
 
               <FormField
                 control={form.control}
-                name='name_rule'
+                name="name_rule"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Name Rule')}</FormLabel>
+                    <FormLabel>{t("Name Rule")}</FormLabel>
                     <FormControl>
                       <RadioGroup
                         onValueChange={(value) =>
                           field.onChange(Number.parseInt(value))
                         }
                         value={String(field.value)}
-                        className='grid grid-cols-2 gap-4'
+                        className="grid grid-cols-2 gap-4"
                       >
                         {getNameRuleOptions(t).map((option) => (
                           <div
                             key={option.value}
-                            className='flex items-center space-x-2'
+                            className="flex items-center space-x-2"
                           >
                             <RadioGroupItem
                               value={String(option.value)}
@@ -1038,7 +1125,7 @@ export function ModelMutateDrawer({
                             />
                             <Label
                               htmlFor={`rule-${option.value}`}
-                              className='cursor-pointer font-normal'
+                              className="cursor-pointer font-normal"
                             >
                               {option.label}
                             </Label>
@@ -1047,7 +1134,7 @@ export function ModelMutateDrawer({
                       </RadioGroup>
                     </FormControl>
                     <FormDescription>
-                      {t('How this model name should match requests')}
+                      {t("How this model name should match requests")}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -1057,8 +1144,15 @@ export function ModelMutateDrawer({
 
             {/* Endpoints Configuration */}
             <SideDrawerSection>
-              <div className='flex items-center justify-between'>
-                <h3 className='text-sm font-semibold'>{t('Endpoints')}</h3>
+              <SideDrawerSectionHeader
+                title={t("Endpoints")}
+                description={t(
+                  "Per-model override of API endpoint paths and methods.",
+                )}
+                icon={<Network className="size-4" strokeWidth={1.8} />}
+                iconTone="vibrant-emerald"
+              />
+              <div className="-mt-3 flex items-center justify-end">
                 <Select<string>
                   items={Object.keys(ENDPOINT_TEMPLATES).map((key) => ({
                     value: key,
@@ -1068,8 +1162,8 @@ export function ModelMutateDrawer({
                     v !== null && handleFillEndpointTemplate(v)
                   }
                 >
-                  <SelectTrigger size='sm' className='w-[200px]'>
-                    <SelectValue placeholder={t('Load template...')} />
+                  <SelectTrigger size="sm" className="w-[200px]">
+                    <SelectValue placeholder={t("Load template...")} />
                   </SelectTrigger>
                   <SelectContent alignItemWithTrigger={false}>
                     <SelectGroup>
@@ -1085,26 +1179,26 @@ export function ModelMutateDrawer({
 
               <FormField
                 control={form.control}
-                name='endpoints'
+                name="endpoints"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Endpoint Configuration')}</FormLabel>
+                    <FormLabel>{t("Endpoint Configuration")}</FormLabel>
                     <FormControl>
                       <JsonEditor
-                        value={field.value || ''}
+                        value={field.value || ""}
                         onChange={field.onChange}
-                        keyPlaceholder='endpoint_type'
+                        keyPlaceholder="endpoint_type"
                         valuePlaceholder='{"path": "/v1/...", "method": "POST"}'
-                        keyLabel='Endpoint Type'
-                        valueLabel='Configuration'
-                        valueType='any'
+                        keyLabel="Endpoint Type"
+                        valueLabel="Configuration"
+                        valueType="any"
                         emptyMessage={t(
-                          'No endpoints configured. Switch to JSON mode or add rows to define endpoints.'
+                          "No endpoints configured. Switch to JSON mode or add rows to define endpoints.",
                         )}
                       />
                     </FormControl>
                     <FormDescription>
-                      {t('Define API endpoints for this model (JSON format)')}
+                      {t("Define API endpoints for this model (JSON format)")}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -1114,56 +1208,61 @@ export function ModelMutateDrawer({
 
             {/* Pricing Configuration */}
             <SideDrawerSection>
-              <h3 className='text-sm font-semibold'>
-                {t('Pricing Configuration')}
-              </h3>
+              <SideDrawerSectionHeader
+                title={t("Pricing Configuration")}
+                description={t(
+                  "Define the per-token or per-request bill that the model square and billing pipeline will read.",
+                )}
+                icon={<Wallet className="size-4" strokeWidth={1.8} />}
+                iconTone="vibrant-pink"
+              />
 
-              <div className='space-y-4'>
-                <Label>{t('Pricing mode')}</Label>
+              <div className="space-y-4">
+                <Label>{t("Pricing mode")}</Label>
                 <RadioGroup
                   value={pricingMode}
                   onValueChange={(value) =>
                     setPricingMode(value as PricingMode)
                   }
                 >
-                  <div className='flex items-center space-x-2'>
-                    <RadioGroupItem value='per-token' id='per-token' />
-                    <Label htmlFor='per-token' className='font-normal'>
-                      {t('Per-token (ratio based)')}
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="per-token" id="per-token" />
+                    <Label htmlFor="per-token" className="font-normal">
+                      {t("Per-token (ratio based)")}
                     </Label>
                   </div>
-                  <div className='flex items-center space-x-2'>
-                    <RadioGroupItem value='per-request' id='per-request' />
-                    <Label htmlFor='per-request' className='font-normal'>
-                      {t('Per-request (fixed price)')}
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="per-request" id="per-request" />
+                    <Label htmlFor="per-request" className="font-normal">
+                      {t("Per-request (fixed price)")}
                     </Label>
                   </div>
                 </RadioGroup>
               </div>
 
-              {pricingMode === 'per-request' ? (
+              {pricingMode === "per-request" ? (
                 <FormField
                   control={form.control}
-                  name='price'
+                  name="price"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t('Fixed price (USD)')}</FormLabel>
+                      <FormLabel>{t("Fixed price (USD)")}</FormLabel>
                       <FormControl>
                         <Input
-                          type='text'
-                          placeholder='0.01'
+                          type="text"
+                          placeholder="0.01"
                           {...field}
                           onChange={(e) => {
-                            const value = e.target.value
+                            const value = e.target.value;
                             if (validateNumber(value)) {
-                              field.onChange(value)
+                              field.onChange(value);
                             }
                           }}
                         />
                       </FormControl>
                       <FormDescription>
                         {t(
-                          'Cost in USD per request, regardless of tokens used.'
+                          "Cost in USD per request, regardless of tokens used.",
                         )}
                       </FormDescription>
                       <FormMessage />
@@ -1172,54 +1271,54 @@ export function ModelMutateDrawer({
                 />
               ) : (
                 <>
-                  <div className='space-y-4'>
-                    <Label>{t('Input mode')}</Label>
+                  <div className="space-y-4">
+                    <Label>{t("Input mode")}</Label>
                     <RadioGroup
                       value={pricingSubMode}
                       onValueChange={(value) =>
                         setPricingSubMode(value as PricingSubMode)
                       }
                     >
-                      <div className='flex items-center space-x-2'>
-                        <RadioGroupItem value='ratio' id='ratio' />
-                        <Label htmlFor='ratio' className='font-normal'>
-                          {t('Ratio mode')}
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="ratio" id="ratio" />
+                        <Label htmlFor="ratio" className="font-normal">
+                          {t("Ratio mode")}
                         </Label>
                       </div>
-                      <div className='flex items-center space-x-2'>
-                        <RadioGroupItem value='price' id='price' />
-                        <Label htmlFor='price' className='font-normal'>
-                          {t('Price mode (USD per 1M tokens)')}
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="price" id="price" />
+                        <Label htmlFor="price" className="font-normal">
+                          {t("Price mode (USD per 1M tokens)")}
                         </Label>
                       </div>
                     </RadioGroup>
                   </div>
 
-                  {pricingSubMode === 'ratio' ? (
+                  {pricingSubMode === "ratio" ? (
                     <>
                       <FormField
                         control={form.control}
-                        name='ratio'
+                        name="ratio"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>{t('Model ratio')}</FormLabel>
+                            <FormLabel>{t("Model ratio")}</FormLabel>
                             <FormControl>
                               <Input
-                                type='text'
-                                placeholder='1.0'
+                                type="text"
+                                placeholder="1.0"
                                 {...field}
                                 onChange={(e) => {
-                                  const value = e.target.value
+                                  const value = e.target.value;
                                   if (validateNumber(value)) {
-                                    field.onChange(value)
+                                    field.onChange(value);
                                     if (value) {
                                       setPromptPrice(
                                         (
                                           Number.parseFloat(value) * 2
-                                        ).toString()
-                                      )
+                                        ).toString(),
+                                      );
                                     } else {
-                                      setPromptPrice('')
+                                      setPromptPrice("");
                                     }
                                   }
                                 }}
@@ -1229,7 +1328,7 @@ export function ModelMutateDrawer({
                               {field.value &&
                               !Number.isNaN(Number.parseFloat(field.value))
                                 ? `Calculated price: $${(Number.parseFloat(field.value) * 2).toFixed(4)} per 1M tokens`
-                                : t('Multiplier for prompt tokens.')}
+                                : t("Multiplier for prompt tokens.")}
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
@@ -1238,28 +1337,28 @@ export function ModelMutateDrawer({
 
                       <FormField
                         control={form.control}
-                        name='completionRatio'
+                        name="completionRatio"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>{t('Completion ratio')}</FormLabel>
+                            <FormLabel>{t("Completion ratio")}</FormLabel>
                             <FormControl>
                               <Input
-                                type='text'
-                                placeholder='1.0'
+                                type="text"
+                                placeholder="1.0"
                                 {...field}
                                 onChange={(e) => {
-                                  const value = e.target.value
+                                  const value = e.target.value;
                                   if (validateNumber(value)) {
-                                    field.onChange(value)
-                                    const ratio = form.getValues('ratio')
+                                    field.onChange(value);
+                                    const ratio = form.getValues("ratio");
                                     if (value && ratio) {
                                       const compPrice =
                                         Number.parseFloat(ratio) *
                                         2 *
-                                        Number.parseFloat(value)
-                                      setCompletionPrice(compPrice.toString())
+                                        Number.parseFloat(value);
+                                      setCompletionPrice(compPrice.toString());
                                     } else {
-                                      setCompletionPrice('')
+                                      setCompletionPrice("");
                                     }
                                   }
                                 }}
@@ -1271,7 +1370,7 @@ export function ModelMutateDrawer({
                               promptPrice &&
                               !Number.isNaN(Number.parseFloat(promptPrice))
                                 ? `Calculated price: $${(Number.parseFloat(promptPrice) * Number.parseFloat(field.value)).toFixed(4)} per 1M tokens`
-                                : t('Multiplier for completion tokens.')}
+                                : t("Multiplier for completion tokens.")}
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
@@ -1279,43 +1378,43 @@ export function ModelMutateDrawer({
                       />
                     </>
                   ) : (
-                    <div className='space-y-4'>
-                      <div className='space-y-2'>
-                        <Label>{t('Prompt price ($/1M tokens)')}</Label>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>{t("Prompt price ($/1M tokens)")}</Label>
                         <Input
-                          type='text'
-                          placeholder='2.0'
+                          type="text"
+                          placeholder="2.0"
                           value={promptPrice}
                           onChange={(e) =>
                             handlePromptPriceChange(e.target.value)
                           }
                         />
-                        <p className='text-muted-foreground text-sm'>
+                        <p className="text-muted-foreground text-sm">
                           {promptPrice &&
                           !Number.isNaN(Number.parseFloat(promptPrice))
                             ? `Calculated ratio: ${(Number.parseFloat(promptPrice) / 2).toFixed(4)}`
-                            : t('Enter Input price to calculate ratio')}
+                            : t("Enter Input price to calculate ratio")}
                         </p>
                       </div>
 
-                      <div className='space-y-2'>
-                        <Label>{t('Completion price ($/1M tokens)')}</Label>
+                      <div className="space-y-2">
+                        <Label>{t("Completion price ($/1M tokens)")}</Label>
                         <Input
-                          type='text'
-                          placeholder='4.0'
+                          type="text"
+                          placeholder="4.0"
                           value={completionPrice}
                           onChange={(e) =>
                             handleCompletionPriceChange(e.target.value)
                           }
                         />
-                        <p className='text-muted-foreground text-sm'>
+                        <p className="text-muted-foreground text-sm">
                           {completionPrice &&
                           !Number.isNaN(Number.parseFloat(completionPrice)) &&
                           promptPrice &&
                           !Number.isNaN(Number.parseFloat(promptPrice)) &&
                           Number.parseFloat(promptPrice) > 0
                             ? `Calculated ratio: ${(Number.parseFloat(completionPrice) / Number.parseFloat(promptPrice)).toFixed(4)}`
-                            : t('Enter Completion price to calculate ratio')}
+                            : t("Enter Completion price to calculate ratio")}
                         </p>
                       </div>
                     </div>
@@ -1328,41 +1427,41 @@ export function ModelMutateDrawer({
                     <CollapsibleTrigger
                       render={
                         <Button
-                          type='button'
-                          variant='outline'
-                          className='flex w-full items-center justify-between'
+                          type="button"
+                          variant="outline"
+                          className="flex w-full items-center justify-between"
                         />
                       }
                     >
-                      {t('Advanced options')}
+                      {t("Advanced options")}
                       <ChevronDown
                         className={`h-4 w-4 transition-transform duration-200 ${
-                          advancedOpen ? 'rotate-180' : ''
+                          advancedOpen ? "rotate-180" : ""
                         }`}
                       />
                     </CollapsibleTrigger>
-                    <CollapsibleContent className='flex flex-col gap-4 pt-4'>
+                    <CollapsibleContent className="flex flex-col gap-4 pt-4">
                       <FormField
                         control={form.control}
-                        name='cacheRatio'
+                        name="cacheRatio"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>{t('Cache ratio')}</FormLabel>
+                            <FormLabel>{t("Cache ratio")}</FormLabel>
                             <FormControl>
                               <Input
-                                type='text'
-                                placeholder='0.1'
+                                type="text"
+                                placeholder="0.1"
                                 {...field}
                                 onChange={(e) => {
-                                  const value = e.target.value
+                                  const value = e.target.value;
                                   if (validateNumber(value)) {
-                                    field.onChange(value)
+                                    field.onChange(value);
                                   }
                                 }}
                               />
                             </FormControl>
                             <FormDescription>
-                              {t('Discount ratio for cache hits.')}
+                              {t("Discount ratio for cache hits.")}
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
@@ -1371,25 +1470,25 @@ export function ModelMutateDrawer({
 
                       <FormField
                         control={form.control}
-                        name='imageRatio'
+                        name="imageRatio"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>{t('Image ratio')}</FormLabel>
+                            <FormLabel>{t("Image ratio")}</FormLabel>
                             <FormControl>
                               <Input
-                                type='text'
-                                placeholder='1.0'
+                                type="text"
+                                placeholder="1.0"
                                 {...field}
                                 onChange={(e) => {
-                                  const value = e.target.value
+                                  const value = e.target.value;
                                   if (validateNumber(value)) {
-                                    field.onChange(value)
+                                    field.onChange(value);
                                   }
                                 }}
                               />
                             </FormControl>
                             <FormDescription>
-                              {t('Multiplier for image processing.')}
+                              {t("Multiplier for image processing.")}
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
@@ -1398,25 +1497,25 @@ export function ModelMutateDrawer({
 
                       <FormField
                         control={form.control}
-                        name='audioRatio'
+                        name="audioRatio"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>{t('Audio ratio')}</FormLabel>
+                            <FormLabel>{t("Audio ratio")}</FormLabel>
                             <FormControl>
                               <Input
-                                type='text'
-                                placeholder='1.0'
+                                type="text"
+                                placeholder="1.0"
                                 {...field}
                                 onChange={(e) => {
-                                  const value = e.target.value
+                                  const value = e.target.value;
                                   if (validateNumber(value)) {
-                                    field.onChange(value)
+                                    field.onChange(value);
                                   }
                                 }}
                               />
                             </FormControl>
                             <FormDescription>
-                              {t('Multiplier for audio inputs.')}
+                              {t("Multiplier for audio inputs.")}
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
@@ -1425,25 +1524,25 @@ export function ModelMutateDrawer({
 
                       <FormField
                         control={form.control}
-                        name='audioCompletionRatio'
+                        name="audioCompletionRatio"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>{t('Audio completion ratio')}</FormLabel>
+                            <FormLabel>{t("Audio completion ratio")}</FormLabel>
                             <FormControl>
                               <Input
-                                type='text'
-                                placeholder='1.0'
+                                type="text"
+                                placeholder="1.0"
                                 {...field}
                                 onChange={(e) => {
-                                  const value = e.target.value
+                                  const value = e.target.value;
                                   if (validateNumber(value)) {
-                                    field.onChange(value)
+                                    field.onChange(value);
                                   }
                                 }}
                               />
                             </FormControl>
                             <FormDescription>
-                              {t('Multiplier for audio outputs.')}
+                              {t("Multiplier for audio outputs.")}
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
@@ -1457,19 +1556,19 @@ export function ModelMutateDrawer({
 
             {/* Status & Sync */}
             <SideDrawerSection>
-              <h3 className='text-sm font-semibold'>{t('Status & Sync')}</h3>
+              <h3 className="text-sm font-semibold">{t("Status & Sync")}</h3>
 
               <FormField
                 control={form.control}
-                name='status'
+                name="status"
                 render={({ field }) => (
                   <FormItem className={sideDrawerSwitchItemClassName()}>
-                    <div className='flex flex-col gap-0.5'>
-                      <FormLabel className='text-base'>
-                        {t('Enabled')}
+                    <div className="flex flex-col gap-0.5">
+                      <FormLabel className="text-base">
+                        {t("Enabled")}
                       </FormLabel>
                       <FormDescription>
-                        {t('Enable or disable this model')}
+                        {t("Enable or disable this model")}
                       </FormDescription>
                     </div>
                     <FormControl>
@@ -1484,15 +1583,15 @@ export function ModelMutateDrawer({
 
               <FormField
                 control={form.control}
-                name='sync_official'
+                name="sync_official"
                 render={({ field }) => (
                   <FormItem className={sideDrawerSwitchItemClassName()}>
-                    <div className='flex flex-col gap-0.5'>
-                      <FormLabel className='text-base'>
-                        {t('Official Sync')}
+                    <div className="flex flex-col gap-0.5">
+                      <FormLabel className="text-base">
+                        {t("Official Sync")}
                       </FormLabel>
                       <FormDescription>
-                        {t('Sync this model with official upstream')}
+                        {t("Sync this model with official upstream")}
                       </FormDescription>
                     </div>
                     <FormControl>
@@ -1510,16 +1609,16 @@ export function ModelMutateDrawer({
 
         <SheetFooter className={sideDrawerFooterClassName()}>
           <SheetClose
-            render={<Button variant='outline' disabled={isSubmitting} />}
+            render={<Button variant="outline" disabled={isSubmitting} />}
           >
-            {t('Cancel')}
+            {t("Cancel")}
           </SheetClose>
-          <Button form='model-form' type='submit' disabled={isSubmitting}>
-            {isSubmitting && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-            {isEditing ? t('Update Model') : t('Save changes')}
+          <Button form="model-form" type="submit" disabled={isSubmitting}>
+            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isEditing ? t("Update Model") : t("Save changes")}
           </Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>
-  )
+  );
 }
