@@ -22,7 +22,7 @@ WORKDIR /build
 # 默认走 goproxy.cn：实测该机 goproxy.io 单次请求 8s 超时级别（146 个依赖会卡死数小时），
 # proxy.golang.org / sum.golang.org 完全不通，goproxy.cn 约 0.4s。
 # 仍可用 docker build --build-arg GOPROXY=... 覆盖。
-ARG GOPROXY=https://goproxy.cn,direct
+ARG GOPROXY=https://goproxy.cn,https://mirrors.aliyun.com/goproxy,direct
 ENV GOPROXY=${GOPROXY}
 ENV GOSUMDB=off GOTOOLCHAIN=local
 
