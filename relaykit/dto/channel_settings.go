@@ -84,6 +84,13 @@ type ChannelOtherSettings struct {
 	// gateway). Set e.g. `/api/v1/contents/generations/tasks` to target gateways
 	// that re-host the same Seedance protocol under a different path.
 	TaskApiPath string `json:"task_api_path,omitempty"`
+	// TaskQueryApiPath overrides the path suffix (from the channel Base URL) that
+	// the doubao video task adaptor uses for the query/cancel endpoints. Most
+	// gateways serve create (POST) and query (GET) under one path, so this is
+	// empty by default and TaskApiPath is reused. Set it only for upstreams that
+	// split create and query into two different paths, e.g. create
+	// `/v1/task/submit` with query `/v1/task`.
+	TaskQueryApiPath string `json:"task_query_api_path,omitempty"`
 	// AssetGroupApiPath overrides the path suffix (from the channel Base URL) that
 	// the asset-group adaptor uses. Leave empty to use the built-in
 	// `/api/v1/asset-groups`. Set e.g. `/api/v1/contents/management/assets-groups`

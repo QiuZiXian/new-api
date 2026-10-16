@@ -205,10 +205,15 @@ func CancelContentTask(c *gin.Context) {
 	service.RefundTaskQuota(context.Background(), task, task.FailReason)
 
 	// 2) 再请求上游取消/删除排队任务。本地已取消，上游失败仅作为告警随错误返回。
+	// 上游把创建与查询拆成两个 API 时用查询路径，否则退回创建路径。
+	deletePath := ch.GetOtherSettings().TaskQueryApiPath
+	if strings.TrimSpace(deletePath) == "" {
+		deletePath = ch.GetOtherSettings().TaskApiPath
+	}
 	if err := (&taskdoubao.TaskAdaptor{}).DeleteTask(
 		ch.GetBaseURL(),
 		ch.Key,
-		ch.GetOtherSettings().TaskApiPath,
+		deletePath,
 		upstreamID,
 		ch.GetSetting().Proxy,
 	); err != nil {

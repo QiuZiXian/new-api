@@ -31,6 +31,7 @@ export const createModelPricingSchema = (t: (key: string) => string) =>
     createCacheRatio: z.string().optional(),
     completionRatio: z.string().optional(),
     imageRatio: z.string().optional(),
+    imageCompletionRatio: z.string().optional(),
     audioRatio: z.string().optional(),
     audioCompletionRatio: z.string().optional(),
   })
@@ -46,6 +47,7 @@ export type LaneKey =
   | 'cache'
   | 'createCache'
   | 'image'
+  | 'imageOutput'
   | 'audioInput'
   | 'audioOutput'
 
@@ -57,6 +59,7 @@ export type ModelRatioData = {
   createCacheRatio?: string
   completionRatio?: string
   imageRatio?: string
+  imageCompletionRatio?: string
   audioRatio?: string
   audioCompletionRatio?: string
   billingMode?: PricingMode
@@ -78,6 +81,7 @@ export const EMPTY_LANE_PRICES: Record<LaneKey, string> = {
   cache: '',
   createCache: '',
   image: '',
+  imageOutput: '',
   audioInput: '',
   audioOutput: '',
 }
@@ -87,6 +91,7 @@ export const EMPTY_LANE_ENABLED: Record<LaneKey, boolean> = {
   cache: false,
   createCache: false,
   image: false,
+  imageOutput: false,
   audioInput: false,
   audioOutput: false,
 }
@@ -96,6 +101,7 @@ export const ratioFieldByLane: Record<LaneKey, keyof ModelPricingFormValues> = {
   cache: 'cacheRatio',
   createCache: 'createCacheRatio',
   image: 'imageRatio',
+  imageOutput: 'imageCompletionRatio',
   audioInput: 'audioRatio',
   audioOutput: 'audioCompletionRatio',
 }
@@ -129,6 +135,13 @@ export const laneConfigs: Array<{
     titleKey: 'Image input price',
     descriptionKey: 'Token price for image input.',
     placeholder: '2.5',
+  },
+  {
+    key: 'imageOutput',
+    titleKey: 'Image output price',
+    descriptionKey:
+      'Price multiplier for generated image tokens, relative to the image input price. Defaults to 1 when unset.',
+    placeholder: '4',
   },
   {
     key: 'audioInput',

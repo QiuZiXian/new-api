@@ -54,6 +54,8 @@ type ModelFormValues = {
   CreateCacheRatio: string
   CompletionRatio: string
   ImageRatio: string
+  ImageCompletionRatio: string
+  VideoSecondPrice: string
   AudioRatio: string
   AudioCompletionRatio: string
   ExposeRatioEnabled: boolean
@@ -78,6 +80,8 @@ type ModelJsonFieldName =
   | 'CreateCacheRatio'
   | 'CompletionRatio'
   | 'ImageRatio'
+  | 'ImageCompletionRatio'
+  | 'VideoSecondPrice'
   | 'AudioRatio'
   | 'AudioCompletionRatio'
 
@@ -118,6 +122,18 @@ const modelJsonFields: Array<{
     name: 'ImageRatio',
     labelKey: 'Image ratio',
     descriptionKey: 'Configure per-model ratio for image inputs or outputs.',
+  },
+  {
+    name: 'ImageCompletionRatio',
+    labelKey: 'Image completion ratio',
+    descriptionKey:
+      'Per-model multiplier for generated image tokens, relative to the image input price. Defaults to 1 when unset.',
+  },
+  {
+    name: 'VideoSecondPrice',
+    labelKey: 'Video per-second price',
+    descriptionKey:
+      'JSON map of model → { resolution tier: USD price per second }. Enables per-second billing for video models, e.g. {"doubao-seedance-2.0":{"default":0.99,"720p":0.99,"1080p":1.51}}. The default tier is used when the request omits a resolution.',
   },
   {
     name: 'AudioRatio',

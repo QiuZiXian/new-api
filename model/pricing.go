@@ -31,8 +31,10 @@ type Pricing struct {
 	CacheRatio             *float64                `json:"cache_ratio,omitempty"`
 	CreateCacheRatio       *float64                `json:"create_cache_ratio,omitempty"`
 	ImageRatio             *float64                `json:"image_ratio,omitempty"`
+	ImageCompletionRatio   *float64                `json:"image_completion_ratio,omitempty"`
 	AudioRatio             *float64                `json:"audio_ratio,omitempty"`
 	AudioCompletionRatio   *float64                `json:"audio_completion_ratio,omitempty"`
+	VideoSecondPrice       map[string]float64      `json:"video_second_price,omitempty"`
 	EnableGroup            []string                `json:"enable_groups"`
 	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
 	BillingMode            string                  `json:"billing_mode,omitempty"`
@@ -396,7 +398,12 @@ func updatePricing() {
 			meta = m
 		}
 		modelPrice, findPrice := ratio_setting.GetModelPrice(model, false)
-		if findPrice {
+		if secondPrice, ok := ratio_setting.GetVideoSecondBasePrice(model); ok {
+			// quota_type=2：按秒计费。ModelPrice 落基准档秒价，分档明细走
+			// VideoSecondPrice，供详情页渲染「/秒」多档表格。
+			pricing.ModelPrice = secondPrice
+			pricing.QuotaType = 2
+		} else if findPrice {
 			pricing.ModelPrice = modelPrice
 			pricing.QuotaType = 1
 		} else {
@@ -413,6 +420,13 @@ func updatePricing() {
 		}
 		if imageRatio, ok := ratio_setting.GetImageRatio(model); ok {
 			pricing.ImageRatio = &imageRatio
+		}
+		if ratio_setting.ContainsImageCompletionRatio(model) {
+			imageCompletionRatio := ratio_setting.GetImageCompletionRatio(model)
+			pricing.ImageCompletionRatio = &imageCompletionRatio
+		}
+		if variants, ok := ratio_setting.GetVideoSecondPrice(model); ok {
+			pricing.VideoSecondPrice = variants
 		}
 		if ratio_setting.ContainsAudioRatio(model) {
 			audioRatio := ratio_setting.GetAudioRatio(model)
@@ -443,8 +457,11 @@ func updatePricing() {
 				CompletionRatio:      pricing.CompletionRatio,
 				CacheRatio:           pricing.CacheRatio,
 				CreateCacheRatio:     pricing.CreateCacheRatio,
+				ImageRatio:           pricing.ImageRatio,
+				ImageCompletionRatio: pricing.ImageCompletionRatio,
 				AudioRatio:           pricing.AudioRatio,
 				AudioCompletionRatio: pricing.AudioCompletionRatio,
+				VideoSecondVariants:  pricing.VideoSecondPrice,
 				ModelPrice:           pricing.ModelPrice,
 			})
 		}

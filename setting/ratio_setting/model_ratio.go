@@ -340,6 +340,7 @@ func InitRatioSettings() {
 	cacheRatioMap.AddAll(defaultCacheRatio)
 	createCacheRatioMap.AddAll(defaultCreateCacheRatio)
 	imageRatioMap.AddAll(defaultImageRatio)
+	imageCompletionRatioMap.AddAll(defaultImageCompletionRatio)
 	audioRatioMap.AddAll(defaultAudioRatio)
 	audioCompletionRatioMap.AddAll(defaultAudioCompletionRatio)
 }
@@ -639,8 +640,16 @@ var defaultImageRatio = map[string]float64{
 	"gpt-image-1": 2,
 }
 var imageRatioMap = types.NewRWMap[string, float64]()
+var imageCompletionRatioMap = types.NewRWMap[string, float64]()
 var audioRatioMap = types.NewRWMap[string, float64]()
 var audioCompletionRatioMap = types.NewRWMap[string, float64]()
+
+// defaultImageCompletionRatio 图片输出相对图片输入的倍率。与音频侧一致：
+// 输出图片单价 = ModelRatio × ImageRatio × ImageCompletionRatio，未配置时取 1
+// （即输出与输入同价）。
+var defaultImageCompletionRatio = map[string]float64{
+	"gpt-image-1": 4, // 2 × 4 = 8，与 defaultCompletionRatio 中该模型的输出倍率一致
+}
 
 func ImageRatio2JSONString() string {
 	return imageRatioMap.MarshalJSONString()
@@ -656,6 +665,29 @@ func GetImageRatio(name string) (float64, bool) {
 		return 1, false // Default to 1 if not found
 	}
 	return ratio, true
+}
+
+// GetImageCompletionRatio 返回图片输出相对图片输入的倍率，未配置时为 1（与输入同价）。
+func GetImageCompletionRatio(name string) float64 {
+	name = FormatMatchingModelName(name)
+	if ratio, ok := imageCompletionRatioMap.Get(name); ok {
+		return ratio
+	}
+	return 1
+}
+
+func ContainsImageCompletionRatio(name string) bool {
+	name = FormatMatchingModelName(name)
+	_, ok := imageCompletionRatioMap.Get(name)
+	return ok
+}
+
+func ImageCompletionRatio2JSONString() string {
+	return imageCompletionRatioMap.MarshalJSONString()
+}
+
+func UpdateImageCompletionRatioByJSONString(jsonStr string) error {
+	return types.LoadFromJsonStringWithCallback(imageCompletionRatioMap, jsonStr, InvalidateExposedDataCache)
 }
 
 func AudioRatio2JSONString() string {
@@ -688,6 +720,10 @@ func GetCompletionRatioCopy() map[string]float64 {
 
 func GetImageRatioCopy() map[string]float64 {
 	return imageRatioMap.ReadAll()
+}
+
+func GetImageCompletionRatioCopy() map[string]float64 {
+	return imageCompletionRatioMap.ReadAll()
 }
 
 func GetAudioRatioCopy() map[string]float64 {

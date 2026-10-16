@@ -134,6 +134,7 @@ func normalizeSyncValue(field string, value any) any {
 func getLocalPricingSyncData() map[string]any {
 	data := billing_setting.GetPricingSyncData(map[string]any(ratio_setting.GetExposedData()))
 	data["image_ratio"] = ratio_setting.GetImageRatioCopy()
+	data["image_completion_ratio"] = ratio_setting.GetImageCompletionRatioCopy()
 	data["audio_ratio"] = ratio_setting.GetAudioRatioCopy()
 	data["audio_completion_ratio"] = ratio_setting.GetAudioCompletionRatioCopy()
 	return data
@@ -387,6 +388,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 				CacheRatio           *float64 `json:"cache_ratio"`
 				CreateCacheRatio     *float64 `json:"create_cache_ratio"`
 				ImageRatio           *float64 `json:"image_ratio"`
+				ImageCompletionRatio *float64 `json:"image_completion_ratio"`
 				AudioRatio           *float64 `json:"audio_ratio"`
 				AudioCompletionRatio *float64 `json:"audio_completion_ratio"`
 				BillingMode          string   `json:"billing_mode"`
@@ -403,6 +405,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 			cacheRatioMap := make(map[string]float64)
 			createCacheRatioMap := make(map[string]float64)
 			imageRatioMap := make(map[string]float64)
+			imageCompletionRatioMap := make(map[string]float64)
 			audioRatioMap := make(map[string]float64)
 			audioCompletionRatioMap := make(map[string]float64)
 			modelPriceMap := make(map[string]float64)
@@ -432,6 +435,9 @@ func FetchUpstreamRatios(c *gin.Context) {
 				}
 				if item.ImageRatio != nil {
 					imageRatioMap[item.ModelName] = *item.ImageRatio
+				}
+				if item.ImageCompletionRatio != nil {
+					imageCompletionRatioMap[item.ModelName] = *item.ImageCompletionRatio
 				}
 				if item.AudioRatio != nil {
 					audioRatioMap[item.ModelName] = *item.AudioRatio
@@ -466,6 +472,9 @@ func FetchUpstreamRatios(c *gin.Context) {
 			}
 			if len(imageRatioMap) > 0 {
 				converted["image_ratio"] = valueMap(imageRatioMap)
+			}
+			if len(imageCompletionRatioMap) > 0 {
+				converted["image_completion_ratio"] = valueMap(imageCompletionRatioMap)
 			}
 			if len(audioRatioMap) > 0 {
 				converted["audio_ratio"] = valueMap(audioRatioMap)

@@ -25,6 +25,7 @@ import (
 
 type TokenDetails struct {
 	TextTokens  int
+	ImageTokens int
 	AudioTokens int
 }
 
@@ -57,21 +58,28 @@ func calculateAudioQuota(info QuotaInfo) (int, *common.QuotaClamp) {
 	}
 
 	completionRatio := decimal.NewFromFloat(ratio_setting.GetCompletionRatio(info.ModelName))
+	imageRatio, _ := ratio_setting.GetImageRatio(info.ModelName)
+	imageCompletionRatio := decimal.NewFromFloat(ratio_setting.GetImageCompletionRatio(info.ModelName))
 	audioRatio := decimal.NewFromFloat(ratio_setting.GetAudioRatio(info.ModelName))
 	audioCompletionRatio := decimal.NewFromFloat(ratio_setting.GetAudioCompletionRatio(info.ModelName))
 
+	dImageRatio := decimal.NewFromFloat(imageRatio)
 	groupRatio := decimal.NewFromFloat(info.GroupRatio)
 	modelRatio := decimal.NewFromFloat(info.ModelRatio)
 	ratio := groupRatio.Mul(modelRatio)
 
 	inputTextTokens := decimal.NewFromInt(int64(info.InputDetails.TextTokens))
 	outputTextTokens := decimal.NewFromInt(int64(info.OutputDetails.TextTokens))
+	inputImageTokens := decimal.NewFromInt(int64(info.InputDetails.ImageTokens))
+	outputImageTokens := decimal.NewFromInt(int64(info.OutputDetails.ImageTokens))
 	inputAudioTokens := decimal.NewFromInt(int64(info.InputDetails.AudioTokens))
 	outputAudioTokens := decimal.NewFromInt(int64(info.OutputDetails.AudioTokens))
 
 	quota := decimal.Zero
 	quota = quota.Add(inputTextTokens)
 	quota = quota.Add(outputTextTokens.Mul(completionRatio))
+	quota = quota.Add(inputImageTokens.Mul(dImageRatio))
+	quota = quota.Add(outputImageTokens.Mul(dImageRatio).Mul(imageCompletionRatio))
 	quota = quota.Add(inputAudioTokens.Mul(audioRatio))
 	quota = quota.Add(outputAudioTokens.Mul(audioRatio).Mul(audioCompletionRatio))
 
@@ -102,6 +110,8 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	modelName := relayInfo.OriginModelName
 	textInputTokens := usage.InputTokenDetails.TextTokens
 	textOutTokens := usage.OutputTokenDetails.TextTokens
+	imageInputTokens := usage.InputTokenDetails.ImageTokens
+	imageOutTokens := usage.OutputTokenDetails.ImageTokens
 	audioInputTokens := usage.InputTokenDetails.AudioTokens
 	audioOutTokens := usage.OutputTokenDetails.AudioTokens
 	groupRatio := ratio_setting.GetGroupRatio(relayInfo.UsingGroup)
@@ -123,10 +133,12 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	quotaInfo := QuotaInfo{
 		InputDetails: TokenDetails{
 			TextTokens:  textInputTokens,
+			ImageTokens: imageInputTokens,
 			AudioTokens: audioInputTokens,
 		},
 		OutputDetails: TokenDetails{
 			TextTokens:  textOutTokens,
+			ImageTokens: imageOutTokens,
 			AudioTokens: audioOutTokens,
 		},
 		ModelName:  modelName,
@@ -170,6 +182,8 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	useTimeSeconds := time.Now().Unix() - relayInfo.StartTime.Unix()
 	textInputTokens := usage.InputTokenDetails.TextTokens
 	textOutTokens := usage.OutputTokenDetails.TextTokens
+	imageInputTokens := usage.InputTokenDetails.ImageTokens
+	imageOutTokens := usage.OutputTokenDetails.ImageTokens
 
 	audioInputTokens := usage.InputTokenDetails.AudioTokens
 	audioOutTokens := usage.OutputTokenDetails.AudioTokens
@@ -187,10 +201,12 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	quotaInfo := QuotaInfo{
 		InputDetails: TokenDetails{
 			TextTokens:  textInputTokens,
+			ImageTokens: imageInputTokens,
 			AudioTokens: audioInputTokens,
 		},
 		OutputDetails: TokenDetails{
 			TextTokens:  textOutTokens,
+			ImageTokens: imageOutTokens,
 			AudioTokens: audioOutTokens,
 		},
 		ModelName:  modelName,
@@ -298,6 +314,8 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	useTimeSeconds := time.Now().Unix() - relayInfo.StartTime.Unix()
 	textInputTokens := usage.PromptTokensDetails.TextTokens
 	textOutTokens := usage.CompletionTokenDetails.TextTokens
+	imageInputTokens := usage.PromptTokensDetails.ImageTokens
+	imageOutTokens := usage.CompletionTokenDetails.ImageTokens
 
 	audioInputTokens := usage.PromptTokensDetails.AudioTokens
 	audioOutTokens := usage.CompletionTokenDetails.AudioTokens
@@ -315,10 +333,12 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	quotaInfo := QuotaInfo{
 		InputDetails: TokenDetails{
 			TextTokens:  textInputTokens,
+			ImageTokens: imageInputTokens,
 			AudioTokens: audioInputTokens,
 		},
 		OutputDetails: TokenDetails{
 			TextTokens:  textOutTokens,
+			ImageTokens: imageOutTokens,
 			AudioTokens: audioOutTokens,
 		},
 		ModelName:  relayInfo.OriginModelName,

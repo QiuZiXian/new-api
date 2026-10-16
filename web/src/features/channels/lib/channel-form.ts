@@ -270,6 +270,7 @@ export const channelFormSchema = z
     aws_key_type: z.enum(['ak_sk', 'api_key']).optional(), // AWS specific
     azure_responses_version: z.string().optional(), // Azure specific
     task_api_path: z.string().optional(), // Doubao Video task channel specific
+    task_query_api_path: z.string().optional(), // Doubao Video task query channel specific
     visual_validate_api_path: z.string().optional(), // Doubao Video visual-validate channel specific
     asset_group_api_path: z.string().optional(), // Doubao Video asset-group channel specific
     asset_api_path: z.string().optional(), // Doubao Video asset channel specific
@@ -446,6 +447,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   aws_key_type: 'ak_sk',
   azure_responses_version: '',
   task_api_path: '',
+  task_query_api_path: '',
   visual_validate_api_path: '',
   asset_group_api_path: '',
   asset_api_path: '',
@@ -513,6 +515,7 @@ export function transformChannelToFormDefaults(
   let vertexKeyType: 'json' | 'api_key' = 'json'
   let azureResponsesVersion = ''
   let taskApiPath = ''
+  let taskQueryApiPath = ''
   let visualValidateApiPath = ''
   let assetGroupApiPath = ''
   let assetApiPath = ''
@@ -537,6 +540,7 @@ export function transformChannelToFormDefaults(
       vertexKeyType = parsed.vertex_key_type || 'json'
       azureResponsesVersion = parsed.azure_responses_version || ''
       taskApiPath = parsed.task_api_path || ''
+      taskQueryApiPath = parsed.task_query_api_path || ''
       visualValidateApiPath = parsed.visual_validate_api_path || ''
       assetGroupApiPath = parsed.asset_group_api_path || ''
       assetApiPath = parsed.asset_api_path || ''
@@ -601,6 +605,7 @@ export function transformChannelToFormDefaults(
     vertex_key_type: vertexKeyType,
     azure_responses_version: azureResponsesVersion,
     task_api_path: taskApiPath,
+    task_query_api_path: taskQueryApiPath,
     visual_validate_api_path: visualValidateApiPath,
     asset_group_api_path: assetGroupApiPath,
     asset_api_path: assetApiPath,
@@ -679,11 +684,18 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     delete settingsObj.azure_responses_version
   }
 
-  // Add task_api_path for Doubao Video task channels (type 54)
+  // Add task_api_path / task_query_api_path for Doubao Video task channels (type 54)
   if (formData.type === 54) {
     settingsObj.task_api_path = formData.task_api_path || ''
-  } else if ('task_api_path' in settingsObj) {
+    // 上游把创建与查询拆成两个 API 时才需要单独配置查询路径
+    if (formData.task_query_api_path?.trim()) {
+      settingsObj.task_query_api_path = formData.task_query_api_path.trim()
+    } else {
+      delete settingsObj.task_query_api_path
+    }
+  } else {
     delete settingsObj.task_api_path
+    delete settingsObj.task_query_api_path
   }
 
   // Add visual_validate_api_path / asset_group_api_path / asset_api_path
