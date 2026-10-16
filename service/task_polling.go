@@ -653,6 +653,14 @@ func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor
 		RecalculateTaskQuota(ctx, task, actualQuota, "adaptor计费调整")
 		return
 	}
+	// 1.5 按秒计费：上游回报真实时长后按实际秒数补扣。
+	// 放在 token 重算之前，避免被 completion_tokens 的估算口径覆盖。
+	if bc := task.PrivateData.BillingContext; bc != nil && bc.UseVideoSecond {
+		if taskResult != nil && taskResult.VideoSeconds > 0 {
+			RecalculateTaskQuotaBySeconds(ctx, task, taskResult.VideoSeconds, taskResult.VideoVariant)
+			return
+		}
+	}
 	// 2. 回退到 token 重算
 	if taskResult.TotalTokens > 0 {
 		RecalculateTaskQuotaByTokens(ctx, task, taskResult.TotalTokens)

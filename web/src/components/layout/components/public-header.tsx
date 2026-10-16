@@ -28,6 +28,7 @@ import { ThemeSwitch } from "@/components/theme-switch";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNotifications } from "@/hooks/use-notifications";
+import { useStatus } from "@/hooks/use-status";
 import { useSystemConfig } from "@/hooks/use-system-config";
 import { useTopNavLinks } from "@/hooks/use-top-nav-links";
 import { cn } from "@/lib/utils";
@@ -90,11 +91,14 @@ export function PublicHeader(props: PublicHeaderProps) {
   } = useSystemConfig();
   const dynamicLinks = useTopNavLinks();
   const notifications = useNotifications();
+  const { status } = useStatus();
   const routerState = useRouterState();
   const pathname = routerState.location.pathname;
 
   const user = auth.user;
   const isAuthenticated = !!user;
+  // 注册可能整体关闭，关闭时不展示入口（未知状态按开启处理，避免加载期闪烁隐藏）。
+  const registerEnabled = status?.register_enabled !== false;
   const displaySiteName = customSiteName || systemName;
   const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks;
 
@@ -303,13 +307,25 @@ export function PublicHeader(props: PublicHeaderProps) {
                   ) : isAuthenticated ? (
                     <ProfileDropdown />
                   ) : (
-                    <Button
-                      size="sm"
-                      className="h-9 rounded-lg px-4 text-sm font-medium md:h-10 md:px-5"
-                      render={<Link to="/sign-in" />}
-                    >
-                      {t("Sign in")}
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        className="h-9 rounded-lg px-4 text-sm font-medium md:h-10 md:px-5"
+                        render={<Link to="/sign-in" />}
+                      >
+                        {t("Sign in")}
+                      </Button>
+                      {registerEnabled && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-9 rounded-lg px-4 text-sm font-medium md:h-10 md:px-5"
+                          render={<Link to="/register" />}
+                        >
+                          {t("Register")}
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </>
               )}

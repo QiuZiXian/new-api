@@ -957,6 +957,12 @@ type TaskInfo struct {
 	Progress         string `json:"progress,omitempty"`
 	CompletionTokens int    `json:"completion_tokens,omitempty"` // 用于按倍率计费
 	TotalTokens      int    `json:"total_tokens,omitempty"`      // 用于按倍率计费
+	// VideoSeconds 是上游回报的真实视频时长（秒），终态回调里用于按秒计费的差额结算。
+	// 提交时用户可能未指定时长（duration=-1 / 缺省），只能按基准单价预扣，
+	// 真实时长要等任务跑完才知道。
+	VideoSeconds int `json:"video_seconds,omitempty"`
+	// VideoVariant 是本次实际生效的分辨率档（如 720p / 1080p），用于选取按秒分档价。
+	VideoVariant string `json:"video_variant,omitempty"`
 }
 
 func FailTaskInfo(reason string) *TaskInfo {

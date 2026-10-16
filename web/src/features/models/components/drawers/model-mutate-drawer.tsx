@@ -122,6 +122,8 @@ const extendedModelFormSchema = z.object({
   cacheRatio: z.string().optional(),
   completionRatio: z.string().optional(),
   imageRatio: z.string().optional(),
+  imageCompletionRatio: z.string().optional(),
+  videoSecondPrice: z.string().optional(),
   audioRatio: z.string().optional(),
   audioCompletionRatio: z.string().optional(),
   // 模型广场展示补充字段，只影响详情页渲染，不参与计费
@@ -135,7 +137,7 @@ const extendedModelFormSchema = z.object({
 
 type ExtendedModelFormValues = z.infer<typeof extendedModelFormSchema>;
 
-type PricingMode = "per-token" | "per-request";
+type PricingMode = "per-token" | "per-request" | "per-second";
 type PricingSubMode = "ratio" | "price";
 
 type PricingFields = Pick<
@@ -145,6 +147,7 @@ type PricingFields = Pick<
   | "cacheRatio"
   | "completionRatio"
   | "imageRatio"
+  | "imageCompletionRatio"
   | "audioRatio"
   | "audioCompletionRatio"
 >;
@@ -156,6 +159,9 @@ type PricingConfig = {
   promptPrice: string;
   completionPrice: string;
   advancedOpen: boolean;
+  // 按秒计费只暴露 default 档单价：其余分辨率档留给系统设置的分档表格配置，
+  // 这里改价时不会被一并抹掉。
+  videoSecondPrice?: string;
 };
 
 const EMPTY_PRICING_FIELDS: PricingFields = {
@@ -164,6 +170,7 @@ const EMPTY_PRICING_FIELDS: PricingFields = {
   cacheRatio: "",
   completionRatio: "",
   imageRatio: "",
+  imageCompletionRatio: "",
   audioRatio: "",
   audioCompletionRatio: "",
 };
@@ -213,6 +220,10 @@ function readPricingConfig(
   const cacheRatio = lookupModelRatio(settings.CacheRatio, modelName);
   const completionRatio = lookupModelRatio(settings.CompletionRatio, modelName);
   const imageRatio = lookupModelRatio(settings.ImageRatio, modelName);
+  const imageCompletionRatio = lookupModelRatio(
+    settings.ImageCompletionRatio,
+    modelName,
+  );
   const audioRatio = lookupModelRatio(settings.AudioRatio, modelName);
   const audioCompletionRatio = lookupModelRatio(
     settings.AudioCompletionRatio,
@@ -227,6 +238,20 @@ function readPricingConfig(
       ...EMPTY_PRICING_CONFIG,
       mode: "per-request",
       fields: { ...EMPTY_PRICING_FIELDS, price: price.toString() },
+    };
+  }
+
+  // 按秒计费优先于 token 倍率（后端 ModelPriceHelperPerCall 先查秒价），
+  // 所以配了秒价的模型直接按 per-second 回显。
+  const secondTiers = safeJsonParse<
+    Record<string, Record<string, number>>
+  >(settings.VideoSecondPrice, { fallback: {}, silent: true });
+  const secondPrice = secondTiers[modelName]?.default;
+  if (secondPrice !== undefined && secondPrice !== null) {
+    return {
+      ...EMPTY_PRICING_CONFIG,
+      mode: "per-second",
+      videoSecondPrice: secondPrice.toString(),
     };
   }
 
@@ -248,6 +273,7 @@ function readPricingConfig(
       cacheRatio: cacheRatio?.toString() || "",
       completionRatio: completionRatio?.toString() || "",
       imageRatio: imageRatio?.toString() || "",
+      imageCompletionRatio: imageCompletionRatio?.toString() || "",
       audioRatio: audioRatio?.toString() || "",
       audioCompletionRatio: audioCompletionRatio?.toString() || "",
     },
@@ -258,6 +284,7 @@ function readPricingConfig(
     advancedOpen: [
       cacheRatio,
       imageRatio,
+      imageCompletionRatio,
       audioRatio,
       audioCompletionRatio,
     ].some((value) => value !== undefined && value !== null),
@@ -347,6 +374,8 @@ export function ModelMutateDrawer({
       CacheRatio: "",
       CompletionRatio: "",
       ImageRatio: "",
+      ImageCompletionRatio: "",
+      VideoSecondPrice: "",
       AudioRatio: "",
       AudioCompletionRatio: "",
       ExposeRatioEnabled: false,
@@ -416,6 +445,8 @@ export function ModelMutateDrawer({
       cacheRatio: "",
       completionRatio: "",
       imageRatio: "",
+      imageCompletionRatio: "",
+      videoSecondPrice: "",
       audioRatio: "",
       audioCompletionRatio: "",
       context_length: "",
@@ -503,6 +534,7 @@ export function ModelMutateDrawer({
         input_modalities: joinListValue(model.input_modalities),
         output_modalities: joinListValue(model.output_modalities),
         ...pricing.fields,
+        videoSecondPrice: pricing.videoSecondPrice ?? "",
       });
       setPriceItems(parsePriceItems(model.price_items));
     } else if (open && !isEditing) {
@@ -537,6 +569,7 @@ export function ModelMutateDrawer({
         input_modalities: "",
         output_modalities: "",
         ...pricing.fields,
+        videoSecondPrice: pricing.videoSecondPrice ?? "",
       });
       setPriceItems([]);
     }
@@ -563,6 +596,8 @@ export function ModelMutateDrawer({
           cacheRatio,
           completionRatio,
           imageRatio,
+          imageCompletionRatio,
+          videoSecondPrice,
           audioRatio,
           audioCompletionRatio,
           ...modelData
@@ -587,11 +622,15 @@ export function ModelMutateDrawer({
             (pricingMode === "per-request" &&
               values.price &&
               values.price !== "") ||
+            (pricingMode === "per-second" &&
+              values.videoSecondPrice &&
+              values.videoSecondPrice !== "") ||
             (pricingMode === "per-token" &&
               (values.ratio ||
                 values.cacheRatio ||
                 values.completionRatio ||
                 values.imageRatio ||
+                values.imageCompletionRatio ||
                 values.audioRatio ||
                 values.audioCompletionRatio));
 
@@ -619,6 +658,15 @@ export function ModelMutateDrawer({
               modelSettings.ImageRatio,
               { fallback: {}, silent: true },
             );
+            const imageCompletionMap = safeJsonParse<
+              Record<string, number>
+            >(modelSettings.ImageCompletionRatio, {
+              fallback: {},
+              silent: true,
+            });
+            const videoSecondMap = safeJsonParse<
+              Record<string, Record<string, number>>
+            >(modelSettings.VideoSecondPrice, { fallback: {}, silent: true });
             const audioMap = safeJsonParse<Record<string, number>>(
               modelSettings.AudioRatio,
               { fallback: {}, silent: true },
@@ -628,6 +676,10 @@ export function ModelMutateDrawer({
               { fallback: {}, silent: true },
             );
 
+            // Per-second tiers other than the default one are maintained in
+            // system settings; keep them when this drawer rewrites the map.
+            const preservedSecondTiers = videoSecondMap[finalModelName] ?? {};
+
             // Remove old model name entries if model name changed (always, even if no new config)
             if (isEditing && oldModelName && oldModelName !== finalModelName) {
               delete priceMap[oldModelName];
@@ -635,6 +687,8 @@ export function ModelMutateDrawer({
               delete cacheMap[oldModelName];
               delete completionMap[oldModelName];
               delete imageMap[oldModelName];
+              delete imageCompletionMap[oldModelName];
+              delete videoSecondMap[oldModelName];
               delete audioMap[oldModelName];
               delete audioCompletionMap[oldModelName];
             }
@@ -654,6 +708,8 @@ export function ModelMutateDrawer({
               delete cacheMap[finalModelName];
               delete completionMap[finalModelName];
               delete imageMap[finalModelName];
+              delete imageCompletionMap[finalModelName];
+              delete videoSecondMap[finalModelName];
               delete audioMap[finalModelName];
               delete audioCompletionMap[finalModelName];
             }
@@ -666,6 +722,15 @@ export function ModelMutateDrawer({
                 values.price !== ""
               ) {
                 priceMap[finalModelName] = Number.parseFloat(values.price);
+              } else if (
+                pricingMode === "per-second" &&
+                values.videoSecondPrice &&
+                values.videoSecondPrice !== ""
+              ) {
+                videoSecondMap[finalModelName] = {
+                  ...preservedSecondTiers,
+                  default: Number.parseFloat(values.videoSecondPrice),
+                };
               } else if (pricingMode === "per-token") {
                 if (values.ratio && values.ratio !== "") {
                   ratioMap[finalModelName] = Number.parseFloat(values.ratio);
@@ -683,6 +748,14 @@ export function ModelMutateDrawer({
                 if (values.imageRatio && values.imageRatio !== "") {
                   imageMap[finalModelName] = Number.parseFloat(
                     values.imageRatio,
+                  );
+                }
+                if (
+                  values.imageCompletionRatio &&
+                  values.imageCompletionRatio !== ""
+                ) {
+                  imageCompletionMap[finalModelName] = Number.parseFloat(
+                    values.imageCompletionRatio,
                   );
                 }
                 if (values.audioRatio && values.audioRatio !== "") {
@@ -743,6 +816,32 @@ export function ModelMutateDrawer({
               newImageRatio !== normalizeJsonString(modelSettings.ImageRatio)
             ) {
               updates.push({ key: "ImageRatio", value: newImageRatio });
+            }
+
+            const newImageCompletionRatio = normalizeJsonString(
+              JSON.stringify(imageCompletionMap),
+            );
+            if (
+              newImageCompletionRatio !==
+              normalizeJsonString(modelSettings.ImageCompletionRatio)
+            ) {
+              updates.push({
+                key: "ImageCompletionRatio",
+                value: newImageCompletionRatio,
+              });
+            }
+
+            const newVideoSecondPrice = normalizeJsonString(
+              JSON.stringify(videoSecondMap),
+            );
+            if (
+              newVideoSecondPrice !==
+              normalizeJsonString(modelSettings.VideoSecondPrice)
+            ) {
+              updates.push({
+                key: "VideoSecondPrice",
+                value: newVideoSecondPrice,
+              });
             }
 
             const newAudioRatio = normalizeJsonString(JSON.stringify(audioMap));
@@ -1237,10 +1336,16 @@ export function ModelMutateDrawer({
                       {t("Per-request (fixed price)")}
                     </Label>
                   </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="per-second" id="per-second" />
+                    <Label htmlFor="per-second" className="font-normal">
+                      {t("Per-second (video duration)")}
+                    </Label>
+                  </div>
                 </RadioGroup>
               </div>
 
-              {pricingMode === "per-request" ? (
+              {pricingMode === "per-request" && (
                 <FormField
                   control={form.control}
                   name="price"
@@ -1269,7 +1374,38 @@ export function ModelMutateDrawer({
                     </FormItem>
                   )}
                 />
-              ) : (
+              )}
+              {pricingMode === "per-second" && (
+                <FormField
+                  control={form.control}
+                  name="videoSecondPrice"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("Default price per second (USD)")}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="text"
+                          placeholder="0.99"
+                          {...field}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            if (validateNumber(value)) {
+                              field.onChange(value);
+                            }
+                          }}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          "Charged per second of generated video, using the real duration once the task finishes. Per-resolution tiers are configured in System Settings → Model prices.",
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+              {pricingMode === "per-token" && (
                 <>
                   <div className="space-y-4">
                     <Label>{t("Input mode")}</Label>
@@ -1489,6 +1625,37 @@ export function ModelMutateDrawer({
                             </FormControl>
                             <FormDescription>
                               {t("Multiplier for image processing.")}
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="imageCompletionRatio"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>
+                              {t("Image completion ratio")}
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                type="text"
+                                placeholder="1.0"
+                                {...field}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  if (validateNumber(value)) {
+                                    field.onChange(value);
+                                  }
+                                }}
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              {t(
+                                "Multiplier for generated image tokens, relative to the image ratio. Defaults to 1 when unset.",
+                              )}
                             </FormDescription>
                             <FormMessage />
                           </FormItem>

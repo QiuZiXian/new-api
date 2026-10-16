@@ -331,3 +331,36 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 	reason := fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, groupRatio=%.2f, otherMultiplier=%.4f", totalTokens, modelRatio, finalGroupRatio, otherMultiplier)
 	RecalculateTaskQuota(ctx, task, actualQuota, reason, clamp)
 }
+
+// RecalculateTaskQuotaBySeconds 按视频真实时长重算按秒计费任务的额度。
+// 提交阶段用户可能未显式指定时长（duration=-1 / 缺省），那时只能按基准单价预扣，
+// 真实秒数要等上游在终态回报。这里用实际时长与生效分辨率档把差额补齐（多退少补）。
+func RecalculateTaskQuotaBySeconds(ctx context.Context, task *model.Task, seconds int, variant string) {
+	if task == nil || seconds <= 0 {
+		return
+	}
+	// 时长参与计费前必须钳制，与提交阶段一致，防止异常值溢出成负数额度
+	if seconds > relaycommon.MaxTaskDurationSeconds {
+		logger.LogWarn(ctx, fmt.Sprintf("任务 %s 上游回报时长 %ds 超过上限，按 %ds 计费",
+			task.TaskID, seconds, relaycommon.MaxTaskDurationSeconds))
+		seconds = relaycommon.MaxTaskDurationSeconds
+	}
+
+	modelName := taskModelName(task)
+	price, ok := ratio_setting.GetVideoSecondVariantPrice(modelName, variant)
+	if !ok || price <= 0 {
+		logger.LogWarn(ctx, fmt.Sprintf("任务 %s 缺少按秒计费价格 (model=%s, variant=%s)，保持预扣额度",
+			task.TaskID, modelName, variant))
+		return
+	}
+
+	bc := task.PrivateData.BillingContext
+	if bc == nil {
+		return
+	}
+
+	actualQuota, clamp := common.QuotaFromFloatChecked(price * float64(seconds) * common.QuotaPerUnit * bc.GroupRatio)
+	reason := fmt.Sprintf("按秒重算：seconds=%d, variant=%s, price=%.6f, groupRatio=%.2f",
+		seconds, variant, price, bc.GroupRatio)
+	RecalculateTaskQuota(ctx, task, actualQuota, reason, clamp)
+}

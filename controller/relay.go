@@ -591,6 +591,7 @@ func RelayTask(c *gin.Context) {
 			OtherRatios:     relayInfo.PriceData.OtherRatios(),
 			OriginModelName: relayInfo.OriginModelName,
 			PerCallBilling:  common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice,
+			UseVideoSecond:  relayInfo.PriceData.UseVideoSecond,
 		}
 		task.Quota = result.Quota
 		task.Data = result.TaskData

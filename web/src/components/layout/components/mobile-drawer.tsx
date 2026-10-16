@@ -26,6 +26,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import useDialogState from '@/hooks/use-dialog'
+import { useStatus } from '@/hooks/use-status'
 import { useUserDisplay } from '@/hooks/use-user-display'
 import type { AuthUser } from '@/stores/auth-store'
 
@@ -148,7 +149,7 @@ function MobileUserProfile({ user, onNavigate }: MobileUserProfileProps) {
 }
 
 /**
- * Mobile sign in button for unauthenticated users
+ * Mobile sign in / register buttons for unauthenticated users
  */
 interface MobileSignInButtonProps {
   onNavigate?: () => void
@@ -156,15 +157,29 @@ interface MobileSignInButtonProps {
 
 function MobileSignInButton({ onNavigate }: MobileSignInButtonProps) {
   const { t } = useTranslation()
+  const { status } = useStatus()
+  const registerEnabled = status?.register_enabled !== false
+
   return (
-    <Button
-      variant='secondary'
-      size='sm'
-      className='h-10 w-full'
-      render={<Link to='/sign-in' onClick={onNavigate} />}
-    >
-      {t('Sign in')}
-    </Button>
+    <div className='flex w-full flex-col gap-2'>
+      <Button
+        variant='secondary'
+        size='sm'
+        className='h-10 w-full'
+        render={<Link to='/sign-in' onClick={onNavigate} />}
+      >
+        {t('Sign in')}
+      </Button>
+      {registerEnabled && (
+        <Button
+          size='sm'
+          className='h-10 w-full'
+          render={<Link to='/register' onClick={onNavigate} />}
+        >
+          {t('Register')}
+        </Button>
+      )}
+    </div>
   )
 }
 
