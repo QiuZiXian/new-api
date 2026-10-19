@@ -50,6 +50,21 @@ export function getPlanFormSchema(t: TFunction) {
     stripe_price_id: z.string().optional(),
     creem_product_id: z.string().optional(),
     waffo_pancake_product_id: z.string().optional(),
+    // Plans page presentation
+    billing_note: z.string().optional(),
+    badge: z.string().optional(),
+    icon: z.string().optional(),
+    accent: z.string().optional(),
+    highlight: z.boolean(),
+    quota_items: z
+      .array(
+        z.object({
+          model: z.string(),
+          count: z.coerce.number().min(0),
+        })
+      )
+      .optional(),
+    features_text: z.string().optional(),
   })
 }
 
@@ -75,6 +90,13 @@ export const PLAN_FORM_DEFAULTS: PlanFormValues = {
   stripe_price_id: '',
   creem_product_id: '',
   waffo_pancake_product_id: '',
+  billing_note: '',
+  badge: '',
+  icon: '',
+  accent: '',
+  highlight: false,
+  quota_items: [],
+  features_text: '',
 }
 
 export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
@@ -98,13 +120,24 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
     stripe_price_id: plan.stripe_price_id || '',
     creem_product_id: plan.creem_product_id || '',
     waffo_pancake_product_id: plan.waffo_pancake_product_id || '',
+    billing_note: plan.billing_note || '',
+    badge: plan.badge || '',
+    icon: plan.icon || '',
+    accent: plan.accent || '',
+    highlight: plan.highlight === true,
+    quota_items: (plan.quota_items ?? []).map((item) => ({
+      model: item.model,
+      count: Number(item.count || 0),
+    })),
+    features_text: (plan.features ?? []).join('\n'),
   }
 }
 
 export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
+  const { features_text, quota_items, ...rest } = values
   return {
     plan: {
-      ...values,
+      ...rest,
       price_amount: Number(values.price_amount || 0),
       currency: 'USD',
       duration_value: Number(values.duration_value || 0),
@@ -119,6 +152,21 @@ export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
       total_amount: parseQuotaFromDollars(Number(values.total_amount || 0)),
       upgrade_group: values.upgrade_group || '',
       downgrade_group: values.downgrade_group || '',
+      billing_note: values.billing_note?.trim() || '',
+      badge: values.badge?.trim() || '',
+      icon: values.icon || '',
+      accent: values.accent || '',
+      highlight: Boolean(values.highlight),
+      quota_items: (quota_items ?? [])
+        .map((item) => ({
+          model: item.model.trim(),
+          count: Number(item.count || 0),
+        }))
+        .filter((item) => item.model !== ''),
+      features: (features_text ?? '')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line !== ''),
     },
   }
 }

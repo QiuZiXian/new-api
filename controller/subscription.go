@@ -204,6 +204,7 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
 		return
 	}
+	req.Plan.NormalizePresentation()
 	err := model.DB.Create(&req.Plan).Error
 	if err != nil {
 		common.ApiError(c, err)
@@ -278,8 +279,19 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
 		return
 	}
+	req.Plan.NormalizePresentation()
+	quotaItemsValue, err := req.Plan.QuotaItems.Value()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	featuresValue, err := req.Plan.Features.Value()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 
-	err := model.DB.Transaction(func(tx *gorm.DB) error {
+	err = model.DB.Transaction(func(tx *gorm.DB) error {
 		// update plan (allow zero values updates with map)
 		updateMap := map[string]interface{}{
 			"title":                      req.Plan.Title,
@@ -300,6 +312,13 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"downgrade_group":            req.Plan.DowngradeGroup,
 			"quota_reset_period":         req.Plan.QuotaResetPeriod,
 			"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,
+			"billing_note":               req.Plan.BillingNote,
+			"badge":                      req.Plan.Badge,
+			"icon":                       req.Plan.Icon,
+			"accent":                     req.Plan.Accent,
+			"highlight":                  req.Plan.Highlight,
+			"quota_items":                quotaItemsValue,
+			"features":                   featuresValue,
 			"updated_at":                 common.GetTimestamp(),
 		}
 		if req.Plan.AllowBalancePay != nil {

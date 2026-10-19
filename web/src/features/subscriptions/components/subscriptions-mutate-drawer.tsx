@@ -17,9 +17,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { CalendarClock, CreditCard, RefreshCw, Settings2 } from 'lucide-react'
+import {
+  CalendarClock,
+  CreditCard,
+  Palette,
+  Plus,
+  RefreshCw,
+  Settings2,
+  Trash2,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useForm, type Resolver } from 'react-hook-form'
+import { useFieldArray, useForm, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -43,6 +51,7 @@ import {
 } from '@/components/ui/form'
 import { IconBadge } from '@/components/ui/icon-badge'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -61,6 +70,11 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  PLAN_ACCENT_OPTIONS,
+  PLAN_ICON_OPTIONS,
+} from '@/features/plans/lib/display'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 
 import {
@@ -109,6 +123,15 @@ export function SubscriptionsMutateDrawer({
   const form = useForm<PlanFormValues>({
     resolver: zodResolver(schema) as unknown as Resolver<PlanFormValues>,
     defaultValues: PLAN_FORM_DEFAULTS,
+  })
+
+  const {
+    fields: quotaFields,
+    append: appendQuota,
+    remove: removeQuota,
+  } = useFieldArray({
+    control: form.control,
+    name: 'quota_items',
   })
 
   useEffect(() => {
@@ -579,6 +602,248 @@ export function SubscriptionsMutateDrawer({
                   )}
                 />
               </div>
+            </SideDrawerSection>
+
+            {/* Plans Page Display */}
+            <SideDrawerSection>
+              <h3 className='flex items-center gap-2 text-sm font-medium'>
+                <IconBadge tone='success' size='xs'>
+                  <Palette />
+                </IconBadge>
+                {t('Plans page display')}
+              </h3>
+
+              <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                <FormField
+                  control={form.control}
+                  name='billing_note'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Billing note')}</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder={t('e.g. Pay per call')} />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Short note under the plan title on the plans page.')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='badge'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Corner badge')}</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder={t('e.g. Most popular')} />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Shown only when the plan is highlighted.')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                <FormField
+                  control={form.control}
+                  name='icon'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Card icon')}</FormLabel>
+                      <Select
+                        items={[
+                          { value: '', label: t('Auto') },
+                          ...PLAN_ICON_OPTIONS.map((icon) => ({
+                            value: icon,
+                            label: icon,
+                          })),
+                        ]}
+                        onValueChange={(v) => field.onChange(v ?? '')}
+                        value={field.value || ''}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent alignItemWithTrigger={false}>
+                          <SelectGroup>
+                            <SelectItem value=''>{t('Auto')}</SelectItem>
+                            {PLAN_ICON_OPTIONS.map((icon) => (
+                              <SelectItem key={icon} value={icon}>
+                                {icon}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='accent'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Card accent')}</FormLabel>
+                      <Select
+                        items={[
+                          { value: '', label: t('Auto') },
+                          ...PLAN_ACCENT_OPTIONS.map((accent) => ({
+                            value: accent,
+                            label: accent,
+                          })),
+                        ]}
+                        onValueChange={(v) => field.onChange(v ?? '')}
+                        value={field.value || ''}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent alignItemWithTrigger={false}>
+                          <SelectGroup>
+                            <SelectItem value=''>{t('Auto')}</SelectItem>
+                            {PLAN_ACCENT_OPTIONS.map((accent) => (
+                              <SelectItem key={accent} value={accent}>
+                                {accent}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name='highlight'
+                render={({ field }) => (
+                  <FormItem className={sideDrawerSwitchItemClassName()}>
+                    <div>
+                      <FormLabel className='!mt-0'>
+                        {t('Highlight this plan')}
+                      </FormLabel>
+                      <FormDescription>
+                        {t(
+                          'Renders the card as recommended on the plans page.'
+                        )}
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <div className='space-y-2'>
+                <div>
+                  <Label>{t('Model quota breakdown')}</Label>
+                  <p className='text-muted-foreground text-sm'>
+                    {t(
+                      'Displayed as per-model call counts on the plans page. Actual deduction still follows the plan quota above.'
+                    )}
+                  </p>
+                </div>
+                {quotaFields.map((quotaField, index) => (
+                  <div key={quotaField.id} className='flex items-start gap-2'>
+                    <FormField
+                      control={form.control}
+                      name={`quota_items.${index}.model`}
+                      render={({ field }) => (
+                        <FormItem className='min-w-0 flex-1'>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              placeholder={t('e.g. glm-5.3')}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`quota_items.${index}.count`}
+                      render={({ field }) => (
+                        <FormItem className='w-24 shrink-0'>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              type='number'
+                              min={0}
+                              onChange={(e) =>
+                                field.onChange(
+                                  Number.parseInt(e.target.value, 10) || 0
+                                )
+                              }
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      size='icon'
+                      className='mt-0.5 shrink-0'
+                      onClick={() => removeQuota(index)}
+                    >
+                      <Trash2 className='size-4' />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  onClick={() => appendQuota({ model: '', count: 0 })}
+                  disabled={quotaFields.length >= 12}
+                >
+                  <Plus className='size-4' />
+                  {t('Add model quota')}
+                </Button>
+              </div>
+
+              <FormField
+                control={form.control}
+                name='features_text'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Included features')}</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        rows={5}
+                        placeholder={t('One feature per line')}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'One feature per line, shown as a checklist on the plans page.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </SideDrawerSection>
 
             {/* Duration Settings */}

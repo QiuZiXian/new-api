@@ -1,6 +1,8 @@
 package model
 
 import (
+	"bytes"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"strconv"
@@ -36,6 +38,12 @@ const (
 var (
 	ErrSubscriptionOrderNotFound      = errors.New("subscription order not found")
 	ErrSubscriptionOrderStatusInvalid = errors.New("subscription order status invalid")
+)
+
+// Presentation limits for the user-facing plans page.
+const (
+	maxSubscriptionQuotaItems   = 12
+	maxSubscriptionPlanFeatures = 24
 )
 
 const (
@@ -142,6 +150,85 @@ func InvalidateSubscriptionPlanCache(planId int) {
 	_ = infoCache.Purge()
 }
 
+// SubscriptionQuotaItem is a single line of the user-facing quota breakdown,
+// e.g. "glm-5.3: 1000 calls". It is presentation data only; actual deduction
+// still uses the plan TotalAmount.
+type SubscriptionQuotaItem struct {
+	Model string `json:"model"`
+	Count int64  `json:"count"`
+}
+
+// SubscriptionQuotaItems is stored as a JSON array in a text column.
+type SubscriptionQuotaItems []SubscriptionQuotaItem
+
+func (items SubscriptionQuotaItems) Value() (driver.Value, error) {
+	if items == nil {
+		return "[]", nil
+	}
+	data, err := common.Marshal(items)
+	if err != nil {
+		return nil, err
+	}
+	return string(data), nil
+}
+
+func (items *SubscriptionQuotaItems) Scan(value interface{}) error {
+	if value == nil {
+		*items = SubscriptionQuotaItems{}
+		return nil
+	}
+	var data []byte
+	switch v := value.(type) {
+	case []byte:
+		data = v
+	case string:
+		data = []byte(v)
+	default:
+		return fmt.Errorf("unsupported quota_items type %T", value)
+	}
+	if len(bytes.TrimSpace(data)) == 0 {
+		*items = SubscriptionQuotaItems{}
+		return nil
+	}
+	return common.Unmarshal(data, items)
+}
+
+// SubscriptionPlanFeatures is the "what's included" bullet list, stored as a
+// JSON array in a text column.
+type SubscriptionPlanFeatures []string
+
+func (features SubscriptionPlanFeatures) Value() (driver.Value, error) {
+	if features == nil {
+		return "[]", nil
+	}
+	data, err := common.Marshal(features)
+	if err != nil {
+		return nil, err
+	}
+	return string(data), nil
+}
+
+func (features *SubscriptionPlanFeatures) Scan(value interface{}) error {
+	if value == nil {
+		*features = SubscriptionPlanFeatures{}
+		return nil
+	}
+	var data []byte
+	switch v := value.(type) {
+	case []byte:
+		data = v
+	case string:
+		data = []byte(v)
+	default:
+		return fmt.Errorf("unsupported features type %T", value)
+	}
+	if len(bytes.TrimSpace(data)) == 0 {
+		*features = SubscriptionPlanFeatures{}
+		return nil
+	}
+	return common.Unmarshal(data, features)
+}
+
 // Subscription plan
 type SubscriptionPlan struct {
 	Id int `json:"id"`
@@ -159,6 +246,22 @@ type SubscriptionPlan struct {
 
 	Enabled   bool `json:"enabled" gorm:"default:true"`
 	SortOrder int  `json:"sort_order" gorm:"type:int;default:0"`
+
+	// ---- User-facing presentation (plans page) ----
+	// Short billing label shown under the plan title, e.g. "按次扣费".
+	BillingNote string `json:"billing_note" gorm:"type:varchar(32);default:''"`
+	// Optional corner badge, e.g. "最受欢迎".
+	Badge string `json:"badge" gorm:"type:varchar(32);default:''"`
+	// Icon key understood by the web client (sparkles/rocket/grid/gift/crown/zap).
+	Icon string `json:"icon" gorm:"type:varchar(32);default:''"`
+	// Accent key understood by the web client (blue/violet/emerald/amber/rose/slate).
+	Accent string `json:"accent" gorm:"type:varchar(16);default:''"`
+	// Highlight renders the plan as the recommended card.
+	Highlight bool `json:"highlight"`
+	// Per-model call breakdown shown on the plans page (presentation only).
+	QuotaItems SubscriptionQuotaItems `json:"quota_items" gorm:"type:text"`
+	// Included features shown as a checklist (presentation only).
+	Features SubscriptionPlanFeatures `json:"features" gorm:"type:text"`
 
 	AllowBalancePay *bool `json:"allow_balance_pay"`
 
@@ -208,6 +311,61 @@ func (p *SubscriptionPlan) NormalizeDefaults() {
 	if p.AllowWalletOverflow == nil {
 		p.AllowWalletOverflow = common.GetPointer(true)
 	}
+	p.NormalizePresentation()
+}
+
+// NormalizePresentation trims and bounds the display-only plan fields so the
+// admin UI cannot persist malformed lists that would break the plans page.
+func (p *SubscriptionPlan) NormalizePresentation() {
+	p.BillingNote = strings.TrimSpace(p.BillingNote)
+	p.Badge = strings.TrimSpace(p.Badge)
+	p.Icon = strings.TrimSpace(p.Icon)
+	p.Accent = strings.TrimSpace(p.Accent)
+
+	if p.QuotaItems == nil {
+		p.QuotaItems = SubscriptionQuotaItems{}
+	}
+	quotaItems := make(SubscriptionQuotaItems, 0, len(p.QuotaItems))
+	seenModels := make(map[string]struct{}, len(p.QuotaItems))
+	for _, item := range p.QuotaItems {
+		model := strings.TrimSpace(item.Model)
+		if model == "" || item.Count < 0 {
+			continue
+		}
+		if _, ok := seenModels[model]; ok {
+			continue
+		}
+		seenModels[model] = struct{}{}
+		quotaItems = append(quotaItems, SubscriptionQuotaItem{
+			Model: model,
+			Count: item.Count,
+		})
+		if len(quotaItems) >= maxSubscriptionQuotaItems {
+			break
+		}
+	}
+	p.QuotaItems = quotaItems
+
+	if p.Features == nil {
+		p.Features = SubscriptionPlanFeatures{}
+	}
+	features := make(SubscriptionPlanFeatures, 0, len(p.Features))
+	seenFeatures := make(map[string]struct{}, len(p.Features))
+	for _, feature := range p.Features {
+		feature = strings.TrimSpace(feature)
+		if feature == "" {
+			continue
+		}
+		if _, ok := seenFeatures[feature]; ok {
+			continue
+		}
+		seenFeatures[feature] = struct{}{}
+		features = append(features, feature)
+		if len(features) >= maxSubscriptionPlanFeatures {
+			break
+		}
+	}
+	p.Features = features
 }
 
 // Subscription order (payment -> webhook -> create UserSubscription)

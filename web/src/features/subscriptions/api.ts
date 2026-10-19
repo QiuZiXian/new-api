@@ -224,6 +224,13 @@ export async function getPublicPlans(): Promise<ApiResponse<PlanRecord[]>> {
   return res.data
 }
 
+// Public listing used by the user-facing plans page. Follows the
+// "subscription" header navigation switch (enabled / require login).
+export async function getShowcasePlans(): Promise<ApiResponse<PlanRecord[]>> {
+  const res = await api.get('/api/subscription/public-plans')
+  return res.data
+}
+
 export async function updateBillingPreference(
   preference: string
 ): Promise<ApiResponse<{ billing_preference?: string }>> {

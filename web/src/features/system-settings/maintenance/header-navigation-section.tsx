@@ -55,6 +55,8 @@ const headerNavSchema = z.object({
   pricingRequireAuth: z.boolean(),
   rankingsEnabled: z.boolean(),
   rankingsRequireAuth: z.boolean(),
+  subscriptionEnabled: z.boolean(),
+  subscriptionRequireAuth: z.boolean(),
   docs: z.boolean(),
   about: z.boolean(),
 })
@@ -89,6 +91,14 @@ const toFormValues = (config: HeaderNavModulesConfig): HeaderNavFormValues => ({
     config.rankings?.requireAuth === undefined
       ? HEADER_NAV_DEFAULT.rankings.requireAuth
       : Boolean(config.rankings.requireAuth),
+  subscriptionEnabled:
+    config.subscription?.enabled === undefined
+      ? HEADER_NAV_DEFAULT.subscription.enabled
+      : Boolean(config.subscription.enabled),
+  subscriptionRequireAuth:
+    config.subscription?.requireAuth === undefined
+      ? HEADER_NAV_DEFAULT.subscription.requireAuth
+      : Boolean(config.subscription.requireAuth),
   docs:
     config.docs === undefined ? HEADER_NAV_DEFAULT.docs : Boolean(config.docs),
   about:
@@ -130,6 +140,11 @@ export function HeaderNavigationSection({
         ...(config.rankings ?? HEADER_NAV_DEFAULT.rankings),
         enabled: values.rankingsEnabled,
         requireAuth: values.rankingsRequireAuth,
+      },
+      subscription: {
+        ...(config.subscription ?? HEADER_NAV_DEFAULT.subscription),
+        enabled: values.subscriptionEnabled,
+        requireAuth: values.subscriptionRequireAuth,
       },
     }
 
@@ -178,7 +193,10 @@ export function HeaderNavigationSection({
   const accessModules: Array<{
     enabledKey: keyof HeaderNavFormValues
     requireAuthKey: keyof HeaderNavFormValues
-    requireAuthDependsOn: 'pricingEnabled' | 'rankingsEnabled'
+    requireAuthDependsOn:
+      | 'pricingEnabled'
+      | 'rankingsEnabled'
+      | 'subscriptionEnabled'
     title: string
     description: string
     requireAuthTitle: string
@@ -204,6 +222,19 @@ export function HeaderNavigationSection({
       requireAuthTitle: t('Require login to view rankings'),
       requireAuthDescription: t(
         'Visitors must authenticate before accessing the rankings page.'
+      ),
+    },
+    {
+      enabledKey: 'subscriptionEnabled',
+      requireAuthKey: 'subscriptionRequireAuth',
+      requireAuthDependsOn: 'subscriptionEnabled',
+      title: t('Subscription Plans'),
+      description: t(
+        'Public subscription plans page where users can compare and purchase plans.'
+      ),
+      requireAuthTitle: t('Require login to view subscription plans'),
+      requireAuthDescription: t(
+        'Visitors must authenticate before accessing the subscription plans page.'
       ),
     },
   ]
