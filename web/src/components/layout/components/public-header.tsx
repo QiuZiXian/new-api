@@ -319,7 +319,10 @@ export function PublicHeader(props: PublicHeaderProps) {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-9 rounded-lg px-4 text-sm font-medium md:h-10 md:px-5"
+                          /* 显式指定前景色：outline 变体自带 bg-background，
+                             若继承外层（登录页 header 是 text-white）的颜色，
+                             浅色背景上会白字白底，只有 hover 换色后才可见。 */
+                          className="h-9 rounded-lg px-4 text-sm font-medium text-foreground md:h-10 md:px-5"
                           render={<Link to="/register" />}
                         >
                           {t("Register")}
