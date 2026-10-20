@@ -82,6 +82,7 @@ type SubscriptionFunding struct {
 	userId         int
 	modelName      string
 	amount         int64 // 预扣的订阅额度（subConsume）
+	estTokens      int64 // 预扣时估算的 token 数，结算时用于校正逐模型 token 额度
 	subscriptionId int
 	preConsumed    int64
 	// 以下字段在 PreConsume 成功后填充，供 RelayInfo 同步使用
@@ -95,7 +96,13 @@ func (s *SubscriptionFunding) Source() string { return BillingSourceSubscription
 
 func (s *SubscriptionFunding) PreConsume(_ int) error {
 	// amount 参数被忽略，使用内部 s.amount（已在构造时根据 preConsumedQuota 计算）
-	res, err := model.PreConsumeUserSubscription(s.requestId, s.userId, s.modelName, 0, s.amount)
+	res, err := model.PreConsumeUserSubscription(model.SubscriptionPreConsumeInput{
+		RequestId: s.requestId,
+		UserId:    s.userId,
+		ModelName: s.modelName,
+		Amount:    s.amount,
+		Tokens:    s.estTokens,
+	})
 	if err != nil {
 		return err
 	}
@@ -109,6 +116,19 @@ func (s *SubscriptionFunding) PreConsume(_ int) error {
 		s.PlanTitle = planInfo.PlanTitle
 	}
 	return nil
+}
+
+// SettleTokens 用实际 token 数校正逐模型 token 额度：
+// 预扣时只有估算值，结算时才有上游返回的真实用量。
+func (s *SubscriptionFunding) SettleTokens(actualTokens int64) error {
+	if s.subscriptionId <= 0 || s.modelName == "" || actualTokens <= 0 {
+		return nil
+	}
+	delta := actualTokens - s.estTokens
+	if delta == 0 {
+		return nil
+	}
+	return model.AdjustSubscriptionModelTokens(s.subscriptionId, s.modelName, delta)
 }
 
 func (s *SubscriptionFunding) Settle(delta int) error {

@@ -40,6 +40,7 @@ import {
   sideDrawerSwitchItemClassName,
 } from '@/components/drawer-layout'
 import { Button } from '@/components/ui/button'
+import { Combobox } from '@/components/ui/combobox'
 import {
   Form,
   FormControl,
@@ -85,6 +86,7 @@ import {
   listWaffoPancakeSubscriptionProductOptions,
 } from '../api'
 import { getDurationUnitOptions, getResetPeriodOptions } from '../constants'
+import { useModelSquareOptions } from '../hooks/use-model-square-options'
 import {
   getPlanFormSchema,
   PLAN_FORM_DEFAULTS,
@@ -133,6 +135,8 @@ export function SubscriptionsMutateDrawer({
     control: form.control,
     name: 'quota_items',
   })
+
+  const { options: modelOptions } = useModelSquareOptions(open)
 
   useEffect(() => {
     if (open) {
@@ -757,7 +761,7 @@ export function SubscriptionsMutateDrawer({
                   <Label>{t('Model quota breakdown')}</Label>
                   <p className='text-muted-foreground text-sm'>
                     {t(
-                      'Displayed as per-model call counts on the plans page. Actual deduction still follows the plan quota above.'
+                      'Listed models are capped at the configured calls or tokens per reset cycle. Leave empty to skip per-model limits; unlisted models still use the plan quota above.'
                     )}
                   </p>
                 </div>
@@ -769,11 +773,49 @@ export function SubscriptionsMutateDrawer({
                       render={({ field }) => (
                         <FormItem className='min-w-0 flex-1'>
                           <FormControl>
-                            <Input
-                              {...field}
-                              placeholder={t('e.g. glm-5.3')}
+                            <Combobox
+                              options={modelOptions}
+                              value={field.value}
+                              onValueChange={(value) =>
+                                field.onChange(value ?? '')
+                              }
+                              placeholder={t('Select a model')}
+                              searchPlaceholder={t('Search models')}
+                              emptyText='No models found'
+                              allowCustomValue
                             />
                           </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`quota_items.${index}.unit`}
+                      render={({ field }) => (
+                        <FormItem className='w-[5.5rem] shrink-0'>
+                          <Select
+                            items={[
+                              { value: 'call', label: t('calls') },
+                              { value: 'token', label: t('tokens') },
+                            ]}
+                            onValueChange={(v) => field.onChange(v ?? 'call')}
+                            value={field.value || 'call'}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent alignItemWithTrigger={false}>
+                              <SelectGroup>
+                                <SelectItem value='call'>{t('calls')}</SelectItem>
+                                <SelectItem value='token'>
+                                  {t('tokens')}
+                                </SelectItem>
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -814,7 +856,9 @@ export function SubscriptionsMutateDrawer({
                   type='button'
                   variant='outline'
                   size='sm'
-                  onClick={() => appendQuota({ model: '', count: 0 })}
+                  onClick={() =>
+                    appendQuota({ model: '', count: 0, unit: 'call' })
+                  }
                   disabled={quotaFields.length >= 12}
                 >
                   <Plus className='size-4' />

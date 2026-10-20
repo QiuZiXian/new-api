@@ -25,6 +25,8 @@ import { z } from 'zod'
 export const subscriptionQuotaItemSchema = z.object({
   model: z.string(),
   count: z.number(),
+  /** "call" (default) or "token"; unknown/empty values are treated as "call". */
+  unit: z.string().optional(),
 })
 
 export type SubscriptionQuotaItem = z.infer<typeof subscriptionQuotaItemSchema>

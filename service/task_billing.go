@@ -174,6 +174,13 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) bool 
 		logger.LogWarn(ctx, fmt.Sprintf("退还资金来源失败 task %s: %s", task.TaskID, err.Error()))
 		return false
 	}
+	// 订阅计费：异步任务走 PostConsumeUserSubscriptionDelta 退款，不经过 request 记录，
+	// 因此需要显式回滚预扣时累加的逐模型调用次数。
+	if taskIsSubscription(task) {
+		if err := model.RefundSubscriptionModelUsage(task.PrivateData.SubscriptionId, taskModelName(task)); err != nil {
+			logger.LogWarn(ctx, fmt.Sprintf("回滚订阅模型用量失败 task %s: %s", task.TaskID, err.Error()))
+		}
+	}
 
 	// 2. 退还令牌额度
 	taskAdjustTokenQuota(ctx, task, -quota)

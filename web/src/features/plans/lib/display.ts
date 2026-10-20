@@ -196,3 +196,25 @@ export function splitFormattedPrice(value: number): SplitPrice {
 export function formatCallCount(count: number): string {
   return new Intl.NumberFormat().format(Number(count) || 0)
 }
+
+export type SubscriptionQuotaUnit = 'call' | 'token'
+
+/** Unknown or empty units fall back to "call" so legacy rows still render. */
+export function normalizeQuotaUnit(unit?: string): SubscriptionQuotaUnit {
+  return unit?.trim() === 'token' ? 'token' : 'call'
+}
+
+/**
+ * Token totals are usually large, so they are compacted (e.g. 2M); call
+ * counts stay fully spelled out like the reference design.
+ */
+export function formatQuotaCount(count: number, unit?: string): string {
+  const value = Number(count) || 0
+  if (normalizeQuotaUnit(unit) === 'token') {
+    return new Intl.NumberFormat(undefined, {
+      notation: 'compact',
+      maximumFractionDigits: 1,
+    }).format(value)
+  }
+  return new Intl.NumberFormat().format(value)
+}

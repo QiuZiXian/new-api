@@ -26,8 +26,9 @@ import { formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import {
-  formatCallCount,
   formatPricePeriod,
+  formatQuotaCount,
+  normalizeQuotaUnit,
   resolvePlanAccent,
   resolvePlanIcon,
   splitFormattedPrice,
@@ -56,10 +57,16 @@ export function PlanCard({
   const period = formatPricePeriod(plan, t)
   const quotaItems = plan.quota_items ?? []
   const features = plan.features ?? []
-  const totalCalls = quotaItems.reduce(
-    (sum, item) => sum + Number(item.count || 0),
-    0
+  // Totals are grouped per unit so a plan can mix "1,000 calls" with "2M tokens".
+  const quotaTotals = quotaItems.reduce<Record<string, number>>(
+    (totals, item) => {
+      const unit = normalizeQuotaUnit(item.unit)
+      totals[unit] = (totals[unit] ?? 0) + Number(item.count || 0)
+      return totals
+    },
+    {}
   )
+  const quotaTotalRows = Object.entries(quotaTotals)
   const purchaseLimit = Number(plan.max_purchase_per_user || 0)
   const limitReached = purchaseLimit > 0 && purchaseCount >= purchaseLimit
 
@@ -138,9 +145,9 @@ export function PlanCard({
                     </span>
                   </span>
                   <span className='shrink-0 text-[11px] font-semibold tabular-nums'>
-                    {formatCallCount(item.count)}{' '}
+                    {formatQuotaCount(item.count, item.unit)}{' '}
                     <span className='text-muted-foreground font-normal'>
-                      {t('calls')}
+                      {t(normalizeQuotaUnit(item.unit) === 'token' ? 'tokens' : 'calls')}
                     </span>
                   </span>
                 </div>
@@ -154,11 +161,21 @@ export function PlanCard({
                 </div>
               </div>
             ))}
-            <div className='border-border/70 flex items-center justify-between border-t pt-2.5 text-[11px]'>
-              <span className='text-muted-foreground'>{t('Total calls')}</span>
-              <span className='font-semibold tabular-nums'>
-                {formatCallCount(totalCalls)} {t('calls')}
-              </span>
+            <div className='border-border/70 space-y-1 border-t pt-2.5 text-[11px]'>
+              {quotaTotalRows.map(([unit, total]) => (
+                <div
+                  key={unit}
+                  className='flex items-center justify-between'
+                >
+                  <span className='text-muted-foreground'>
+                    {t(unit === 'token' ? 'Total tokens' : 'Total calls')}
+                  </span>
+                  <span className='font-semibold tabular-nums'>
+                    {formatQuotaCount(total, unit)}{' '}
+                    {t(unit === 'token' ? 'tokens' : 'calls')}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         ) : (

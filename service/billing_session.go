@@ -46,6 +46,13 @@ func (s *BillingSession) Settle(actualQuota int) error {
 		return nil
 	}
 	delta := actualQuota - s.preConsumedQuota
+	// 逐模型 token 额度校正：预扣时只有估算值，这里用上游返回的真实用量补差。
+	// 必须在 delta==0 的提前返回之前执行，否则按次计费的请求永远不会校正。
+	if sub, ok := s.funding.(*SubscriptionFunding); ok {
+		if err := sub.SettleTokens(int64(s.relayInfo.BillingTokens)); err != nil {
+			common.SysLog("error adjusting subscription model token usage: " + err.Error())
+		}
+	}
 	if delta == 0 {
 		s.settled = true
 		return nil
@@ -226,6 +233,13 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 				types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
 		errMsg := err.Error()
+		if strings.HasPrefix(errMsg, "subscription quota insufficient for model ") {
+			limitedModel := strings.TrimPrefix(errMsg, "subscription quota insufficient for model ")
+			return types.NewErrorWithStatusCode(
+				fmt.Errorf("模型 %s 的订阅额度已用尽", limitedModel),
+				types.ErrorCodeInsufficientUserQuota, http.StatusForbidden,
+				types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+		}
 		if strings.Contains(errMsg, "no active subscription") || strings.Contains(errMsg, "subscription quota insufficient") {
 			return types.NewErrorWithStatusCode(fmt.Errorf("订阅额度不足或未配置订阅: %s", errMsg), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
@@ -403,6 +417,7 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 				userId:    relayInfo.UserId,
 				modelName: relayInfo.OriginModelName,
 				amount:    subConsume,
+				estTokens: int64(relayInfo.GetEstimatePromptTokens()),
 			},
 		}
 		// 必须传 subConsume 而非 preConsumedQuota，保证 SubscriptionFunding.amount、

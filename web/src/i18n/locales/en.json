@@ -5608,6 +5608,9 @@
     "Add model quota": "Add model quota",
     "Included features": "Included features",
     "One feature per line": "One feature per line",
-    "One feature per line, shown as a checklist on the plans page.": "One feature per line, shown as a checklist on the plans page."
+    "One feature per line, shown as a checklist on the plans page.": "One feature per line, shown as a checklist on the plans page.",
+    "Select a model": "Select a model",
+    "Shown per model on the plans page as calls or tokens. Actual deduction still follows the plan quota above.": "Shown per model on the plans page as calls or tokens. Actual deduction still follows the plan quota above.",
+    "Listed models are capped at the configured calls or tokens per reset cycle. Leave empty to skip per-model limits; unlisted models still use the plan quota above.": "Listed models are capped at the configured calls or tokens per reset cycle. Leave empty to skip per-model limits; unlisted models still use the plan quota above."
   }
 }

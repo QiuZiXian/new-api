@@ -46,6 +46,24 @@ const (
 	maxSubscriptionPlanFeatures = 24
 )
 
+// Quota units used by the per-model breakdown on the plans page.
+// "call" counts requests, "token" counts tokens.
+const (
+	SubscriptionQuotaUnitCall  = "call"
+	SubscriptionQuotaUnitToken = "token"
+)
+
+// NormalizeQuotaUnit maps any incoming value onto a supported quota unit.
+// Unknown or empty values fall back to "call" so historical rows stay valid.
+func NormalizeQuotaUnit(unit string) string {
+	switch strings.ToLower(strings.TrimSpace(unit)) {
+	case SubscriptionQuotaUnitToken, "tokens":
+		return SubscriptionQuotaUnitToken
+	default:
+		return SubscriptionQuotaUnitCall
+	}
+}
+
 const (
 	subscriptionPlanCacheNamespace     = "new-api:subscription_plan:v1"
 	subscriptionPlanInfoCacheNamespace = "new-api:subscription_plan_info:v1"
@@ -150,12 +168,18 @@ func InvalidateSubscriptionPlanCache(planId int) {
 	_ = infoCache.Purge()
 }
 
-// SubscriptionQuotaItem is a single line of the user-facing quota breakdown,
-// e.g. "glm-5.3: 1000 calls". It is presentation data only; actual deduction
-// still uses the plan TotalAmount.
+// SubscriptionQuotaItem is a single line of the per-model quota breakdown,
+// e.g. "glm-5.3: 1000 calls".
+//
+// When a plan defines quota items, they are enforced: a listed model can only
+// consume up to Count units (calls or tokens) per reset cycle. Models that are
+// not listed keep using the plan-wide TotalAmount pool.
 type SubscriptionQuotaItem struct {
 	Model string `json:"model"`
-	Count int64  `json:"count"`
+	// Count is expressed in the unit below.
+	Count int64 `json:"count"`
+	// Unit is "call" (default) or "token".
+	Unit string `json:"unit"`
 }
 
 // SubscriptionQuotaItems is stored as a JSON array in a text column.
@@ -329,7 +353,9 @@ func (p *SubscriptionPlan) NormalizePresentation() {
 	seenModels := make(map[string]struct{}, len(p.QuotaItems))
 	for _, item := range p.QuotaItems {
 		model := strings.TrimSpace(item.Model)
-		if model == "" || item.Count < 0 {
+		// A zero limit would silently block the model, which is almost never
+		// what an admin intends when they only filled in the model name.
+		if model == "" || item.Count <= 0 {
 			continue
 		}
 		if _, ok := seenModels[model]; ok {
@@ -339,6 +365,7 @@ func (p *SubscriptionPlan) NormalizePresentation() {
 		quotaItems = append(quotaItems, SubscriptionQuotaItem{
 			Model: model,
 			Count: item.Count,
+			Unit:  NormalizeQuotaUnit(item.Unit),
 		})
 		if len(quotaItems) >= maxSubscriptionQuotaItems {
 			break
@@ -1153,6 +1180,9 @@ func AdminDeleteUserSubscription(userSubscriptionId int) (string, error) {
 		if err := tx.Where("id = ?", userSubscriptionId).Delete(&UserSubscription{}).Error; err != nil {
 			return err
 		}
+		if err := ClearSubscriptionModelUsageTx(tx, userSubscriptionId); err != nil {
+			return err
+		}
 		return nil
 	})
 	if err != nil {
@@ -1180,6 +1210,9 @@ func resetUserSubscriptionTx(tx *gorm.DB, sub *UserSubscription, plan *Subscript
 		} else {
 			sub.LastResetTime = 0
 		}
+	}
+	if err := ClearSubscriptionModelUsageTx(tx, sub.Id); err != nil {
+		return err
 	}
 	return tx.Save(sub).Error
 }
@@ -1399,9 +1432,12 @@ type SubscriptionPreConsumeRecord struct {
 	UserId             int    `json:"user_id" gorm:"index"`
 	UserSubscriptionId int    `json:"user_subscription_id" gorm:"index"`
 	PreConsumed        int64  `json:"pre_consumed" gorm:"type:bigint;not null;default:0"`
-	Status             string `json:"status" gorm:"type:varchar(32);index"` // consumed/refunded
-	CreatedAt          int64  `json:"created_at" gorm:"bigint"`
-	UpdatedAt          int64  `json:"updated_at" gorm:"bigint;index"`
+	// Model and Tokens are recorded so a refund can roll the per-model counters back.
+	Model     string `json:"model" gorm:"type:varchar(128);default:''"`
+	Tokens    int64  `json:"tokens" gorm:"type:bigint;not null;default:0"`
+	Status    string `json:"status" gorm:"type:varchar(32);index"` // consumed/refunded
+	CreatedAt int64  `json:"created_at" gorm:"bigint"`
+	UpdatedAt int64  `json:"updated_at" gorm:"bigint;index"`
 }
 
 func (r *SubscriptionPreConsumeRecord) BeforeCreate(tx *gorm.DB) error {
@@ -1416,15 +1452,187 @@ func (r *SubscriptionPreConsumeRecord) BeforeUpdate(tx *gorm.DB) error {
 	return nil
 }
 
-func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, plan *SubscriptionPlan, now int64) error {
+// SubscriptionModelUsage tracks per-model consumption inside a user subscription.
+// It backs the per-model quota breakdown defined on the plan, so the breakdown is
+// enforced instead of being display-only.
+type SubscriptionModelUsage struct {
+	Id                 int    `json:"id"`
+	UserSubscriptionId int    `json:"user_subscription_id" gorm:"uniqueIndex:idx_sub_model_usage,priority:1"`
+	Model              string `json:"model" gorm:"type:varchar(128);uniqueIndex:idx_sub_model_usage,priority:2"`
+	// Calls counts requests charged to this subscription for this model.
+	Calls int64 `json:"calls" gorm:"type:bigint;not null;default:0"`
+	// Tokens counts billed tokens for this model (estimated at pre-consume,
+	// corrected with the actual usage at settlement).
+	Tokens    int64 `json:"tokens" gorm:"type:bigint;not null;default:0"`
+	CreatedAt int64 `json:"created_at" gorm:"bigint"`
+	UpdatedAt int64 `json:"updated_at" gorm:"bigint"`
+}
+
+func (u *SubscriptionModelUsage) BeforeCreate(tx *gorm.DB) error {
+	now := common.GetTimestamp()
+	u.CreatedAt = now
+	u.UpdatedAt = now
+	return nil
+}
+
+func (u *SubscriptionModelUsage) BeforeUpdate(tx *gorm.DB) error {
+	u.UpdatedAt = common.GetTimestamp()
+	return nil
+}
+
+func getSubscriptionModelUsageTx(tx *gorm.DB, subscriptionId int, modelName string) (*SubscriptionModelUsage, error) {
+	usage := &SubscriptionModelUsage{}
+	if subscriptionId <= 0 || modelName == "" {
+		return usage, nil
+	}
+	query := tx
+	if query == nil {
+		query = DB
+	}
+	if err := query.Where("user_subscription_id = ? AND model = ?", subscriptionId, modelName).
+		Limit(1).
+		Find(usage).Error; err != nil {
+		return nil, err
+	}
+	return usage, nil
+}
+
+// applySubscriptionModelUsageTx adjusts the per-model counters, clamping at zero.
+// Callers hold the UserSubscription row lock, so concurrent pre-consumes of the
+// same subscription are serialized.
+func applySubscriptionModelUsageTx(tx *gorm.DB, subscriptionId int, modelName string, callDelta int64, tokenDelta int64) error {
+	if tx == nil || subscriptionId <= 0 || modelName == "" {
+		return nil
+	}
+	if callDelta == 0 && tokenDelta == 0 {
+		return nil
+	}
+	usage, err := getSubscriptionModelUsageTx(tx, subscriptionId, modelName)
+	if err != nil {
+		return err
+	}
+	newCalls := usage.Calls + callDelta
+	if newCalls < 0 {
+		newCalls = 0
+	}
+	newTokens := usage.Tokens + tokenDelta
+	if newTokens < 0 {
+		newTokens = 0
+	}
+	if usage.Id == 0 {
+		if newCalls == 0 && newTokens == 0 {
+			return nil
+		}
+		return tx.Create(&SubscriptionModelUsage{
+			UserSubscriptionId: subscriptionId,
+			Model:              modelName,
+			Calls:              newCalls,
+			Tokens:             newTokens,
+		}).Error
+	}
+	return tx.Model(&SubscriptionModelUsage{}).
+		Where("id = ?", usage.Id).
+		Updates(map[string]interface{}{
+			"calls":      newCalls,
+			"tokens":     newTokens,
+			"updated_at": common.GetTimestamp(),
+		}).Error
+}
+
+// ClearSubscriptionModelUsageTx drops the per-model counters, e.g. on quota reset.
+func ClearSubscriptionModelUsageTx(tx *gorm.DB, subscriptionId int) error {
+	if subscriptionId <= 0 {
+		return nil
+	}
+	if tx == nil {
+		tx = DB
+	}
+	return tx.Where("user_subscription_id = ?", subscriptionId).
+		Delete(&SubscriptionModelUsage{}).Error
+}
+
+// AdjustSubscriptionModelTokens applies the difference between actual and
+// estimated token usage to the per-model counter. Only existing rows are touched
+// so models without a quota item never get a tracking row.
+func AdjustSubscriptionModelTokens(subscriptionId int, modelName string, deltaTokens int64) error {
+	if subscriptionId <= 0 || modelName == "" || deltaTokens == 0 {
+		return nil
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		usage, err := getSubscriptionModelUsageTx(tx, subscriptionId, modelName)
+		if err != nil {
+			return err
+		}
+		if usage.Id == 0 {
+			return nil
+		}
+		return applySubscriptionModelUsageTx(tx, subscriptionId, modelName, 0, deltaTokens)
+	})
+}
+
+// RefundSubscriptionModelUsage rolls back one request from the per-model counters.
+// Async tasks refund quota through PostConsumeUserSubscriptionDelta instead of the
+// request-id record, so their call counter has to be rolled back explicitly.
+func RefundSubscriptionModelUsage(subscriptionId int, modelName string) error {
+	if subscriptionId <= 0 || modelName == "" {
+		return nil
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		usage, err := getSubscriptionModelUsageTx(tx, subscriptionId, modelName)
+		if err != nil {
+			return err
+		}
+		if usage.Id == 0 {
+			return nil
+		}
+		return applySubscriptionModelUsageTx(tx, subscriptionId, modelName, -1, 0)
+	})
+}
+
+// findPlanQuotaItem returns the quota item matching the given model, if any.
+func findPlanQuotaItem(plan *SubscriptionPlan, modelName string) (SubscriptionQuotaItem, bool) {
+	if plan == nil || modelName == "" {
+		return SubscriptionQuotaItem{}, false
+	}
+	modelName = strings.TrimSpace(modelName)
+	for _, item := range plan.QuotaItems {
+		if strings.EqualFold(strings.TrimSpace(item.Model), modelName) {
+			return item, true
+		}
+	}
+	return SubscriptionQuotaItem{}, false
+}
+
+// subscriptionQuotaItemExhausted reports whether one more request would exceed
+// the item limit for the given usage snapshot.
+func subscriptionQuotaItemExhausted(item SubscriptionQuotaItem, usage *SubscriptionModelUsage, addCalls int64, addTokens int64) bool {
+	if item.Count <= 0 || usage == nil {
+		return false
+	}
+	if NormalizeQuotaUnit(item.Unit) == SubscriptionQuotaUnitToken {
+		return usage.Tokens+addTokens > item.Count
+	}
+	return usage.Calls+addCalls > item.Count
+}
+
+// maybeResetUserSubscriptionWithPlanTx resets the quota pool when the plan's
+// reset period elapsed. The returned bool reports whether a reset happened, so
+// callers do not count no-op scans as resets.
+func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, plan *SubscriptionPlan, now int64) (bool, error) {
 	if tx == nil || sub == nil || plan == nil {
-		return errors.New("invalid reset args")
+		return false, errors.New("invalid reset args")
 	}
 	if sub.NextResetTime > 0 && sub.NextResetTime > now {
-		return nil
+		return false, nil
 	}
 	if NormalizeResetPeriod(plan.QuotaResetPeriod) == SubscriptionResetNever {
-		return nil
+		// 套餐复位周期被改成 never 后，历史行可能残留 next_reset_time。
+		// 这里清掉它，否则 ResetDueSubscriptions 每分钟都会把这些行重新捞出来空转。
+		if sub.NextResetTime != 0 {
+			sub.NextResetTime = 0
+			return false, tx.Save(sub).Error
+		}
+		return false, nil
 	}
 	baseUnix := sub.LastResetTime
 	if baseUnix <= 0 {
@@ -1442,22 +1650,48 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 		if sub.NextResetTime == 0 && next > 0 {
 			sub.NextResetTime = next
 			sub.LastResetTime = base.Unix()
-			return tx.Save(sub).Error
+			return false, tx.Save(sub).Error
 		}
-		return nil
+		return false, nil
 	}
 	sub.AmountUsed = 0
 	sub.LastResetTime = base.Unix()
 	sub.NextResetTime = next
-	return tx.Save(sub).Error
+	if err := ClearSubscriptionModelUsageTx(tx, sub.Id); err != nil {
+		return false, err
+	}
+	return true, tx.Save(sub).Error
+}
+
+// SubscriptionPreConsumeInput describes one request that should be charged to a
+// subscription.
+type SubscriptionPreConsumeInput struct {
+	RequestId string
+	UserId    int
+	ModelName string
+	// Amount is the quota amount to reserve.
+	Amount int64
+	// Tokens is the estimated token count of this request. It is used by
+	// token-unit per-model quotas; zero means unknown at pre-consume time.
+	Tokens int64
 }
 
 // PreConsumeUserSubscription pre-consumes from any active subscription total quota.
-func PreConsumeUserSubscription(requestId string, userId int, modelName string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
+// When the plan defines per-model quota items, the model's counter is checked and
+// incremented as well.
+func PreConsumeUserSubscription(input SubscriptionPreConsumeInput) (*SubscriptionPreConsumeResult, error) {
+	requestId := strings.TrimSpace(input.RequestId)
+	userId := input.UserId
+	modelName := strings.TrimSpace(input.ModelName)
+	amount := input.Amount
+	estTokens := input.Tokens
+	if estTokens < 0 {
+		estTokens = 0
+	}
 	if userId <= 0 {
 		return nil, errors.New("invalid userId")
 	}
-	if strings.TrimSpace(requestId) == "" {
+	if requestId == "" {
 		return nil, errors.New("requestId is empty")
 	}
 	if amount <= 0 {
@@ -1499,15 +1733,37 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 		if len(subs) == 0 {
 			return errors.New("no active subscription")
 		}
+		modelLimitHit := false
 		for _, candidate := range subs {
 			sub := candidate
 			plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
 			if err != nil {
 				return err
 			}
-			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
+			if _, err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
 				return err
 			}
+
+			// Per-model quota item (only enforced when the plan lists this model).
+			quotaItem, hasQuotaItem := findPlanQuotaItem(plan, modelName)
+			addCalls := int64(0)
+			addTokens := int64(0)
+			if hasQuotaItem {
+				usage, err := getSubscriptionModelUsageTx(tx, sub.Id, strings.TrimSpace(quotaItem.Model))
+				if err != nil {
+					return err
+				}
+				addCalls = 1
+				if NormalizeQuotaUnit(quotaItem.Unit) == SubscriptionQuotaUnitToken {
+					addTokens = estTokens
+				}
+				if subscriptionQuotaItemExhausted(quotaItem, usage, addCalls, addTokens) {
+					// 该订阅的此模型额度已用尽，尝试下一个订阅。
+					modelLimitHit = true
+					continue
+				}
+			}
+
 			usedBefore := sub.AmountUsed
 			if sub.AmountTotal > 0 {
 				remain := sub.AmountTotal - usedBefore
@@ -1520,6 +1776,8 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 				UserId:             userId,
 				UserSubscriptionId: sub.Id,
 				PreConsumed:        amount,
+				Model:              modelName,
+				Tokens:             estTokens,
 				Status:             "consumed",
 			}
 			if err := tx.Create(record).Error; err != nil {
@@ -1541,12 +1799,21 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			if err := tx.Save(&sub).Error; err != nil {
 				return err
 			}
+			if hasQuotaItem {
+				itemModel := strings.TrimSpace(quotaItem.Model)
+				if err := applySubscriptionModelUsageTx(tx, sub.Id, itemModel, addCalls, addTokens); err != nil {
+					return err
+				}
+			}
 			returnValue.UserSubscriptionId = sub.Id
 			returnValue.PreConsumed = amount
 			returnValue.AmountTotal = sub.AmountTotal
 			returnValue.AmountUsedBefore = usedBefore
 			returnValue.AmountUsedAfter = sub.AmountUsed
 			return nil
+		}
+		if modelLimitHit {
+			return fmt.Errorf("subscription quota insufficient for model %s", modelName)
 		}
 		return fmt.Errorf("subscription quota insufficient, need=%d", amount)
 	})
@@ -1555,6 +1822,7 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 	}
 	return returnValue, nil
 }
+
 
 // RefundSubscriptionPreConsume is idempotent and refunds pre-consumed subscription quota by requestId.
 func RefundSubscriptionPreConsume(requestId string) error {
@@ -1569,6 +1837,13 @@ func RefundSubscriptionPreConsume(requestId string) error {
 		}
 		if record.Status == "refunded" {
 			return nil
+		}
+		// 回滚逐模型计数（预扣时每次请求 +1 次、+预估 token）。
+		if record.Model != "" {
+			if err := applySubscriptionModelUsageTx(tx, record.UserSubscriptionId, record.Model, -1, -record.Tokens); err != nil {
+				common.SysLog(fmt.Sprintf("error rolling back subscription model usage (sub=%d model=%s): %v",
+					record.UserSubscriptionId, record.Model, err))
+			}
 		}
 		if record.PreConsumed <= 0 {
 			record.Status = "refunded"
@@ -1603,6 +1878,13 @@ func ResetDueSubscriptions(limit int) (int, error) {
 		subCopy := sub
 		plan, err := getSubscriptionPlanByIdTx(nil, sub.PlanId)
 		if err != nil || plan == nil {
+			// 套餐已被删除时清掉复位时间，避免每分钟重复扫描这些永远无法复位的行。
+			if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
+				if clearErr := DB.Model(&UserSubscription{}).Where("id = ?", subCopy.Id).
+					Update("next_reset_time", 0).Error; clearErr != nil {
+					common.SysLog("error clearing next_reset_time for orphan subscription: " + clearErr.Error())
+				}
+			}
 			continue
 		}
 		err = DB.Transaction(func(tx *gorm.DB) error {
@@ -1612,10 +1894,11 @@ func ResetDueSubscriptions(limit int) (int, error) {
 				First(&locked).Error; err != nil {
 				return nil
 			}
-			if err := maybeResetUserSubscriptionWithPlanTx(tx, &locked, plan, now); err != nil {
+			if reset, err := maybeResetUserSubscriptionWithPlanTx(tx, &locked, plan, now); err != nil {
 				return err
+			} else if reset {
+				resetCount++
 			}
-			resetCount++
 			return nil
 		})
 		if err != nil {
@@ -1684,7 +1967,11 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 			newUsed = 0
 		}
 		if sub.AmountTotal > 0 && newUsed > sub.AmountTotal {
-			return fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
+			// 实际用量超出总额度时扣满为止，不再返回错误：
+			// 返回错误会让整次结算失败，导致实际用量完全不扣（少扣）。
+			common.SysError(fmt.Sprintf("subscription usage exceeded total, clamped: subscription_id=%d delta=%d used=%d total=%d",
+				userSubscriptionId, delta, newUsed, sub.AmountTotal))
+			newUsed = sub.AmountTotal
 		}
 		sub.AmountUsed = newUsed
 		return tx.Save(&sub).Error

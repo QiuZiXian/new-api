@@ -61,6 +61,7 @@ export function getPlanFormSchema(t: TFunction) {
         z.object({
           model: z.string(),
           count: z.coerce.number().min(0),
+          unit: z.enum(['call', 'token']),
         })
       )
       .optional(),
@@ -128,6 +129,7 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
     quota_items: (plan.quota_items ?? []).map((item) => ({
       model: item.model,
       count: Number(item.count || 0),
+      unit: item.unit === 'token' ? 'token' : 'call',
     })),
     features_text: (plan.features ?? []).join('\n'),
   }
@@ -161,6 +163,7 @@ export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
         .map((item) => ({
           model: item.model.trim(),
           count: Number(item.count || 0),
+          unit: item.unit === 'token' ? 'token' : 'call',
         }))
         .filter((item) => item.model !== ''),
       features: (features_text ?? '')

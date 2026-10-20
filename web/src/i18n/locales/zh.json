@@ -5608,6 +5608,9 @@
     "Add model quota": "添加模型额度",
     "Included features": "包含功能",
     "One feature per line": "每行一条功能",
-    "One feature per line, shown as a checklist on the plans page.": "每行一条，套餐页以清单形式展示。"
+    "One feature per line, shown as a checklist on the plans page.": "每行一条，套餐页以清单形式展示。",
+    "Select a model": "选择模型",
+    "Shown per model on the plans page as calls or tokens. Actual deduction still follows the plan quota above.": "在套餐页按模型展示次数或 Token 额度。实际扣费仍按上方套餐额度执行。",
+    "Listed models are capped at the configured calls or tokens per reset cycle. Leave empty to skip per-model limits; unlisted models still use the plan quota above.": "已列出的模型按配置的次数或 Token 封顶（每个复位周期）。留空则不启用逐模型额度；未列出的模型仍使用上方套餐额度。"
   }
 }
