@@ -163,12 +163,17 @@ function parseDiscountMap(data: unknown): Record<number, number> {
   )
 }
 
-export function useTopupInfo() {
+export function useTopupInfo(options?: { enabled?: boolean }) {
+  const enabled = options?.enabled ?? true
   const [topupInfo, setTopupInfo] = useState<TopupInfo | null>(null)
   const [presetAmounts, setPresetAmounts] = useState<PresetAmount[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(enabled)
 
   const fetchTopupInfo = useCallback(async () => {
+    if (!enabled) {
+      setLoading(false)
+      return
+    }
     try {
       setLoading(true)
 
@@ -213,7 +218,7 @@ export function useTopupInfo() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [enabled])
 
   useEffect(() => {
     let cancelled = false

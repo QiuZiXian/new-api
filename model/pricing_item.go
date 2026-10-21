@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
 // 价格展示项（PriceItem）说明
@@ -23,11 +24,12 @@ const (
 	BillingRefOutputTokens   = "output_tokens"
 	BillingRefCachedInput    = "cached_input_tokens"
 	BillingRefCacheWrite     = "cache_write_tokens"
-	BillingRefAudioInput     = "audio_input_tokens"
-	BillingRefAudioOutput    = "audio_output_tokens"
-	BillingRefPerRequest     = "per_request"
-	BillingRefPerImageOutput = "image_output_count"
-	BillingRefPerVideoSecond = "video_output_second"
+	BillingRefAudioInput        = "audio_input_tokens"
+	BillingRefAudioOutput       = "audio_output_tokens"
+	BillingRefImageOutputTokens = "image_output_tokens"
+	BillingRefPerRequest        = "per_request"
+	BillingRefPerImageOutput    = "image_output_count"
+	BillingRefPerVideoSecond    = "video_output_second"
 )
 
 // 展示单位取值。
@@ -186,8 +188,11 @@ type PriceRatioSource struct {
 	CompletionRatio      float64
 	CacheRatio           *float64
 	CreateCacheRatio     *float64
+	ImageRatio           *float64
+	ImageCompletionRatio *float64
 	AudioRatio           *float64
 	AudioCompletionRatio *float64
+	VideoSecondVariants  map[string]float64
 	ModelPrice           float64
 }
 
@@ -195,6 +200,26 @@ type PriceRatioSource struct {
 // 返回 ok=false 表示这一行绑定的计量配置不存在，该行不渲染——
 // 这样「配了展示项但没配计费」不会渲染出 0 元这种误导性价格。
 func resolveDisplayPrice(ref string, src PriceRatioSource) (float64, bool) {
+	// 按秒计费支持「video_output_second」与「video_output_second:720p」两种写法：
+	// 不带档位取基准档单价，带档位取该分辨率档的单价，用于渲染多档价格表。
+	if strings.HasPrefix(ref, BillingRefPerVideoSecond) {
+		variant := strings.TrimPrefix(strings.TrimPrefix(ref, BillingRefPerVideoSecond), ":")
+		if len(src.VideoSecondVariants) == 0 {
+			return 0, false
+		}
+		if variant != "" {
+			price, ok := src.VideoSecondVariants[variant]
+			if !ok || price <= 0 {
+				return 0, false
+			}
+			return price, true
+		}
+		if price, ok := src.VideoSecondVariants[ratio_setting.VideoSecondDefaultVariant]; ok && price > 0 {
+			return price, true
+		}
+		return 0, false
+	}
+
 	switch ref {
 	case BillingRefInputTokens:
 		return tokenPricePerMillion(src.Ratio, 1), true
@@ -220,6 +245,17 @@ func resolveDisplayPrice(ref string, src PriceRatioSource) (float64, bool) {
 			return 0, false
 		}
 		return tokenPricePerMillion(src.Ratio, *src.AudioCompletionRatio), true
+	case BillingRefImageOutputTokens:
+		// 图片输出单价 = ModelRatio × ImageRatio × ImageCompletionRatio，
+		// 与 calculateTextQuotaSummary 的实扣口径保持一致。
+		if src.ImageCompletionRatio == nil {
+			return 0, false
+		}
+		imageRatio := 1.0
+		if src.ImageRatio != nil {
+			imageRatio = *src.ImageRatio
+		}
+		return tokenPricePerMillion(src.Ratio, imageRatio*(*src.ImageCompletionRatio)), true
 	case BillingRefPerRequest, BillingRefPerImageOutput:
 		// 按次 / 按张共用 model_price：图像按张的计费口径就是 model_price × 张数，
 		// 故单张展示价即 model_price。
@@ -228,7 +264,7 @@ func resolveDisplayPrice(ref string, src PriceRatioSource) (float64, bool) {
 		}
 		return src.ModelPrice, true
 	}
-	// 按秒（video_output_second）目前没有可推导的计量配置，整行不渲染，
+	// 未识别的 BillingRef 没有可推导的计量配置，整行不渲染，
 	// 继续回落到前端既有的排版分支，不展示没有依据的价格。
 	return 0, false
 }

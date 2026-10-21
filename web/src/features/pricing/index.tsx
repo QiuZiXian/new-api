@@ -179,6 +179,9 @@ export function Pricing() {
           group={groupFilter}
           onGroupChange={setGroupFilter}
           groupRatios={groupRatio}
+          tags={availableTags}
+          tag={tagFilter}
+          onTagChange={setTagFilter}
         />
 
         {/* Vendor tabs */}

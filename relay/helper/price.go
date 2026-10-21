@@ -85,6 +85,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	var completionRatio float64
 	var cacheRatio float64
 	var imageRatio float64
+	var imageCompletionRatio float64
 	var cacheCreationRatio float64
 	var cacheCreationRatio5m float64
 	var cacheCreationRatio1h float64
@@ -115,6 +116,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		// 固定1h和5min缓存写入价格的比例
 		cacheCreationRatio1h = cacheCreationRatio * claudeCacheCreation1hMultiplier
 		imageRatio, _ = ratio_setting.GetImageRatio(info.OriginModelName)
+		imageCompletionRatio = ratio_setting.GetImageCompletionRatio(info.OriginModelName)
 		audioRatio = ratio_setting.GetAudioRatio(info.OriginModelName)
 		audioCompletionRatio = ratio_setting.GetAudioCompletionRatio(info.OriginModelName)
 		ratio := modelRatio * groupRatioInfo.GroupRatio
@@ -157,6 +159,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		UsePrice:             usePrice,
 		CacheRatio:           cacheRatio,
 		ImageRatio:           imageRatio,
+		ImageCompletionRatio: imageCompletionRatio,
 		AudioRatio:           audioRatio,
 		AudioCompletionRatio: audioCompletionRatio,
 		CacheCreationRatio:   cacheCreationRatio,
@@ -186,6 +189,29 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 // ModelPriceHelperPerCall 按次/按量计费的 PriceHelper (MJ、Task)
 func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (hosttypes.PriceData, error) {
 	groupRatioInfo := HandleGroupRatio(c, info)
+
+	// 按秒计费：模型配置了分档秒价时，基础额度即「一秒的价格」，任务链路随后把
+	// 时长（seconds）与分辨率档倍率作为 OtherRatios 连乘上去得到总费用。
+	if secondPrice, ok := ratio_setting.GetVideoSecondBasePrice(info.OriginModelName); ok {
+		quota, err := common.QuotaFromFloatStrict(secondPrice * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
+		if err != nil {
+			return hosttypes.PriceData{}, err
+		}
+		freeModel := false
+		if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume {
+			if groupRatioInfo.GroupRatio == 0 || secondPrice == 0 {
+				quota = 0
+				freeModel = true
+			}
+		}
+		return hosttypes.PriceData{
+			FreeModel:      freeModel,
+			ModelPrice:     secondPrice,
+			UseVideoSecond: true,
+			Quota:          quota,
+			GroupRatioInfo: groupRatioInfo,
+		}, nil
+	}
 
 	modelPrice, success := ratio_setting.GetModelPrice(info.OriginModelName, true)
 	usePrice := success

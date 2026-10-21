@@ -16,9 +16,10 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
-	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relaycommon 	"github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -150,9 +151,27 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 		return nil
 	}
 	ratios := make(map[string]float64)
+	resolution, _ := req.Metadata["resolution"].(string)
+
+	// 按秒计费：分档价格本身已含分辨率差异，这里只补时长与「当前档位 / 基准档位」
+	// 的倍率，不再叠加渠道内置的 video_input 倍率表（那是按 token 计费的口径）。
+	if info.PriceData.UseVideoSecond {
+		if ratio, ok := ratio_setting.GetVideoSecondVariantRatio(info.OriginModelName, resolution); ok {
+			ratios["video_variant"] = ratio
+		}
+		if seconds := resolveTaskSeconds(&req); seconds > 0 {
+			if seconds > relaycommon.MaxTaskDurationSeconds {
+				seconds = relaycommon.MaxTaskDurationSeconds
+			}
+			ratios["seconds"] = float64(seconds)
+		}
+		if len(ratios) == 0 {
+			return nil
+		}
+		return ratios
+	}
 
 	hasVideo := hasVideoInMetadata(req.Metadata)
-	resolution, _ := req.Metadata["resolution"].(string)
 	if ratio, ok := GetVideoInputRatio(info.OriginModelName, resolution, hasVideo); ok && ratio != 1.0 {
 		ratios["video_input"] = ratio
 	}
@@ -295,7 +314,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 		return nil, fmt.Errorf("invalid task_id")
 	}
 
-	path := normalizeTaskApiPath(stringFromBody(body, "task_path"))
+	path := resolveTaskApiPath(body, "task_query_path", "task_path")
 	uri := baseUrl + path + "/" + taskID
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
@@ -382,18 +401,13 @@ func (a *TaskAdaptor) taskApiPath(info *relaycommon.RelayInfo) string {
 	return normalizeTaskApiPath(raw)
 }
 
-// normalizeTaskApiPath restricts the path suffix to a safe relative URL path so
-// it can be spliced onto the channel Base URL. Anything that is not a plain
-// absolute path — e.g. containing ".." segments, backslashes, query/hash,
-// schemes, whitespace or over 256 bytes — is replaced with the default. This
-// protects against path injection from a misconfigured OtherSettings blob.
-func normalizeTaskApiPath(raw string) string {
-	p := strings.TrimSpace(raw)
+// isValidTaskApiPath reports whether raw is a safe relative URL path suffix:
+// length-capped, only URL-safe characters, no ".." segment. Splitting this out
+// of normalizeTaskApiPath lets callers tell "not configured" apart from
+// "configured to something unusable", which is what path fallback needs.
+func isValidTaskApiPath(p string) bool {
 	if p == "" || len(p) > 256 {
-		return defaultDoubaoTaskApiPath
-	}
-	if !strings.HasPrefix(p, "/") {
-		p = "/" + p
+		return false
 	}
 	for _, r := range p {
 		switch {
@@ -402,15 +416,42 @@ func normalizeTaskApiPath(raw string) string {
 		case r >= '0' && r <= '9':
 		case r == '-' || r == '.' || r == '_' || r == '~' || r == '/':
 		default:
-			return defaultDoubaoTaskApiPath
+			return false
 		}
 	}
 	for _, seg := range strings.Split(p, "/") {
 		if seg == ".." {
-			return defaultDoubaoTaskApiPath
+			return false
 		}
 	}
+	return true
+}
+
+// normalizeTaskApiPath restricts the path suffix to a safe relative URL path so
+// it can be spliced onto the channel Base URL. Anything that is not a plain
+// absolute path — e.g. containing ".." segments, backslashes, query/hash,
+// schemes, whitespace or over 256 bytes — is replaced with the default. This
+// protects against path injection from a misconfigured OtherSettings blob.
+func normalizeTaskApiPath(raw string) string {
+	p := strings.TrimSpace(raw)
+	if !isValidTaskApiPath(p) {
+		return defaultDoubaoTaskApiPath
+	}
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
 	return p
+}
+
+// resolveTaskApiPath picks the path suffix named by primaryKey and falls back to
+// fallbackKey when it is unset or unusable. Upstreams that serve create and
+// query from one path leave the query path empty, so they transparently fall
+// back to the create path.
+func resolveTaskApiPath(body map[string]any, primaryKey, fallbackKey string) string {
+	if raw := strings.TrimSpace(stringFromBody(body, primaryKey)); isValidTaskApiPath(raw) {
+		return normalizeTaskApiPath(raw)
+	}
+	return normalizeTaskApiPath(stringFromBody(body, fallbackKey))
 }
 
 // stringFromBody safely reads a string field from the FetchTask body map.
@@ -490,6 +531,9 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		// 解析 usage 信息用于按倍率计费
 		taskResult.CompletionTokens = resTask.Usage.CompletionTokens
 		taskResult.TotalTokens = resTask.Usage.TotalTokens
+		// 真实时长与分辨率档，供按秒计费在终态按实际结果补扣
+		taskResult.VideoSeconds = resTask.Duration
+		taskResult.VideoVariant = resTask.Resolution
 	case "failed":
 		taskResult.Status = model.TaskStatusFailure
 		taskResult.Progress = "100%"

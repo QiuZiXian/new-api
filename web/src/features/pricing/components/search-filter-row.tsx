@@ -51,6 +51,10 @@ interface SearchFilterRowProps {
   group?: string;
   onGroupChange?: (value: string) => void;
   groupRatios?: Record<string, number>;
+  /** 可选标签；为空时不渲染标签下拉 */
+  tags?: string[];
+  tag?: string;
+  onTagChange?: (value: string) => void;
   className?: string;
 }
 
@@ -87,6 +91,15 @@ export function SearchFilterRow(props: SearchFilterRowProps) {
     ...groupOptions.map((group) => ({ value: group, label: group })),
   ];
   const currentGroup = props.group ?? FILTER_ALL;
+
+  // 标签下拉：与分组下拉一样，选中后只保留带该标签的模型
+  const tagOptions = props.tags ?? [];
+  const showTagFilter = tagOptions.length > 0 && props.onTagChange;
+  const tagItems = [
+    { value: FILTER_ALL, label: t("All Tags") },
+    ...tagOptions.map((tag) => ({ value: tag, label: tag })),
+  ];
+  const currentTag = props.tag ?? FILTER_ALL;
 
   return (
     <div
@@ -146,6 +159,36 @@ export function SearchFilterRow(props: SearchFilterRowProps) {
                     </SelectItem>
                   );
                 })}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {showTagFilter && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-muted-foreground hidden text-sm font-medium tracking-tight whitespace-nowrap sm:inline">
+              {t("Tags")}
+            </span>
+            <Select
+              items={tagItems}
+              value={currentTag}
+              onValueChange={(value) =>
+                props.onTagChange?.(value ?? FILTER_ALL)
+              }
+            >
+              <SelectTrigger
+                size="sm"
+                className="min-w-24 max-w-40"
+                aria-label={t("Tags")}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent alignItemWithTrigger={false}>
+                {tagItems.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

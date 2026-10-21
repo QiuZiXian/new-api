@@ -151,6 +151,8 @@ func InitOptionMap() {
 	common.OptionMap["UserUsableGroups"] = setting.UserUsableGroups2JSONString()
 	common.OptionMap["CompletionRatio"] = ratio_setting.CompletionRatio2JSONString()
 	common.OptionMap["ImageRatio"] = ratio_setting.ImageRatio2JSONString()
+	common.OptionMap["ImageCompletionRatio"] = ratio_setting.ImageCompletionRatio2JSONString()
+	common.OptionMap["VideoSecondPrice"] = ratio_setting.VideoSecondPrice2JSONString()
 	common.OptionMap["AudioRatio"] = ratio_setting.AudioRatio2JSONString()
 	common.OptionMap["AudioCompletionRatio"] = ratio_setting.AudioCompletionRatio2JSONString()
 	common.OptionMap["TopUpLink"] = common.TopUpLink
@@ -581,6 +583,10 @@ func updateOptionMap(key string, value string) (err error) {
 		err = ratio_setting.UpdateCreateCacheRatioByJSONString(value)
 	case "ImageRatio":
 		err = ratio_setting.UpdateImageRatioByJSONString(value)
+	case "ImageCompletionRatio":
+		err = ratio_setting.UpdateImageCompletionRatioByJSONString(value)
+	case "VideoSecondPrice":
+		err = ratio_setting.UpdateVideoSecondPriceByJSONString(value)
 	case "AudioRatio":
 		err = ratio_setting.UpdateAudioRatioByJSONString(value)
 	case "AudioCompletionRatio":

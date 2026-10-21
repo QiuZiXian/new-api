@@ -22,6 +22,15 @@ import { z } from 'zod'
 // Subscription Plan Schema & Types
 // ============================================================================
 
+export const subscriptionQuotaItemSchema = z.object({
+  model: z.string(),
+  count: z.number(),
+  /** "call" (default) or "token"; unknown/empty values are treated as "call". */
+  unit: z.string().optional(),
+})
+
+export type SubscriptionQuotaItem = z.infer<typeof subscriptionQuotaItemSchema>
+
 export const subscriptionPlanSchema = z.object({
   id: z.number(),
   title: z.string(),
@@ -35,6 +44,14 @@ export const subscriptionPlanSchema = z.object({
   quota_reset_custom_seconds: z.number().optional(),
   enabled: z.boolean(),
   sort_order: z.number(),
+  // Presentation fields for the user-facing plans page
+  billing_note: z.string().optional(),
+  badge: z.string().optional(),
+  icon: z.string().optional(),
+  accent: z.string().optional(),
+  highlight: z.boolean().optional(),
+  quota_items: z.array(subscriptionQuotaItemSchema).optional(),
+  features: z.array(z.string()).optional(),
   allow_balance_pay: z.boolean().optional().default(true),
   allow_wallet_overflow: z.boolean().optional().default(true),
   max_purchase_per_user: z.number(),

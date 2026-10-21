@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertTriangle, Save } from 'lucide-react'
+import { AlertTriangle, Plus, Save, Trash2 } from 'lucide-react'
 import {
   forwardRef,
   useCallback,
@@ -66,22 +66,30 @@ import { cn } from '@/lib/utils'
 import {
   EMPTY_LANE_ENABLED,
   EMPTY_LANE_PRICES,
+  fromSecondTierRows,
   buildPreviewRows,
   createInitialLaneState,
   createModelPricingSchema,
   hasValue,
+  inputLaneByLane,
   laneConfigs,
+  newSecondTierId,
   numericDraftRegex,
   ratioFieldByLane,
+  resolvePricingMode,
   toNumberOrNull,
+  toSecondTierRows,
+  VIDEO_SECOND_DEFAULT_TIER,
   type LaneKey,
   type ModelPricingFormValues,
   type ModelRatioData,
   type PricingMode,
+  type VideoSecondTierRow,
 } from './model-pricing-core'
 import { PriceInput, PriceLane } from './model-pricing-inputs'
 import { formatPricingNumber } from './pricing-format'
 import { TieredPricingEditor } from './tiered-pricing-editor'
+import { VideoSecondConverter } from './video-second-converter'
 
 export type { ModelRatioData } from './model-pricing-core'
 
@@ -156,6 +164,9 @@ export const ModelPricingEditorPanel = forwardRef<
   const [billingExpr, setBillingExpr] = useState('')
   const [requestRuleExpr, setRequestRuleExpr] = useState('')
   const [editorReloadToken, setEditorReloadToken] = useState(0)
+  const [secondTiers, setSecondTiers] = useState<VideoSecondTierRow[]>(() =>
+    toSecondTierRows(undefined)
+  )
   const isEditMode = !!editData
 
   const form = useForm<ModelPricingFormValues>({
@@ -168,6 +179,7 @@ export const ModelPricingEditorPanel = forwardRef<
       createCacheRatio: '',
       completionRatio: '',
       imageRatio: '',
+      imageCompletionRatio: '',
       audioRatio: '',
       audioCompletionRatio: '',
     },
@@ -185,16 +197,11 @@ export const ModelPricingEditorPanel = forwardRef<
         createCacheRatio: editData.createCacheRatio || '',
         completionRatio: editData.completionRatio || '',
         imageRatio: editData.imageRatio || '',
+        imageCompletionRatio: editData.imageCompletionRatio || '',
         audioRatio: editData.audioRatio || '',
         audioCompletionRatio: editData.audioCompletionRatio || '',
       })
-      setPricingMode(
-        editData.billingMode === 'tiered_expr'
-          ? 'tiered_expr'
-          : editData.price
-            ? 'per-request'
-            : 'per-token'
-      )
+      setPricingMode(resolvePricingMode(editData))
       setBillingExpr(editData.billingExpr || '')
       setRequestRuleExpr(editData.requestRuleExpr || '')
     } else {
@@ -206,6 +213,7 @@ export const ModelPricingEditorPanel = forwardRef<
         createCacheRatio: '',
         completionRatio: '',
         imageRatio: '',
+        imageCompletionRatio: '',
         audioRatio: '',
         audioCompletionRatio: '',
       })
@@ -217,6 +225,7 @@ export const ModelPricingEditorPanel = forwardRef<
     setPromptPrice(nextLaneState.promptPrice)
     setLanePrices(nextLaneState.prices)
     setLaneEnabled(nextLaneState.enabled)
+    setSecondTiers(nextLaneState.secondTiers)
     setEditorReloadToken((token) => token + 1)
   }, [editData, form])
 
@@ -240,6 +249,13 @@ export const ModelPricingEditorPanel = forwardRef<
       const audioInputPrice = toNumberOrNull(nextLanePrices.audioInput)
       if (audioInputPrice === null || audioInputPrice === 0) return ''
       return formatPricingNumber(priceNumber / audioInputPrice)
+    }
+
+    // 图片输出倍率相对图片输入价，而非提示词基准价
+    if (lane === 'imageOutput') {
+      const imageInputPrice = toNumberOrNull(nextLanePrices.image)
+      if (imageInputPrice === null || imageInputPrice === 0) return ''
+      return formatPricingNumber(priceNumber / imageInputPrice)
     }
 
     const inputPrice = toNumberOrNull(nextPromptPrice)
@@ -305,6 +321,18 @@ export const ModelPricingEditorPanel = forwardRef<
         )
       )
     }
+
+    if (lane === 'image' && laneEnabled.imageOutput) {
+      setFormValue(
+        'imageCompletionRatio',
+        deriveLaneRatio(
+          'imageOutput',
+          nextLanePrices.imageOutput,
+          promptPrice,
+          nextLanePrices
+        )
+      )
+    }
   }
 
   const handleLaneToggle = (lane: LaneKey, checked: boolean) => {
@@ -318,6 +346,11 @@ export const ModelPricingEditorPanel = forwardRef<
         nextEnabled.audioOutput = false
         nextPrices.audioOutput = ''
         setFormValue('audioCompletionRatio', '')
+      }
+      if (lane === 'image') {
+        nextEnabled.imageOutput = false
+        nextPrices.imageOutput = ''
+        setFormValue('imageCompletionRatio', '')
       }
     }
 
@@ -338,6 +371,52 @@ export const ModelPricingEditorPanel = forwardRef<
     if (nextMode === 'tiered_expr' && !billingExpr) {
       setBillingExpr('tier("base", p * 0 + c * 0)')
     }
+    if (nextMode === 'per-second' && secondTiers.length === 0) {
+      setSecondTiers(toSecondTierRows(undefined))
+    }
+  }
+
+  const handleSecondTierChange = (
+    index: number,
+    patch: Partial<VideoSecondTierRow>
+  ) => {
+    setSecondTiers((rows) =>
+      rows.map((row, i) => (i === index ? { ...row, ...patch } : row))
+    )
+  }
+
+  const handleSecondTierAdd = () => {
+    setSecondTiers((rows) => [
+      ...rows,
+      { id: newSecondTierId(), variant: '', price: '' },
+    ])
+  }
+
+  const handleSecondTierRemove = (index: number) => {
+    if (secondTiers[index]?.variant === VIDEO_SECOND_DEFAULT_TIER) return
+    setSecondTiers((rows) => rows.filter((_, i) => i !== index))
+  }
+
+  const handleApplySecondPrice = (price: string) => {
+    setSecondTiers((rows) => {
+      const index = rows.findIndex(
+        (row) =>
+          row.variant.trim().toLowerCase() === VIDEO_SECOND_DEFAULT_TIER
+      )
+      if (index === -1) {
+        return [
+          {
+            id: newSecondTierId(),
+            variant: VIDEO_SECOND_DEFAULT_TIER,
+            price,
+          },
+          ...rows,
+        ]
+      }
+      const next = [...rows]
+      next[index] = { ...next[index], price }
+      return next
+    })
   }
 
   const watchedValues = form.watch()
@@ -351,6 +430,7 @@ export const ModelPricingEditorPanel = forwardRef<
         promptPrice,
         lanePrices,
         laneEnabled,
+        secondTiers,
         t
       ),
     [
@@ -360,6 +440,7 @@ export const ModelPricingEditorPanel = forwardRef<
       pricingMode,
       promptPrice,
       requestRuleExpr,
+      secondTiers,
       t,
       watchedValues,
     ]
@@ -375,6 +456,7 @@ export const ModelPricingEditorPanel = forwardRef<
         editData.cacheRatio,
         editData.createCacheRatio,
         editData.imageRatio,
+        editData.imageCompletionRatio,
         editData.audioRatio,
         editData.audioCompletionRatio,
       ].some(hasValue)
@@ -407,8 +489,29 @@ export const ModelPricingEditorPanel = forwardRef<
       nextWarnings.push(t('Audio output price requires an audio input price.'))
     }
 
+    if (
+      pricingMode === 'per-token' &&
+      laneEnabled.imageOutput &&
+      !hasValue(lanePrices.image)
+    ) {
+      nextWarnings.push(t('Image output price requires an image input price.'))
+    }
+
+    if (pricingMode === 'per-second') {
+      const tiers = fromSecondTierRows(secondTiers)
+      if (!tiers) {
+        nextWarnings.push(t('Per-second billing needs at least one tier price.'))
+      } else if (!tiers[VIDEO_SECOND_DEFAULT_TIER]) {
+        nextWarnings.push(
+          t(
+            'A default tier price is required: it bills videos that omit a resolution.'
+          )
+        )
+      }
+    }
+
     return nextWarnings
-  }, [editData, laneEnabled, lanePrices, pricingMode, promptPrice, t])
+  }, [editData, laneEnabled, lanePrices, pricingMode, promptPrice, secondTiers, t])
 
   const validatePricingValues = useCallback(() => {
     if (
@@ -435,8 +538,31 @@ export const ModelPricingEditorPanel = forwardRef<
       return false
     }
 
+    if (
+      pricingMode === 'per-token' &&
+      laneEnabled.imageOutput &&
+      !hasValue(lanePrices.image)
+    ) {
+      form.setError('imageRatio', {
+        message: t('Image output price requires an image input price.'),
+      })
+      return false
+    }
+
+    if (pricingMode === 'per-second') {
+      const tiers = fromSecondTierRows(secondTiers)
+      if (!tiers || !tiers[VIDEO_SECOND_DEFAULT_TIER]) {
+        form.setError('name', {
+          message: t(
+            'Per-second billing needs a default tier price before saving.'
+          ),
+        })
+        return false
+      }
+    }
+
     return true
-  }, [form, laneEnabled, lanePrices, pricingMode, promptPrice, t])
+  }, [form, laneEnabled, lanePrices, pricingMode, promptPrice, secondTiers, t])
 
   const buildSubmitData = useCallback(
     (values: ModelPricingFormValues) => {
@@ -449,8 +575,13 @@ export const ModelPricingEditorPanel = forwardRef<
         createCacheRatio: values.createCacheRatio || '',
         completionRatio: values.completionRatio || '',
         imageRatio: values.imageRatio || '',
+        imageCompletionRatio: values.imageCompletionRatio || '',
         audioRatio: values.audioRatio || '',
         audioCompletionRatio: values.audioCompletionRatio || '',
+      }
+
+      if (pricingMode === 'per-second') {
+        data.videoSecondPrice = fromSecondTierRows(secondTiers)
       }
 
       if (pricingMode === 'tiered_expr') {
@@ -460,7 +591,7 @@ export const ModelPricingEditorPanel = forwardRef<
 
       return data
     },
-    [billingExpr, pricingMode, requestRuleExpr]
+    [billingExpr, pricingMode, requestRuleExpr, secondTiers]
   )
 
   useImperativeHandle(
@@ -544,12 +675,15 @@ export const ModelPricingEditorPanel = forwardRef<
                   onValueChange={handleModeChange}
                   className='gap-4'
                 >
-                  <TabsList className='grid w-full grid-cols-3'>
+                  <TabsList className='grid w-full grid-cols-4'>
                     <TabsTrigger value='per-token'>
                       {t('Per-token')}
                     </TabsTrigger>
                     <TabsTrigger value='per-request'>
                       {t('Per-request')}
+                    </TabsTrigger>
+                    <TabsTrigger value='per-second'>
+                      {t('Per-second')}
                     </TabsTrigger>
                     <TabsTrigger value='tiered_expr'>
                       {t('Expression')}
@@ -572,10 +706,11 @@ export const ModelPricingEditorPanel = forwardRef<
 
                       <div className='grid gap-3 sm:grid-cols-[repeat(auto-fit,minmax(400px,1fr))]'>
                         {laneConfigs.map((lane) => {
+                          const inputLane = inputLaneByLane[lane.key]
                           const disabled =
-                            lane.key === 'audioOutput' &&
-                            (!laneEnabled.audioInput ||
-                              !hasValue(lanePrices.audioInput))
+                            inputLane !== undefined &&
+                            (!laneEnabled[inputLane] ||
+                              !hasValue(lanePrices[inputLane]))
                           return (
                             <PriceLane
                               key={lane.key}
@@ -636,6 +771,105 @@ export const ModelPricingEditorPanel = forwardRef<
                           </FormItem>
                         )}
                       />
+                    </FieldGroup>
+                  </TabsContent>
+
+                  <TabsContent value='per-second' className='pt-0'>
+                    <FieldGroup className='gap-5'>
+                      <Field>
+                        <FieldLabel>{t('Per-second tiers')}</FieldLabel>
+                        <FieldDescription>
+                          {t(
+                            'USD price per second of generated video, one row per resolution tier. Videos are charged for their real duration once the task finishes.'
+                          )}
+                        </FieldDescription>
+                      </Field>
+                      <VideoSecondConverter onApply={handleApplySecondPrice} />
+
+                      <div className='flex flex-col gap-2'>
+                        <div className='grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-2'>
+                          <span className='text-muted-foreground text-xs'>
+                            {t('Resolution tier')}
+                          </span>
+                          <span className='text-muted-foreground text-xs'>
+                            {t('Price per second')}
+                          </span>
+                          <span className='sr-only'>{t('Actions')}</span>
+                        </div>
+                        {secondTiers.map((tier, index) => {
+                          const isDefault =
+                            tier.variant.trim().toLowerCase() ===
+                            VIDEO_SECOND_DEFAULT_TIER
+                          const missingDefault =
+                            pricingMode === 'per-second' &&
+                            isDefault &&
+                            tier.price.trim() === ''
+                          return (
+                            <div key={tier.id}>
+                              <div className='grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2'>
+                                <Input
+                                  value={tier.variant}
+                                  placeholder={isDefault ? 'default' : '1080p'}
+                                  readOnly={isDefault}
+                                  aria-label={t('Resolution tier')}
+                                  onChange={(event) =>
+                                    handleSecondTierChange(index, {
+                                      variant: event.target.value,
+                                    })
+                                  }
+                                />
+                                <InputGroup>
+                                  <InputGroupAddon>$</InputGroupAddon>
+                                  <InputGroupInput
+                                    inputMode='decimal'
+                                    value={tier.price}
+                                    placeholder='0.99'
+                                    aria-label={t('Price per second')}
+                                    onChange={(event) => {
+                                      const value = event.target.value
+                                      if (numericDraftRegex.test(value)) {
+                                        handleSecondTierChange(index, {
+                                          price: value,
+                                        })
+                                      }
+                                    }}
+                                  />
+                                  <InputGroupAddon align='inline-end'>
+                                    {t('per second')}
+                                  </InputGroupAddon>
+                                </InputGroup>
+                                <Button
+                                  type='button'
+                                  variant='ghost'
+                                  size='icon'
+                                  aria-label={t('Remove tier')}
+                                  disabled={isDefault}
+                                  onClick={() => handleSecondTierRemove(index)}
+                                >
+                                  <Trash2 />
+                                </Button>
+                              </div>
+                              {missingDefault && (
+                                <p className='text-destructive mt-1 text-xs'>
+                                  {t(
+                                    'A default tier price is required: it bills videos that omit a resolution.'
+                                  )}
+                                </p>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                      <Button
+                        type='button'
+                        variant='outline'
+                        size='sm'
+                        className='w-full sm:w-auto'
+                        onClick={handleSecondTierAdd}
+                      >
+                        <Plus data-icon='inline-start' />
+                        {t('Add tier')}
+                      </Button>
                     </FieldGroup>
                   </TabsContent>
 

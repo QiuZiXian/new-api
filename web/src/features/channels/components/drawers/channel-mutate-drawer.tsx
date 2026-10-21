@@ -285,6 +285,7 @@ const SENSITIVE_FORM_FIELDS = [
   'aws_key_type',
   'azure_responses_version',
   'task_api_path',
+  'task_query_api_path',
   'visual_validate_api_path',
   'asset_group_api_path',
   'asset_api_path',
@@ -4198,6 +4199,29 @@ export function ChannelMutateDrawer({
                                     <FormDescription>
                                       {t(
                                         'Full path suffix from the channel Base URL for doubao video task create/query endpoints. Leave empty for the default /api/v3/contents/generations/tasks. Example: /api/v1/contents/generations/tasks'
+                                      )}
+                                    </FormDescription>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            )}
+
+                            {currentType === 54 && (
+                              <FormField
+                                control={form.control}
+                                name='task_query_api_path'
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>
+                                      {t('Doubao Task Query API Path')}
+                                    </FormLabel>
+                                    <FormControl>
+                                      <Input placeholder='/v1/task' {...field} />
+                                    </FormControl>
+                                    <FormDescription>
+                                      {t(
+                                        'Optional. Path suffix used to query/cancel a doubao video task when the upstream splits create and query into two APIs. Leave empty to reuse the create path above.'
                                       )}
                                     </FormDescription>
                                     <FormMessage />

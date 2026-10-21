@@ -165,6 +165,9 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestCreemPay)
 			subscriptionRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestWaffoPancakePay)
 		}
+		// Public plans listing for the user-facing plans page. Access follows the
+		// "subscription" header navigation switch (enabled / require login).
+		apiRouter.GET("/subscription/public-plans", middleware.HeaderNavModuleAuth("subscription"), controller.GetSubscriptionPlans)
 		subscriptionAdminRoute := apiRouter.Group("/subscription/admin")
 		subscriptionAdminRoute.Use(middleware.AdminAuth())
 		{

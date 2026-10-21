@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { splitBillingExprAndRequestRules } from '@/features/pricing/lib/billing-expr'
 
 import { safeJsonParse } from '../utils/json-parser'
+import type { PricingMode } from './model-pricing-core'
 import { formatPricingNumber } from './pricing-format'
 
 export type ModelPricingSnapshotInput = {
@@ -28,6 +29,8 @@ export type ModelPricingSnapshotInput = {
   createCacheRatio: string
   completionRatio: string
   imageRatio: string
+  imageCompletionRatio: string
+  videoSecondPrice: string
   audioRatio: string
   audioCompletionRatio: string
   billingMode: string
@@ -42,6 +45,8 @@ export type ModelPricingSnapshot = {
   createCacheRatio?: string
   completionRatio?: string
   imageRatio?: string
+  imageCompletionRatio?: string
+  videoSecondPrice?: Record<string, string>
   audioRatio?: string
   audioCompletionRatio?: string
   billingMode?: string
@@ -82,6 +87,7 @@ const ratioToPrice = (ratio?: string, denominator?: string) => {
 
 export const getModeLabel = (mode?: string) => {
   if (mode === 'per-request') return 'Per-request'
+  if (mode === 'per-second') return 'Per-second'
   if (mode === 'tiered_expr') return 'Expression'
   return 'Per-token'
 }
@@ -90,6 +96,7 @@ export const getModeVariant = (
   mode?: string
 ): 'warning' | 'info' | 'success' => {
   if (mode === 'per-request') return 'warning'
+  if (mode === 'per-second') return 'warning'
   if (mode === 'tiered_expr') return 'info'
   return 'success'
 }
@@ -115,6 +122,17 @@ export const getPriceSummary = (
   if (row.billingMode === 'per-request') {
     return row.price ? `$${row.price} / ${t('request')}` : t('Unset price')
   }
+  if (row.billingMode === 'per-second') {
+    const tiers = row.videoSecondPrice ?? {}
+    const defaultPrice = tiers.default
+    if (defaultPrice && hasPricingValue(defaultPrice)) {
+      const tierCount = Object.keys(tiers).length
+      return tierCount > 1
+        ? `$${defaultPrice} / ${t('second')} · ${tierCount} ${t('tiers')}`
+        : `$${defaultPrice} / ${t('second')}`
+    }
+    return t('Unset price')
+  }
 
   const inputPrice = ratioToPrice(row.ratio)
   if (!inputPrice) return t('Unset price')
@@ -124,6 +142,7 @@ export const getPriceSummary = (
     row.cacheRatio,
     row.createCacheRatio,
     row.imageRatio,
+    row.imageCompletionRatio,
     row.audioRatio,
     row.audioCompletionRatio,
   ].filter(hasPricingValue).length
@@ -144,6 +163,13 @@ export const getPriceDetail = (
   }
   if (row.billingMode === 'per-request') {
     return t('Fixed request price')
+  }
+  if (row.billingMode === 'per-second') {
+    const tiers = row.videoSecondPrice ?? {}
+    const names = Object.keys(tiers).filter((key) => key !== 'default')
+    return names.length > 0
+      ? `${t('Per-second price')} · ${names.join(', ')}`
+      : t('Single per-second price')
   }
 
   const inputPrice = ratioToPrice(row.ratio)
@@ -170,6 +196,8 @@ export const buildModelSnapshots = ({
   createCacheRatio,
   completionRatio,
   imageRatio,
+  imageCompletionRatio,
+  videoSecondPrice,
   audioRatio,
   audioCompletionRatio,
   billingMode,
@@ -199,6 +227,14 @@ export const buildModelSnapshots = ({
     fallback: {},
     context: 'image ratios',
   })
+  const imageCompletionMap = safeJsonParse<Record<string, number>>(
+    imageCompletionRatio,
+    { fallback: {}, context: 'image completion ratios' }
+  )
+  const videoSecondMap = safeJsonParse<Record<string, Record<string, number>>>(
+    videoSecondPrice,
+    { fallback: {}, context: 'video per-second prices' }
+  )
   const audioMap = safeJsonParse<Record<string, number>>(audioRatio, {
     fallback: {},
     context: 'audio ratios',
@@ -223,6 +259,8 @@ export const buildModelSnapshots = ({
     ...Object.keys(createCacheMap),
     ...Object.keys(completionMap),
     ...Object.keys(imageMap),
+    ...Object.keys(imageCompletionMap),
+    ...Object.keys(videoSecondMap),
     ...Object.keys(audioMap),
     ...Object.keys(audioCompletionMap),
     ...Object.keys(billingModeMap),
@@ -236,6 +274,14 @@ export const buildModelSnapshots = ({
     const createCache = createCacheMap[name]?.toString() || ''
     const completion = completionMap[name]?.toString() || ''
     const image = imageMap[name]?.toString() || ''
+    const imageCompletion = imageCompletionMap[name]?.toString() || ''
+    const secondTiers: Record<string, string> = {}
+    Object.entries(videoSecondMap[name] ?? {}).forEach(([tier, value]) => {
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        secondTiers[tier] = String(value)
+      }
+    })
+    const hasVideoSecond = Object.keys(secondTiers).length > 0
     const audio = audioMap[name]?.toString() || ''
     const audioCompletion = audioCompletionMap[name]?.toString() || ''
 
@@ -255,10 +301,20 @@ export const buildModelSnapshots = ({
         createCacheRatio: createCache,
         completionRatio: completion,
         imageRatio: image,
+        imageCompletionRatio: imageCompletion,
+        videoSecondPrice: hasVideoSecond ? secondTiers : undefined,
         audioRatio: audio,
         audioCompletionRatio: audioCompletion,
         hasConflict: false,
       }
+    }
+
+    // 固定价最优先；其次是按秒；都没有才按 token 倍率。
+    let billingMode: PricingMode = 'per-token'
+    if (price !== '') {
+      billingMode = 'per-request'
+    } else if (hasVideoSecond) {
+      billingMode = 'per-second'
     }
 
     return {
@@ -269,16 +325,19 @@ export const buildModelSnapshots = ({
       createCacheRatio: createCache,
       completionRatio: completion,
       imageRatio: image,
+      imageCompletionRatio: imageCompletion,
+      videoSecondPrice: hasVideoSecond ? secondTiers : undefined,
       audioRatio: audio,
       audioCompletionRatio: audioCompletion,
-      billingMode: price !== '' ? 'per-request' : 'per-token',
+      billingMode,
       hasConflict:
-        price !== '' &&
+        (price !== '' || hasVideoSecond) &&
         (ratio !== '' ||
           completion !== '' ||
           cache !== '' ||
           createCache !== '' ||
           image !== '' ||
+          imageCompletion !== '' ||
           audio !== '' ||
           audioCompletion !== ''),
     }
@@ -294,6 +353,10 @@ export const getSnapshotSignature = (snapshot?: ModelPricingSnapshot) => {
     createCacheRatio: snapshot.createCacheRatio || '',
     completionRatio: snapshot.completionRatio || '',
     imageRatio: snapshot.imageRatio || '',
+    imageCompletionRatio: snapshot.imageCompletionRatio || '',
+    videoSecondPrice: snapshot.videoSecondPrice
+      ? JSON.stringify(snapshot.videoSecondPrice)
+      : '',
     audioRatio: snapshot.audioRatio || '',
     audioCompletionRatio: snapshot.audioCompletionRatio || '',
     billingMode: snapshot.billingMode || 'per-token',

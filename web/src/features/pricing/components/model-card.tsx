@@ -113,11 +113,26 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   let priceLabel: string
   let priceValue: ReactNode
   let priceUnit: string
+  // Secondary line under the main price: input price shown in smaller text.
+  let inputPrice: { label: string; value: string; unit: string } | null = null
   if (dynamicSummary && dynamicSummary.primaryEntries.length > 0) {
-    const entry = dynamicSummary.primaryEntries[0]
+    const outputEntry = dynamicSummary.primaryEntries.find(
+      (item) => item.field === 'outputPrice'
+    )
+    const entry = outputEntry ?? dynamicSummary.primaryEntries[0]
     priceLabel = t(entry.shortLabel)
     priceValue = entry.formatted
     priceUnit = ''
+    const inputEntry = dynamicSummary.primaryEntries.find(
+      (item) => item.field === 'inputPrice'
+    )
+    if (inputEntry && inputEntry !== entry) {
+      inputPrice = {
+        label: t(inputEntry.shortLabel),
+        value: inputEntry.formatted,
+        unit: '',
+      }
+    }
   } else if (isTokenBased) {
     priceLabel = t('Output')
     priceValue = formatPrice(
@@ -130,6 +145,19 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       props.selectedGroup
     )
     priceUnit = ` /${tokenUnitLabel}`
+    inputPrice = {
+      label: t('Input'),
+      value: formatPrice(
+        props.model,
+        'input',
+        tokenUnit,
+        showRechargePrice,
+        priceRate,
+        usdExchangeRate,
+        props.selectedGroup
+      ),
+      unit: ` /${tokenUnitLabel}`,
+    }
   } else {
     priceLabel = ''
     priceValue = formatRequestPrice(
@@ -247,15 +275,24 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       )}
 
       {/* Price footer */}
-      <div className='border-border/50 mt-3 flex w-full items-baseline justify-center gap-1 border-t pt-3'>
-        {priceLabel && (
-          <span className='text-muted-foreground text-xs'>{priceLabel}</span>
-        )}
-        <span className='font-mono text-[18px] font-bold text-red-500 tabular-nums dark:text-red-400'>
-          {priceValue}
-        </span>
-        {priceUnit && (
-          <span className='text-muted-foreground text-xs'>{priceUnit}</span>
+      <div className='border-border/50 mt-3 w-full border-t pt-3'>
+        <div className='flex items-baseline justify-center gap-1'>
+          {priceLabel && (
+            <span className='text-muted-foreground text-xs'>{priceLabel}</span>
+          )}
+          <span className='font-mono text-[18px] font-bold text-red-500 tabular-nums dark:text-red-400'>
+            {priceValue}
+          </span>
+          {priceUnit && (
+            <span className='text-muted-foreground text-xs'>{priceUnit}</span>
+          )}
+        </div>
+        {inputPrice && (
+          <div className='text-muted-foreground/70 mt-0.5 flex items-baseline justify-center gap-1 text-[11px] leading-none'>
+            <span>{inputPrice.label}</span>
+            <span className='font-mono tabular-nums'>{inputPrice.value}</span>
+            {inputPrice.unit && <span>{inputPrice.unit}</span>}
+          </div>
         )}
       </div>
     </div>

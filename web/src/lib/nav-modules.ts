@@ -20,13 +20,14 @@ import { getStatus } from '@/lib/api'
 
 export type ModuleAccess = { enabled: boolean; requireAuth: boolean }
 
-export type HeaderNavModule = 'rankings' | 'pricing'
+export type HeaderNavModule = 'rankings' | 'pricing' | 'subscription'
 
 export type HeaderNavModules = {
   home: boolean
   console: boolean
   pricing: ModuleAccess
   rankings: ModuleAccess
+  subscription: ModuleAccess
   docs: boolean
   about: boolean
   [key: string]: boolean | ModuleAccess
@@ -37,6 +38,9 @@ const DEFAULT_HEADER_NAV_MODULES: HeaderNavModules = {
   console: true,
   pricing: { enabled: true, requireAuth: false },
   rankings: { enabled: true, requireAuth: false },
+  // Opt-in: existing deployments should not grow a plans entry until an
+  // administrator enables it in System Settings -> Header navigation.
+  subscription: { enabled: false, requireAuth: false },
   docs: true,
   about: true,
 }
@@ -44,6 +48,7 @@ const DEFAULT_HEADER_NAV_MODULES: HeaderNavModules = {
 const DEFAULTS: Record<HeaderNavModule, ModuleAccess> = {
   pricing: DEFAULT_HEADER_NAV_MODULES.pricing,
   rankings: DEFAULT_HEADER_NAV_MODULES.rankings,
+  subscription: DEFAULT_HEADER_NAV_MODULES.subscription,
 }
 
 function cloneHeaderNavDefaults(): HeaderNavModules {
@@ -51,6 +56,7 @@ function cloneHeaderNavDefaults(): HeaderNavModules {
     ...DEFAULT_HEADER_NAV_MODULES,
     pricing: { ...DEFAULT_HEADER_NAV_MODULES.pricing },
     rankings: { ...DEFAULT_HEADER_NAV_MODULES.rankings },
+    subscription: { ...DEFAULT_HEADER_NAV_MODULES.subscription },
   }
 }
 
@@ -116,6 +122,10 @@ export function parseHeaderNavModules(raw: unknown): HeaderNavModules {
     }
     if (key === 'rankings') {
       result.rankings = parseAccess(value, result.rankings)
+      return
+    }
+    if (key === 'subscription') {
+      result.subscription = parseAccess(value, result.subscription)
       return
     }
 

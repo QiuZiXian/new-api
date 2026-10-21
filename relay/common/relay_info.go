@@ -141,6 +141,9 @@ type RelayInfo struct {
 	// SubscriptionAmountTotal / SubscriptionAmountUsedAfterPreConsume are used to compute remaining in logs.
 	SubscriptionAmountTotal               int64
 	SubscriptionAmountUsedAfterPreConsume int64
+	// BillingTokens is the actual total token count reported by upstream for this
+	// request. It is used to correct per-model token usage at settlement time.
+	BillingTokens int
 	IsClaudeBetaQuery                     bool // /v1/messages?beta=true
 	IsChannelTest                         bool // channel test request
 	RetryIndex                            int
@@ -957,6 +960,12 @@ type TaskInfo struct {
 	Progress         string `json:"progress,omitempty"`
 	CompletionTokens int    `json:"completion_tokens,omitempty"` // 用于按倍率计费
 	TotalTokens      int    `json:"total_tokens,omitempty"`      // 用于按倍率计费
+	// VideoSeconds 是上游回报的真实视频时长（秒），终态回调里用于按秒计费的差额结算。
+	// 提交时用户可能未指定时长（duration=-1 / 缺省），只能按基准单价预扣，
+	// 真实时长要等任务跑完才知道。
+	VideoSeconds int `json:"video_seconds,omitempty"`
+	// VideoVariant 是本次实际生效的分辨率档（如 720p / 1080p），用于选取按秒分档价。
+	VideoVariant string `json:"video_variant,omitempty"`
 }
 
 func FailTaskInfo(reason string) *TaskInfo {

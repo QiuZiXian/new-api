@@ -460,9 +460,10 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		key = privateData.Key
 	}
 	resp, err := adaptor.FetchTask(baseURL, key, map[string]any{
-		"task_id":   task.GetUpstreamTaskID(),
-		"action":    task.Action,
-		"task_path": ch.GetOtherSettings().TaskApiPath,
+		"task_id":         task.GetUpstreamTaskID(),
+		"action":          task.Action,
+		"task_path":       ch.GetOtherSettings().TaskApiPath,
+		"task_query_path": ch.GetOtherSettings().TaskQueryApiPath,
 	}, proxy)
 	if err != nil {
 		return fmt.Errorf("fetchTask failed for task %s: %w", taskId, err)
@@ -651,6 +652,14 @@ func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor
 	if actualQuota := adaptor.AdjustBillingOnComplete(task, taskResult); actualQuota > 0 {
 		RecalculateTaskQuota(ctx, task, actualQuota, "adaptor计费调整")
 		return
+	}
+	// 1.5 按秒计费：上游回报真实时长后按实际秒数补扣。
+	// 放在 token 重算之前，避免被 completion_tokens 的估算口径覆盖。
+	if bc := task.PrivateData.BillingContext; bc != nil && bc.UseVideoSecond {
+		if taskResult != nil && taskResult.VideoSeconds > 0 {
+			RecalculateTaskQuotaBySeconds(ctx, task, taskResult.VideoSeconds, taskResult.VideoVariant)
+			return
+		}
 	}
 	// 2. 回退到 token 重算
 	if taskResult.TotalTokens > 0 {
