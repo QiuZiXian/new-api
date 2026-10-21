@@ -20,8 +20,12 @@ import { Crown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import {
+  formatQuotaInUnit,
+  normalizePlanQuotaUnit,
+  quotaUnitSuffixKey,
+} from '@/features/subscriptions/lib'
 import type { UserSubscriptionRecord } from '@/features/subscriptions/types'
-import { formatQuota } from '@/lib/format'
 
 type CurrentSubscriptionStripProps = {
   subscriptions: UserSubscriptionRecord[]
@@ -47,6 +51,10 @@ export function CurrentSubscriptionStrip({
           <div className='min-w-0 space-y-1'>
             {subscriptions.map((record) => {
               const subscription = record.subscription
+              const unit = normalizePlanQuotaUnit(
+                record.plan?.quota_unit ?? subscription.quota_unit
+              )
+              const unitLabel = quotaUnitSuffixKey(unit)
               const total = Number(subscription.amount_total || 0)
               const used = Number(subscription.amount_used || 0)
               const remaining = total > 0 ? Math.max(0, total - used) : 0
@@ -65,7 +73,9 @@ export function CurrentSubscriptionStrip({
                     {total > 0 ? (
                       <>
                         {' · '}
-                        {t('Remaining')} {formatQuota(remaining)}
+                        {t('Remaining')}{' '}
+                        {formatQuotaInUnit(remaining, unit)}
+                        {unitLabel ? ` ${t(unitLabel)}` : ''}
                       </>
                     ) : null}
                   </p>

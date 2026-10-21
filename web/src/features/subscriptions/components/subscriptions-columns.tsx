@@ -25,9 +25,12 @@ import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
 import { formatLocalCurrencyAmount } from '@/lib/currency'
-import { formatQuota } from '@/lib/format'
 
 import { formatDuration, formatResetPeriod } from '../lib'
+import {
+  formatQuotaInUnit,
+  quotaUnitSuffixKey,
+} from '../lib/quota'
 import type { PlanRecord } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 
@@ -169,9 +172,14 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         meta: { mobileHidden: true },
         cell: ({ row }) => {
           const total = Number(row.original.plan.total_amount || 0)
+          const unitLabel = quotaUnitSuffixKey(row.original.plan.quota_unit)
           return (
             <span className='text-muted-foreground'>
-              {total > 0 ? formatQuota(total) : t('Unlimited')}
+              {total > 0
+                ? `${formatQuotaInUnit(total, row.original.plan.quota_unit)}${
+                    unitLabel ? ` ${t(unitLabel)}` : ''
+                  }`
+                : t('Unlimited')}
             </span>
           )
         },

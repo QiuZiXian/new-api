@@ -21,23 +21,38 @@ import { createElement } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
-import type { SubscriptionPlan } from '@/features/subscriptions/types'
-import { formatQuota } from '@/lib/format'
+import {
+  formatQuotaInUnit,
+  normalizePlanQuotaUnit,
+  quotaUnitSuffixKey,
+  quotaUsagePercent,
+} from '@/features/subscriptions/lib'
+import type {
+  SubscriptionPlan,
+  SubscriptionQuotaUsage,
+} from '@/features/subscriptions/types'
 import { cn } from '@/lib/utils'
 
 import {
   formatPricePeriod,
-  formatQuotaCount,
-  normalizeQuotaUnit,
   resolvePlanAccent,
   resolvePlanIcon,
   splitFormattedPrice,
 } from '../lib/display'
 
+/** Live consumption of the plan the user already owns, if any. */
+export type PlanUsage = {
+  totalUsed: number
+  totalLimit: number
+  totalRemaining: number
+  modelUsage: SubscriptionQuotaUsage[]
+}
+
 type PlanCardProps = {
   plan: SubscriptionPlan
   index: number
   purchaseCount: number
+  usage?: PlanUsage | null
   onSubscribe: () => void
 }
 
@@ -45,6 +60,7 @@ export function PlanCard({
   plan,
   index,
   purchaseCount,
+  usage,
   onSubscribe,
 }: PlanCardProps) {
   const { t } = useTranslation()
@@ -55,20 +71,19 @@ export function PlanCard({
   const featured = Boolean(plan.highlight)
   const price = splitFormattedPrice(Number(plan.price_amount || 0))
   const period = formatPricePeriod(plan, t)
+  const quotaUnit = normalizePlanQuotaUnit(plan.quota_unit)
+  const unitLabel = quotaUnitSuffixKey(quotaUnit)
   const quotaItems = plan.quota_items ?? []
   const features = plan.features ?? []
-  // Totals are grouped per unit so a plan can mix "1,000 calls" with "2M tokens".
-  const quotaTotals = quotaItems.reduce<Record<string, number>>(
-    (totals, item) => {
-      const unit = normalizeQuotaUnit(item.unit)
-      totals[unit] = (totals[unit] ?? 0) + Number(item.count || 0)
-      return totals
-    },
-    {}
-  )
-  const quotaTotalRows = Object.entries(quotaTotals)
+  const totalQuota = Number(plan.total_amount || 0)
+  const sharedLimit = Math.max(0, totalQuota - allocatedTotal(quotaItems))
   const purchaseLimit = Number(plan.max_purchase_per_user || 0)
   const limitReached = purchaseLimit > 0 && purchaseCount >= purchaseLimit
+
+  const usageByModel = new Map<string, SubscriptionQuotaUsage>()
+  for (const item of usage?.modelUsage ?? []) {
+    usageByModel.set(item.model.trim().toLowerCase(), item)
+  }
 
   return (
     <article
@@ -130,61 +145,93 @@ export function PlanCard({
       <div className='bg-muted/40 mt-4 rounded-xl p-3'>
         {quotaItems.length > 0 ? (
           <div className='space-y-3'>
-            {quotaItems.map((item) => (
-              <div key={item.model}>
-                <div className='flex items-center justify-between gap-2'>
-                  <span className='flex min-w-0 items-center gap-1.5'>
-                    <span
-                      className={cn(
-                        'size-1.5 shrink-0 rotate-45 rounded-[1px]',
-                        accent.dot
+            {quotaItems.map((item) => {
+              const used = usageByModel.get(item.model.trim().toLowerCase())?.used
+              const percent =
+                used === undefined ? 0 : quotaUsagePercent(used, item.count)
+              return (
+                <div key={item.model}>
+                  <div className='flex items-center justify-between gap-2'>
+                    <span className='flex min-w-0 items-center gap-1.5'>
+                      <span
+                        className={cn(
+                          'size-1.5 shrink-0 rotate-45 rounded-[1px]',
+                          accent.dot
+                        )}
+                      />
+                      <span className='truncate font-mono text-[11px] font-medium'>
+                        {item.model}
+                      </span>
+                    </span>
+                    <span className='shrink-0 text-[11px] font-semibold tabular-nums'>
+                      {used === undefined ? null : (
+                        <span className='text-muted-foreground font-normal'>
+                          {formatQuotaInUnit(used, quotaUnit)} /{' '}
+                        </span>
                       )}
+                      {formatQuotaInUnit(item.count, quotaUnit)}
+                      {unitLabel ? (
+                        <span className='text-muted-foreground ml-1 font-normal'>
+                          {t(unitLabel)}
+                        </span>
+                      ) : null}
+                    </span>
+                  </div>
+                  <div className='bg-border/60 mt-1.5 h-1 w-full overflow-hidden rounded-full'>
+                    <div
+                      className={cn(
+                        'h-full rounded-full bg-gradient-to-r transition-[width] duration-500',
+                        accent.bar
+                      )}
+                      style={{ width: `${used === undefined ? 100 : percent}%` }}
                     />
-                    <span className='truncate font-mono text-[11px] font-medium'>
-                      {item.model}
-                    </span>
-                  </span>
-                  <span className='shrink-0 text-[11px] font-semibold tabular-nums'>
-                    {formatQuotaCount(item.count, item.unit)}{' '}
-                    <span className='text-muted-foreground font-normal'>
-                      {t(normalizeQuotaUnit(item.unit) === 'token' ? 'tokens' : 'calls')}
-                    </span>
-                  </span>
+                  </div>
                 </div>
-                <div className='bg-border/60 mt-1.5 h-1 w-full overflow-hidden rounded-full'>
+              )
+            })}
+            {sharedLimit > 0 ? (
+              <div className='text-muted-foreground flex items-center justify-between text-[11px]'>
+                <span>{t('Shared quota')}</span>
+                <span className='font-medium tabular-nums'>
+                  {formatQuotaInUnit(sharedLimit, quotaUnit)}{' '}
+                  {unitLabel ? t(unitLabel) : null}
+                </span>
+              </div>
+            ) : null}
+            <div className='border-border/70 border-t pt-2.5 text-[11px]'>
+              <div className='flex items-center justify-between'>
+                <span className='text-muted-foreground'>
+                  {usage ? t('Remaining') : t(totalLabelKey(quotaUnit))}
+                </span>
+                <span className='font-semibold tabular-nums'>
+                  {renderTotalQuota(usage, totalQuota, quotaUnit, t)}
+                  {unitLabel && !(usage && usage.totalLimit <= 0)
+                    ? ` ${t(unitLabel)}`
+                    : ''}
+                </span>
+              </div>
+              {usage ? (
+                <div className='bg-border/60 mt-1.5 h-1.5 w-full overflow-hidden rounded-full'>
                   <div
                     className={cn(
-                      'h-full w-full rounded-full bg-gradient-to-r',
+                      'h-full rounded-full bg-gradient-to-r',
                       accent.bar
                     )}
+                    style={{
+                      width: `${quotaUsagePercent(usage.totalUsed, usage.totalLimit)}%`,
+                    }}
                   />
                 </div>
-              </div>
-            ))}
-            <div className='border-border/70 space-y-1 border-t pt-2.5 text-[11px]'>
-              {quotaTotalRows.map(([unit, total]) => (
-                <div
-                  key={unit}
-                  className='flex items-center justify-between'
-                >
-                  <span className='text-muted-foreground'>
-                    {t(unit === 'token' ? 'Total tokens' : 'Total calls')}
-                  </span>
-                  <span className='font-semibold tabular-nums'>
-                    {formatQuotaCount(total, unit)}{' '}
-                    {t(unit === 'token' ? 'tokens' : 'calls')}
-                  </span>
-                </div>
-              ))}
+              ) : null}
             </div>
           </div>
         ) : (
           <div className='flex items-center justify-between text-[11px]'>
-            <span className='text-muted-foreground'>{t('Plan Quota')}</span>
+            <span className='text-muted-foreground'>
+              {usage ? t('Remaining') : t('Plan Quota')}
+            </span>
             <span className='font-semibold'>
-              {Number(plan.total_amount || 0) > 0
-                ? formatQuota(Number(plan.total_amount || 0))
-                : t('Unlimited')}
+              {renderTotalQuota(usage, totalQuota, quotaUnit, t)}
             </span>
           </div>
         )}
@@ -233,4 +280,39 @@ export function PlanCard({
       )}
     </article>
   )
+}
+
+function allocatedTotal(
+  items: Array<{ count: number }> | undefined
+): number {
+  return (items ?? []).reduce(
+    (sum, item) => sum + Math.max(0, Number(item.count) || 0),
+    0
+  )
+}
+
+function totalLabelKey(unit: string): string {
+  switch (unit) {
+    case 'token':
+      return 'Total tokens'
+    case 'call':
+      return 'Total calls'
+    default:
+      return 'Total quota'
+  }
+}
+
+function renderTotalQuota(
+  usage: PlanUsage | null | undefined,
+  planTotal: number,
+  unit: string,
+  t: (key: string) => string
+): string {
+  if (!usage) {
+    return planTotal > 0 ? formatQuotaInUnit(planTotal, unit) : t('Unlimited')
+  }
+  if (usage.totalLimit <= 0) {
+    return t('Unlimited')
+  }
+  return `${formatQuotaInUnit(usage.totalRemaining, unit)} / ${formatQuotaInUnit(usage.totalLimit, unit)}`
 }

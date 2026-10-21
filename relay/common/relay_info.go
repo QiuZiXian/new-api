@@ -129,8 +129,11 @@ type RelayInfo struct {
 	BillingSource string
 	// SubscriptionId is the user_subscriptions.id used when BillingSource == "subscription"
 	SubscriptionId int
-	// SubscriptionPreConsumed is the amount pre-consumed on subscription item (quota units or 1)
+	// SubscriptionPreConsumed is the amount pre-consumed on subscription item,
+	// expressed in SubscriptionQuotaUnit (framework quota / calls / tokens).
 	SubscriptionPreConsumed int64
+	// SubscriptionQuotaUnit is the ledger unit of the subscription ("amount"/"call"/"token").
+	SubscriptionQuotaUnit string
 	// SubscriptionPostDelta is the post-consume delta applied to amount_used (quota units; can be negative).
 	SubscriptionPostDelta int64
 	// SubscriptionPlanId / SubscriptionPlanTitle are used for logging/UI display.

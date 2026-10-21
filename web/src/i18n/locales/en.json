@@ -5611,6 +5611,20 @@
     "One feature per line, shown as a checklist on the plans page.": "One feature per line, shown as a checklist on the plans page.",
     "Select a model": "Select a model",
     "Shown per model on the plans page as calls or tokens. Actual deduction still follows the plan quota above.": "Shown per model on the plans page as calls or tokens. Actual deduction still follows the plan quota above.",
-    "Listed models are capped at the configured calls or tokens per reset cycle. Leave empty to skip per-model limits; unlisted models still use the plan quota above.": "Listed models are capped at the configured calls or tokens per reset cycle. Leave empty to skip per-model limits; unlisted models still use the plan quota above."
+    "Listed models are capped at the configured calls or tokens per reset cycle. Leave empty to skip per-model limits; unlisted models still use the plan quota above.": "Listed models are capped at the configured calls or tokens per reset cycle. Leave empty to skip per-model limits; unlisted models still use the plan quota above.",
+    "Quota unit": "Quota unit",
+    "Calls": "Calls",
+    "Total quota": "Total quota",
+    "Allocated": "Allocated",
+    "Plan total": "Plan total",
+    "Shared pool": "Shared pool",
+    "Shared quota": "Shared quota",
+    "Enter the total number of calls": "Enter the total number of calls",
+    "Enter the total number of tokens": "Enter the total number of tokens",
+    "Quota (framework amount)": "Quota (framework amount)",
+    "The single unit for the plan total and every per-model quota. Switching it clears the amounts.": "The single unit for the plan total and every per-model quota. Switching it clears the amounts.",
+    "Total quota included in the plan for each reset cycle. 0 means unlimited.": "Total quota included in the plan for each reset cycle. 0 means unlimited.",
+    "Per-model quota is expressed in the plan quota unit. The sum must not exceed the plan total; whatever is left over stays available as a shared pool.": "Per-model quota is expressed in the plan quota unit. The sum must not exceed the plan total; whatever is left over stays available as a shared pool.",
+    "Allocated per-model quota exceeds the plan total": "Allocated per-model quota exceeds the plan total"
   }
 }

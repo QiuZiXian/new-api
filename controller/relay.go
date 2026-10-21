@@ -582,6 +582,9 @@ func RelayTask(c *gin.Context) {
 		task.PrivateData.UpstreamTaskID = result.UpstreamTaskID
 		task.PrivateData.BillingSource = relayInfo.BillingSource
 		task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
+		task.PrivateData.SubscriptionQuotaUnit = relayInfo.SubscriptionQuotaUnit
+		task.PrivateData.SubscriptionReserved = relayInfo.SubscriptionPreConsumed
+		task.PrivateData.SubscriptionTokens = int64(relayInfo.GetEstimatePromptTokens())
 		task.PrivateData.TokenId = relayInfo.TokenId
 		task.PrivateData.NodeName = common.NodeName
 		task.PrivateData.BillingContext = &model.TaskBillingContext{

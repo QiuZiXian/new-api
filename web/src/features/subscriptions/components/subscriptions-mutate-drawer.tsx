@@ -77,6 +77,7 @@ import {
   PLAN_ICON_OPTIONS,
 } from '@/features/plans/lib/display'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
+import { cn } from '@/lib/utils'
 
 import {
   createPlan,
@@ -88,14 +89,74 @@ import {
 import { getDurationUnitOptions, getResetPeriodOptions } from '../constants'
 import { useModelSquareOptions } from '../hooks/use-model-square-options'
 import {
+  formatQuotaInUnit,
   getPlanFormSchema,
+  normalizePlanQuotaUnit,
   PLAN_FORM_DEFAULTS,
   planToFormValues,
   formValuesToPlanPayload,
+  quotaUnitSuffixKey,
   type PlanFormValues,
 } from '../lib'
-import type { PlanRecord } from '../types'
+import type { PlanQuotaUnit, PlanRecord } from '../types'
 import { useSubscriptions } from './subscriptions-provider'
+
+const QUOTA_UNIT_OPTIONS: Array<{
+  value: PlanQuotaUnit
+  labelKey: string
+}> = [
+  { value: 'amount', labelKey: 'Quota (framework amount)' },
+  { value: 'call', labelKey: 'Calls' },
+  { value: 'token', labelKey: 'Tokens' },
+]
+
+function totalQuotaLabel(
+  unit: PlanQuotaUnit,
+  currencyLabel: string,
+  t: (key: string, options?: Record<string, unknown>) => string
+): string {
+  switch (unit) {
+    case 'call':
+      return t('Total calls')
+    case 'token':
+      return t('Total tokens')
+    default:
+      return t('Quota ({{currency}})', { currency: currencyLabel })
+  }
+}
+
+function totalQuotaPlaceholder(
+  unit: PlanQuotaUnit,
+  currencyLabel: string,
+  tokensOnly: boolean,
+  t: (key: string, options?: Record<string, unknown>) => string
+): string {
+  switch (unit) {
+    case 'call':
+      return t('Enter the total number of calls')
+    case 'token':
+      return t('Enter the total number of tokens')
+    default:
+      return tokensOnly
+        ? t('Enter quota in tokens')
+        : t('Enter quota in {{currency}}', { currency: currencyLabel })
+  }
+}
+
+function quotaUnitLabelText(
+  unit: PlanQuotaUnit,
+  currencyLabel: string,
+  t: (key: string, options?: Record<string, unknown>) => string
+): string {
+  switch (unit) {
+    case 'call':
+      return t('calls')
+    case 'token':
+      return t('tokens')
+    default:
+      return currencyLabel
+  }
+}
 
 interface Props {
   open: boolean
@@ -172,6 +233,13 @@ export function SubscriptionsMutateDrawer({
 
   const durationUnit = form.watch('duration_unit')
   const resetPeriod = form.watch('quota_reset_period')
+  const quotaUnit = normalizePlanQuotaUnit(form.watch('quota_unit'))
+  const quotaUnitLabelKey = quotaUnitSuffixKey(quotaUnit)
+  const watchedTotalAmount = Number(form.watch('total_amount') || 0)
+  const allocatedQuota = (form.watch('quota_items') ?? []).reduce(
+    (sum, item) => sum + Math.max(0, Number(item.count) || 0),
+    0
+  )
   // Gate "+ Create on Pancake" on the same checks the mint handler runs.
   const watchedTitle = form.watch('title')
   const watchedPrice = form.watch('price_amount')
@@ -376,25 +444,68 @@ export function SubscriptionsMutateDrawer({
 
                 <FormField
                   control={form.control}
+                  name='quota_unit'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Quota unit')}</FormLabel>
+                      <Select
+                        items={QUOTA_UNIT_OPTIONS.map((option) => ({
+                          value: option.value,
+                          label: t(option.labelKey),
+                        }))}
+                        onValueChange={(v) => {
+                          if (!v) return
+                          // Re-base the entered numbers so the same plan keeps
+                          // its meaning when the unit changes.
+                          field.onChange(v)
+                          form.setValue('total_amount', 0)
+                          form.setValue('quota_items', [])
+                        }}
+                        value={field.value || 'amount'}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent alignItemWithTrigger={false}>
+                          <SelectGroup>
+                            {QUOTA_UNIT_OPTIONS.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {t(option.labelKey)}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        {t(
+                          'The single unit for the plan total and every per-model quota. Switching it clears the amounts.'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
                   name='total_amount'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>
-                        {t('Quota ({{currency}})', { currency: currencyLabel })}
-                      </FormLabel>
+                      <FormLabel>{totalQuotaLabel(quotaUnit, currencyLabel, t)}</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
                           type='number'
                           min={0}
-                          step={tokensOnly ? 1 : 0.01}
-                          placeholder={
-                            tokensOnly
-                              ? t('Enter quota in tokens')
-                              : t('Enter quota in {{currency}}', {
-                                  currency: currencyLabel,
-                                })
-                          }
+                          step={quotaUnit === 'amount' && !tokensOnly ? 0.01 : 1}
+                          placeholder={totalQuotaPlaceholder(
+                            quotaUnit,
+                            currencyLabel,
+                            tokensOnly,
+                            t
+                          )}
                           onChange={(e) =>
                             field.onChange(
                               Number.parseFloat(e.target.value) || 0
@@ -404,7 +515,7 @@ export function SubscriptionsMutateDrawer({
                       </FormControl>
                       <FormDescription>
                         {t(
-                          'Total quota included in the plan, usable per billing period. 0 means unlimited.'
+                          'Total quota included in the plan for each reset cycle. 0 means unlimited.'
                         )}
                       </FormDescription>
                       <FormMessage />
@@ -761,7 +872,7 @@ export function SubscriptionsMutateDrawer({
                   <Label>{t('Model quota breakdown')}</Label>
                   <p className='text-muted-foreground text-sm'>
                     {t(
-                      'Listed models are capped at the configured calls or tokens per reset cycle. Leave empty to skip per-model limits; unlisted models still use the plan quota above.'
+                      'Per-model quota is expressed in the plan quota unit. The sum must not exceed the plan total; whatever is left over stays available as a shared pool.'
                     )}
                   </p>
                 </div>
@@ -791,48 +902,23 @@ export function SubscriptionsMutateDrawer({
                     />
                     <FormField
                       control={form.control}
-                      name={`quota_items.${index}.unit`}
-                      render={({ field }) => (
-                        <FormItem className='w-[5.5rem] shrink-0'>
-                          <Select
-                            items={[
-                              { value: 'call', label: t('calls') },
-                              { value: 'token', label: t('tokens') },
-                            ]}
-                            onValueChange={(v) => field.onChange(v ?? 'call')}
-                            value={field.value || 'call'}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent alignItemWithTrigger={false}>
-                              <SelectGroup>
-                                <SelectItem value='call'>{t('calls')}</SelectItem>
-                                <SelectItem value='token'>
-                                  {t('tokens')}
-                                </SelectItem>
-                              </SelectGroup>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
                       name={`quota_items.${index}.count`}
                       render={({ field }) => (
-                        <FormItem className='w-24 shrink-0'>
+                        <FormItem className='w-32 shrink-0'>
                           <FormControl>
                             <Input
                               {...field}
                               type='number'
                               min={0}
+                              step={quotaUnit === 'amount' ? 0.01 : 1}
+                              placeholder={quotaUnitLabelText(
+                                quotaUnit,
+                                currencyLabel,
+                                t
+                              )}
                               onChange={(e) =>
                                 field.onChange(
-                                  Number.parseInt(e.target.value, 10) || 0
+                                  Number.parseFloat(e.target.value) || 0
                                 )
                               }
                             />
@@ -856,14 +942,46 @@ export function SubscriptionsMutateDrawer({
                   type='button'
                   variant='outline'
                   size='sm'
-                  onClick={() =>
-                    appendQuota({ model: '', count: 0, unit: 'call' })
-                  }
+                  onClick={() => appendQuota({ model: '', count: 0 })}
                   disabled={quotaFields.length >= 12}
                 >
                   <Plus className='size-4' />
                   {t('Add model quota')}
                 </Button>
+                <div className='text-muted-foreground space-y-1 text-xs'>
+                  <div className='flex items-center justify-between'>
+                    <span>{t('Allocated')}</span>
+                    <span className='tabular-nums'>
+                      {formatQuotaInUnit(allocatedQuota, quotaUnit)}
+                      {quotaUnit !== 'amount' ? ` ${t(quotaUnitLabelKey)}` : ''}
+                    </span>
+                  </div>
+                  <div className='flex items-center justify-between'>
+                    <span>{t('Plan total')}</span>
+                    <span className='tabular-nums'>
+                      {formatQuotaInUnit(watchedTotalAmount, quotaUnit)}
+                      {quotaUnit !== 'amount' ? ` ${t(quotaUnitLabelKey)}` : ''}
+                    </span>
+                  </div>
+                  <div className='flex items-center justify-between'>
+                    <span>{t('Shared pool')}</span>
+                    <span
+                      className={cn(
+                        'tabular-nums',
+                        allocatedQuota > watchedTotalAmount &&
+                          watchedTotalAmount > 0
+                          ? 'text-destructive font-medium'
+                          : ''
+                      )}
+                    >
+                      {formatQuotaInUnit(
+                        Math.max(0, watchedTotalAmount - allocatedQuota),
+                        quotaUnit
+                      )}
+                      {quotaUnit !== 'amount' ? ` ${t(quotaUnitLabelKey)}` : ''}
+                    </span>
+                  </div>
+                </div>
               </div>
 
               <FormField

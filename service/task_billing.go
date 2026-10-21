@@ -86,9 +86,19 @@ func taskIsSubscription(task *model.Task) bool {
 	return task.PrivateData.BillingSource == BillingSourceSubscription && task.PrivateData.SubscriptionId > 0
 }
 
+// taskSubscriptionUnit 返回任务提交时快照的订阅记账单位。
+func taskSubscriptionUnit(task *model.Task) string {
+	return model.NormalizePlanQuotaUnit(task.PrivateData.SubscriptionQuotaUnit)
+}
+
 // taskAdjustFunding 调整任务的资金来源（钱包或订阅），delta > 0 表示扣费，delta < 0 表示退还。
 func taskAdjustFunding(task *model.Task, delta int) error {
 	if taskIsSubscription(task) {
+		// 按次/按 token 记账的订阅，账本在预扣时已按单位记好，
+		// 金额差额（以及任务完成后的金额重算）不能直接加到次数或 token 上。
+		if taskSubscriptionUnit(task) != model.SubscriptionQuotaUnitAmount {
+			return nil
+		}
 		return model.PostConsumeUserSubscriptionDelta(task.PrivateData.SubscriptionId, int64(delta))
 	}
 	if delta > 0 {
@@ -170,16 +180,26 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) bool 
 	}
 
 	// 1. 退还资金来源（钱包或订阅）
-	if err := taskAdjustFunding(task, -quota); err != nil {
+	if taskIsSubscription(task) {
+		unit := taskSubscriptionUnit(task)
+		reserved := task.PrivateData.SubscriptionReserved
+		if unit == model.SubscriptionQuotaUnitAmount {
+			// 金额口径退的是最终结算额度（台账已含差额结算）。
+			reserved = int64(quota)
+		}
+		if err := model.RefundSubscriptionUsage(
+			task.PrivateData.SubscriptionId,
+			taskModelName(task),
+			unit,
+			reserved,
+			task.PrivateData.SubscriptionTokens,
+		); err != nil {
+			logger.LogWarn(ctx, fmt.Sprintf("退还订阅额度失败 task %s: %s", task.TaskID, err.Error()))
+			return false
+		}
+	} else if err := taskAdjustFunding(task, -quota); err != nil {
 		logger.LogWarn(ctx, fmt.Sprintf("退还资金来源失败 task %s: %s", task.TaskID, err.Error()))
 		return false
-	}
-	// 订阅计费：异步任务走 PostConsumeUserSubscriptionDelta 退款，不经过 request 记录，
-	// 因此需要显式回滚预扣时累加的逐模型调用次数。
-	if taskIsSubscription(task) {
-		if err := model.RefundSubscriptionModelUsage(task.PrivateData.SubscriptionId, taskModelName(task)); err != nil {
-			logger.LogWarn(ctx, fmt.Sprintf("回滚订阅模型用量失败 task %s: %s", task.TaskID, err.Error()))
-		}
 	}
 
 	// 2. 退还令牌额度
@@ -244,6 +264,14 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 		logger.LogError(ctx, fmt.Sprintf("差额结算资金调整失败 task %s: %s", task.TaskID, err.Error()))
 		return
 	}
+	// 订阅按金额记账时，逐模型金额要跟着账本一起调整。
+	if taskIsSubscription(task) && taskSubscriptionUnit(task) == model.SubscriptionQuotaUnitAmount {
+		if name := taskModelName(task); name != "" {
+			if err := model.AdjustSubscriptionModelAmount(task.PrivateData.SubscriptionId, name, int64(quotaDelta)); err != nil {
+				logger.LogWarn(ctx, fmt.Sprintf("调整订阅模型金额失败 task %s: %s", task.TaskID, err.Error()))
+			}
+		}
+	}
 
 	// 调整令牌额度
 	taskAdjustTokenQuota(ctx, task, quotaDelta)
@@ -296,6 +324,24 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 	}
 
 	modelName := taskModelName(task)
+
+	// 按 token 记账的订阅：账本和逐模型计数都按真实 token 补差，金额重算不参与。
+	if taskIsSubscription(task) && taskSubscriptionUnit(task) == model.SubscriptionQuotaUnitToken {
+		delta := int64(totalTokens) - task.PrivateData.SubscriptionTokens
+		if delta == 0 {
+			return
+		}
+		if err := model.SettleSubscriptionTokens(task.PrivateData.SubscriptionId, modelName, delta); err != nil {
+			logger.LogError(ctx, fmt.Sprintf("token 订阅差额结算失败 task %s: %s", task.TaskID, err.Error()))
+			return
+		}
+		task.PrivateData.SubscriptionTokens = int64(totalTokens)
+		if err := model.DB.Model(&model.Task{}).Where("id = ?", task.ID).
+			Update("private_data", task.PrivateData).Error; err != nil {
+			logger.LogWarn(ctx, fmt.Sprintf("回写任务订阅 token 快照失败 task %s: %s", task.TaskID, err.Error()))
+		}
+		return
+	}
 
 	// 获取模型价格和倍率
 	modelRatio, hasRatioSetting, _ := ratio_setting.GetModelRatio(modelName)

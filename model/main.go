@@ -364,6 +364,9 @@ func migrateDB() error {
 			return err
 		}
 	}
+	if err := migrateSubscriptionQuotaUnits(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -449,7 +452,91 @@ func migrateDBFast() error {
 			return err
 		}
 	}
+	if err := migrateSubscriptionQuotaUnits(); err != nil {
+		return err
+	}
 	common.SysLog("database migrated")
+	return nil
+}
+
+// migrateSubscriptionQuotaUnits re-bases plans that were saved before the
+// plan-level quota unit existed.
+//
+// Such a plan used to mix two units: TotalAmount was framework quota (money)
+// while QuotaItems counted calls/tokens. That combination cannot be verified
+// against "sum(items) == total", so the per-model breakdown is adopted as the
+// plan definition: quota_unit comes from the items and the total becomes the
+// sum of the items. Plans without items keep their money semantics ("amount").
+func migrateSubscriptionQuotaUnits() error {
+	if !DB.Migrator().HasTable(&SubscriptionPlan{}) {
+		return nil
+	}
+	var plans []SubscriptionPlan
+	if err := DB.Where("quota_unit IS NULL OR quota_unit = '' OR quota_unit = ?", SubscriptionQuotaUnitAmount).
+		Find(&plans).Error; err != nil {
+		return err
+	}
+	for i := range plans {
+		plan := &plans[i]
+		if len(plan.QuotaItems) == 0 {
+			if strings.TrimSpace(plan.QuotaUnit) == "" {
+				if err := DB.Model(&SubscriptionPlan{}).Where("id = ?", plan.Id).
+					Update("quota_unit", SubscriptionQuotaUnitAmount).Error; err != nil {
+					return err
+				}
+			}
+			continue
+		}
+		legacyUnit := ""
+		var allocated int64
+		for _, item := range plan.QuotaItems {
+			raw := strings.ToLower(strings.TrimSpace(item.Unit))
+			unit := ""
+			switch raw {
+			case SubscriptionQuotaUnitCall, "calls":
+				unit = SubscriptionQuotaUnitCall
+			case SubscriptionQuotaUnitToken, "tokens":
+				unit = SubscriptionQuotaUnitToken
+			}
+			if unit == "" {
+				// Already expressed in the plan unit (new data) or unknown.
+				legacyUnit = ""
+				break
+			}
+			if legacyUnit == "" {
+				legacyUnit = unit
+			} else if legacyUnit != unit {
+				// Mixed units cannot be unified automatically; leave the plan
+				// untouched and let the admin re-save it from the form.
+				legacyUnit = ""
+				break
+			}
+			if item.Count > 0 {
+				allocated += item.Count
+			}
+		}
+		if legacyUnit == "" || allocated <= 0 {
+			continue
+		}
+		if NormalizePlanQuotaUnit(plan.QuotaUnit) == legacyUnit {
+			continue
+		}
+		if err := DB.Model(&SubscriptionPlan{}).Where("id = ?", plan.Id).
+			Updates(map[string]interface{}{
+				"quota_unit":   legacyUnit,
+				"total_amount": allocated,
+			}).Error; err != nil {
+			return err
+		}
+		// Keep existing subscriptions on the same unit as their plan so their
+		// ledger and their per-model counters stay comparable.
+		if err := DB.Model(&UserSubscription{}).
+			Where("plan_id = ? AND (quota_unit IS NULL OR quota_unit = '' OR quota_unit = ?)", plan.Id, SubscriptionQuotaUnitAmount).
+			Update("quota_unit", legacyUnit).Error; err != nil {
+			return err
+		}
+		common.SysLog(fmt.Sprintf("subscription plan %d re-based to %s unit (total=%d)", plan.Id, legacyUnit, allocated))
+	}
 	return nil
 }
 
@@ -580,6 +667,7 @@ func ensureSubscriptionPlanTableSQLite() error {
 ` + "`upgrade_group`" + ` varchar(64) DEFAULT '',
 ` + "`downgrade_group`" + ` varchar(64) DEFAULT '',
 ` + "`total_amount`" + ` bigint NOT NULL DEFAULT 0,
+` + "`quota_unit`" + ` varchar(16) NOT NULL DEFAULT 'amount',
 ` + "`quota_reset_period`" + ` varchar(16) DEFAULT 'never',
 ` + "`quota_reset_custom_seconds`" + ` bigint DEFAULT 0,
 ` + "`billing_note`" + ` varchar(32) DEFAULT '',
@@ -624,6 +712,7 @@ PRIMARY KEY (` + "`id`" + `)
 		{Name: "upgrade_group", DDL: "`upgrade_group` varchar(64) DEFAULT ''"},
 		{Name: "downgrade_group", DDL: "`downgrade_group` varchar(64) DEFAULT ''"},
 		{Name: "total_amount", DDL: "`total_amount` bigint NOT NULL DEFAULT 0"},
+		{Name: "quota_unit", DDL: "`quota_unit` varchar(16) NOT NULL DEFAULT 'amount'"},
 		{Name: "quota_reset_period", DDL: "`quota_reset_period` varchar(16) DEFAULT 'never'"},
 		{Name: "quota_reset_custom_seconds", DDL: "`quota_reset_custom_seconds` bigint DEFAULT 0"},
 		{Name: "billing_note", DDL: "`billing_note` varchar(32) DEFAULT ''"},

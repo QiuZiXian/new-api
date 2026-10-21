@@ -44,6 +44,8 @@ export function getPlanFormSchema(t: TFunction) {
     allow_balance_pay: z.boolean(),
     allow_wallet_overflow: z.boolean(),
     max_purchase_per_user: z.coerce.number().min(0),
+    // A plan has ONE quota unit: framework quota (amount), calls or tokens.
+    quota_unit: z.enum(['amount', 'call', 'token']),
     total_amount: z.coerce.number().min(0),
     upgrade_group: z.string().optional(),
     downgrade_group: z.string().optional(),
@@ -61,11 +63,25 @@ export function getPlanFormSchema(t: TFunction) {
         z.object({
           model: z.string(),
           count: z.coerce.number().min(0),
-          unit: z.enum(['call', 'token']),
         })
       )
       .optional(),
     features_text: z.string().optional(),
+  }).superRefine((values, ctx) => {
+    // The per-model breakdown must fit inside the plan total; the remainder (if
+    // any) stays available as a shared pool for models that are not listed.
+    const allocated = (values.quota_items ?? []).reduce(
+      (sum, item) => sum + Math.max(0, Number(item.count) || 0),
+      0
+    )
+    const total = Number(values.total_amount) || 0
+    if (allocated > 0 && total > 0 && allocated > total) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['quota_items'],
+        message: t('Allocated per-model quota exceeds the plan total'),
+      })
+    }
   })
 }
 
@@ -85,6 +101,7 @@ export const PLAN_FORM_DEFAULTS: PlanFormValues = {
   allow_balance_pay: true,
   allow_wallet_overflow: true,
   max_purchase_per_user: 0,
+  quota_unit: 'amount',
   total_amount: 0,
   upgrade_group: '',
   downgrade_group: '',
@@ -101,6 +118,7 @@ export const PLAN_FORM_DEFAULTS: PlanFormValues = {
 }
 
 export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
+  const quotaUnit = normalizeFormQuotaUnit(plan.quota_unit)
   return {
     title: plan.title || '',
     subtitle: plan.subtitle || '',
@@ -115,7 +133,11 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
     allow_balance_pay: plan.allow_balance_pay !== false,
     allow_wallet_overflow: plan.allow_wallet_overflow !== false,
     max_purchase_per_user: Number(plan.max_purchase_per_user || 0),
-    total_amount: quotaUnitsToDollars(Number(plan.total_amount || 0)),
+    quota_unit: quotaUnit,
+    total_amount: quotaToDisplay(
+      Number(plan.total_amount || 0),
+      quotaUnit
+    ),
     upgrade_group: plan.upgrade_group || '',
     downgrade_group: plan.downgrade_group || '',
     stripe_price_id: plan.stripe_price_id || '',
@@ -128,8 +150,7 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
     highlight: plan.highlight === true,
     quota_items: (plan.quota_items ?? []).map((item) => ({
       model: item.model,
-      count: Number(item.count || 0),
-      unit: item.unit === 'token' ? 'token' : 'call',
+      count: quotaToDisplay(Number(item.count || 0), quotaUnit),
     })),
     features_text: (plan.features ?? []).join('\n'),
   }
@@ -137,6 +158,7 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
 
 export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
   const { features_text, quota_items, ...rest } = values
+  const quotaUnit = normalizeFormQuotaUnit(values.quota_unit)
   return {
     plan: {
       ...rest,
@@ -151,7 +173,11 @@ export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
           : 0,
       sort_order: Number(values.sort_order || 0),
       max_purchase_per_user: Number(values.max_purchase_per_user || 0),
-      total_amount: parseQuotaFromDollars(Number(values.total_amount || 0)),
+      quota_unit: quotaUnit,
+      total_amount: quotaFromDisplay(
+        Number(values.total_amount || 0),
+        quotaUnit
+      ),
       upgrade_group: values.upgrade_group || '',
       downgrade_group: values.downgrade_group || '',
       billing_note: values.billing_note?.trim() || '',
@@ -162,14 +188,35 @@ export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
       quota_items: (quota_items ?? [])
         .map((item) => ({
           model: item.model.trim(),
-          count: Number(item.count || 0),
-          unit: item.unit === 'token' ? 'token' : 'call',
+          count: quotaFromDisplay(Number(item.count || 0), quotaUnit),
+          unit: quotaUnit,
         }))
-        .filter((item) => item.model !== ''),
+        .filter((item) => item.model !== '' && item.count > 0),
       features: (features_text ?? '')
         .split('\n')
         .map((line) => line.trim())
         .filter((line) => line !== ''),
     },
   }
+}
+
+function normalizeFormQuotaUnit(unit?: string): 'amount' | 'call' | 'token' {
+  if (unit === 'call' || unit === 'token') return unit
+  return 'amount'
+}
+
+/**
+ * Convert a stored quota value to the number shown in the form.
+ * `amount` is stored in framework quota units but edited as currency/tokens,
+ * while call/token counts are plain integers.
+ */
+function quotaToDisplay(value: number, unit: string): number {
+  return unit === 'amount' ? quotaUnitsToDollars(value) : value
+}
+
+/** Reverse of quotaToDisplay. */
+function quotaFromDisplay(value: number, unit: string): number {
+  return unit === 'amount'
+    ? parseQuotaFromDollars(value)
+    : Math.max(0, Math.round(value))
 }

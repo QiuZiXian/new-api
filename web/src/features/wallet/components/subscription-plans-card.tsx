@@ -52,12 +52,17 @@ import {
 } from '@/features/subscriptions/api'
 import { SubscriptionPurchaseDialog } from '@/features/subscriptions/components/dialogs/subscription-purchase-dialog'
 import { formatDuration, formatResetPeriod } from '@/features/subscriptions/lib'
+import {
+  formatQuotaInUnit,
+  normalizePlanQuotaUnit,
+  quotaUnitSuffixKey,
+  quotaUsagePercent,
+} from '@/features/subscriptions/lib/quota'
 import type {
   PlanRecord,
   UserSubscriptionRecord,
 } from '@/features/subscriptions/types'
 import { formatLocalCurrencyAmount } from '@/lib/currency'
-import { formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import type { PaymentMethod, TopupInfo } from '../types'
@@ -400,6 +405,10 @@ export function SubscriptionPlansCard({
               <div className='max-h-64 space-y-3 overflow-y-auto pr-1'>
                 {allSubscriptions.map((sub) => {
                   const subscription = sub.subscription
+                  const subUnit = normalizePlanQuotaUnit(
+                    sub.plan?.quota_unit ?? subscription?.quota_unit
+                  )
+                  const subUnitLabel = quotaUnitSuffixKey(subUnit)
                   const totalAmount = Number(subscription?.amount_total || 0)
                   const usedAmount = Number(subscription?.amount_used || 0)
                   const remainAmount =
@@ -487,9 +496,11 @@ export function SubscriptionPlansCard({
                             <TooltipTrigger
                               render={<span className='cursor-help' />}
                             >
-                              {formatQuota(usedAmount)}/
-                              {formatQuota(totalAmount)} · {t('Remaining')}{' '}
-                              {formatQuota(remainAmount)}
+                              {formatQuotaInUnit(usedAmount, subUnit)}/
+                              {formatQuotaInUnit(totalAmount, subUnit)}
+                              {subUnitLabel ? ` ${t(subUnitLabel)}` : ''} ·{' '}
+                              {t('Remaining')}{' '}
+                              {formatQuotaInUnit(remainAmount, subUnit)}
                             </TooltipTrigger>
                             <TooltipContent>
                               {t('Raw Quota')}: {usedAmount}/{totalAmount} ·{' '}
@@ -507,6 +518,50 @@ export function SubscriptionPlansCard({
                       </div>
                       {totalAmount > 0 && isActive && (
                         <Progress value={usagePercent} className='mt-2 h-1.5' />
+                      )}
+                      {isActive && (sub.model_usage?.length ?? 0) > 0 && (
+                        <div className='mt-2 space-y-1.5'>
+                          {(sub.model_usage ?? []).map((usage) => (
+                            <div key={usage.model}>
+                              <div className='text-muted-foreground flex items-center justify-between gap-2'>
+                                <span className='truncate font-mono text-[11px]'>
+                                  {usage.model}
+                                </span>
+                                <span className='shrink-0 tabular-nums'>
+                                  {formatQuotaInUnit(usage.used, usage.unit)} /{' '}
+                                  {formatQuotaInUnit(usage.limit, usage.unit)}
+                                  {subUnitLabel ? ` ${t(subUnitLabel)}` : ''}
+                                  <span className='text-muted-foreground/70 ml-1'>
+                                    · {t('Remaining')}{' '}
+                                    {formatQuotaInUnit(
+                                      usage.remaining,
+                                      usage.unit
+                                    )}
+                                  </span>
+                                </span>
+                              </div>
+                              <Progress
+                                value={quotaUsagePercent(
+                                  usage.used,
+                                  usage.limit
+                                )}
+                                className='mt-1 h-1'
+                              />
+                            </div>
+                          ))}
+                          {(sub.plan?.shared_limit ?? 0) > 0 && (
+                            <div className='text-muted-foreground flex items-center justify-between text-[11px]'>
+                              <span>{t('Shared quota')}</span>
+                              <span className='tabular-nums'>
+                                {formatQuotaInUnit(
+                                  sub.plan?.shared_limit ?? 0,
+                                  subUnit
+                                )}
+                                {subUnitLabel ? ` ${t(subUnitLabel)}` : ''}
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   )
@@ -529,6 +584,11 @@ export function SubscriptionPlansCard({
               const plan = p?.plan
               if (!plan) return null
               const totalAmount = Number(plan.total_amount || 0)
+              const quotaUnit = normalizePlanQuotaUnit(plan.quota_unit)
+              const quotaUnitLabel = quotaUnitSuffixKey(quotaUnit)
+              const ownedSubscription = activeSubscriptions.find(
+                (record) => record.subscription?.plan_id === plan.id
+              )
               const price = formatLocalCurrencyAmount(
                 Number(plan.price_amount || 0)
               )
@@ -537,14 +597,19 @@ export function SubscriptionPlansCard({
               const count = planPurchaseCountMap.get(plan.id) || 0
               const reached = limit > 0 && count >= limit
 
+              const quotaValueLabel =
+                totalAmount > 0
+                  ? `${formatQuotaInUnit(totalAmount, quotaUnit)}${
+                      quotaUnitLabel ? ` ${t(quotaUnitLabel)}` : ''
+                    }`
+                  : t('Unlimited')
+
               const benefits = [
                 `${t('Validity Period')}: ${formatDuration(plan, t)}`,
                 formatResetPeriod(plan, t) !== t('No Reset')
                   ? `${t('Quota Reset')}: ${formatResetPeriod(plan, t)}`
                   : null,
-                totalAmount > 0
-                  ? `${t('Total Quota')}: ${formatQuota(totalAmount)}`
-                  : `${t('Total Quota')}: ${t('Unlimited')}`,
+                `${t('Total Quota')}: ${quotaValueLabel}`,
                 limit > 0 ? `${t('Purchase Limit')}: ${limit}` : null,
                 plan.upgrade_group
                   ? `${t('Upgrade Group')}: ${plan.upgrade_group}`
@@ -598,6 +663,52 @@ export function SubscriptionPlansCard({
                         </div>
                       ))}
                     </div>
+
+                    {ownedSubscription ? (
+                      <div className='bg-muted/40 mb-3 space-y-2 rounded-md p-2'>
+                        <div className='text-muted-foreground flex items-center justify-between text-[11px] font-medium'>
+                          <span>{t('Current plan')}</span>
+                          <span className='tabular-nums'>
+                            {t('Remaining')}{' '}
+                            {formatQuotaInUnit(
+                              Math.max(
+                                0,
+                                Number(
+                                  ownedSubscription.subscription.amount_total ||
+                                    0
+                                ) -
+                                  Number(
+                                    ownedSubscription.subscription
+                                      .amount_used || 0
+                                  )
+                              ),
+                              quotaUnit
+                            )}
+                            {quotaUnitLabel ? ` ${t(quotaUnitLabel)}` : ''}
+                          </span>
+                        </div>
+                        {(ownedSubscription.model_usage ?? []).map((usage) => (
+                          <div key={usage.model}>
+                            <div className='flex items-center justify-between gap-2 text-[11px]'>
+                              <span className='truncate font-mono'>
+                                {usage.model}
+                              </span>
+                              <span className='shrink-0 tabular-nums'>
+                                {formatQuotaInUnit(usage.used, usage.unit)} /{' '}
+                                {formatQuotaInUnit(usage.limit, usage.unit)}
+                              </span>
+                            </div>
+                            <Progress
+                              value={quotaUsagePercent(
+                                usage.used,
+                                usage.limit
+                              )}
+                              className='mt-1 h-1'
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
 
                     <Separator className='mb-3' />
 

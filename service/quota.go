@@ -550,6 +550,13 @@ func checkAndSendSubscriptionQuotaNotify(relayInfo *relaycommon.RelayInfo) {
 		if userSetting.QuotaWarningThreshold != 0 {
 			threshold = int(userSetting.QuotaWarningThreshold)
 		}
+		// 按次/按 token 记账时，金额阈值没有可比性，改用总额度的 5% 作为预警线。
+		if model.NormalizePlanQuotaUnit(relayInfo.SubscriptionQuotaUnit) != model.SubscriptionQuotaUnitAmount {
+			threshold = int(relayInfo.SubscriptionAmountTotal / 20)
+			if threshold < 1 {
+				threshold = 1
+			}
+		}
 
 		usedAfter := relayInfo.SubscriptionAmountUsedAfterPreConsume + relayInfo.SubscriptionPostDelta
 		remaining := relayInfo.SubscriptionAmountTotal - usedAfter

@@ -39,7 +39,7 @@ import { getSelf } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { CurrentSubscriptionStrip } from './components/current-subscription-strip'
-import { PlanCard } from './components/plan-card'
+import { PlanCard, type PlanUsage } from './components/plan-card'
 import { PlansHero } from './components/plans-hero'
 
 type EpayMethod = { type: string; name?: string }
@@ -151,6 +151,25 @@ export function Plans() {
     return map
   }, [allSubscriptions])
 
+  // Live usage per plan, so a plan the user already owns shows consumption
+  // instead of only its static quota definition.
+  const usageByPlan = useMemo(() => {
+    const map = new Map<number, PlanUsage>()
+    for (const record of activeSubscriptions) {
+      const subscription = record.subscription
+      if (!subscription?.plan_id) continue
+      const total = Number(subscription.amount_total || 0)
+      const used = Number(subscription.amount_used || 0)
+      map.set(subscription.plan_id, {
+        totalUsed: used,
+        totalLimit: total,
+        totalRemaining: total > 0 ? Math.max(0, total - used) : 0,
+        modelUsage: record.model_usage ?? [],
+      })
+    }
+    return map
+  }, [activeSubscriptions])
+
   const epayMethods = useMemo(
     () => getEpayMethods(topupInfo?.pay_methods),
     [topupInfo?.pay_methods]
@@ -208,6 +227,7 @@ export function Plans() {
               plan={record.plan}
               index={index}
               purchaseCount={purchaseCountMap.get(record.plan.id) || 0}
+              usage={usageByPlan.get(record.plan.id) ?? null}
               onSubscribe={() => handleSubscribe(record)}
             />
           ) : null

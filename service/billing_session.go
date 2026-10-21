@@ -59,7 +59,13 @@ func (s *BillingSession) Settle(actualQuota int) error {
 	}
 	// 1) 调整资金来源（仅在尚未提交时执行，防止重复调用）
 	if !s.fundingSettled {
-		if err := s.funding.Settle(delta); err != nil {
+		fundingDelta := delta
+		// 订阅按次/按 token 记账时，账本在预扣阶段就按单位记好了；
+		// 真实费用与预扣金额的差额不能再按金额加到次数或 token 上。
+		if sub, ok := s.funding.(*SubscriptionFunding); ok && sub.QuotaUnit() != model.SubscriptionQuotaUnitAmount {
+			fundingDelta = 0
+		}
+		if err := s.funding.Settle(fundingDelta); err != nil {
 			return err
 		}
 		s.fundingSettled = true
@@ -80,7 +86,11 @@ func (s *BillingSession) Settle(actualQuota int) error {
 	}
 	// 3) 更新 relayInfo 上的订阅 PostDelta（用于日志）
 	if s.funding.Source() == BillingSourceSubscription {
-		s.relayInfo.SubscriptionPostDelta += int64(delta)
+		postDelta := delta
+		if sub, ok := s.funding.(*SubscriptionFunding); ok && sub.QuotaUnit() != model.SubscriptionQuotaUnitAmount {
+			postDelta = 0
+		}
+		s.relayInfo.SubscriptionPostDelta += int64(postDelta)
 	}
 	s.settled = true
 	return tokenErr
@@ -170,17 +180,30 @@ func (s *BillingSession) Reserve(targetQuota int) error {
 		return nil
 	}
 
-	if err := s.reserveFunding(delta); err != nil {
-		return err
+	// 订阅按次/按 token 记账时，本次请求已在预扣阶段计入额度，
+	// 追加预扣只影响令牌额度，不再改动订阅账本。
+	applyToFunding := true
+	if sub, ok := s.funding.(*SubscriptionFunding); ok && sub.QuotaUnit() != model.SubscriptionQuotaUnitAmount {
+		applyToFunding = false
+	}
+
+	if applyToFunding {
+		if err := s.reserveFunding(delta); err != nil {
+			return err
+		}
 	}
 	if err := s.reserveToken(delta); err != nil {
-		s.rollbackFundingReserve(delta)
+		if applyToFunding {
+			s.rollbackFundingReserve(delta)
+		}
 		return err
 	}
 
 	s.preConsumedQuota += delta
 	s.tokenConsumed += delta
-	s.extraReserved += delta
+	if applyToFunding {
+		s.extraReserved += delta
+	}
 	s.syncRelayInfo()
 	return nil
 }
@@ -352,6 +375,7 @@ func (s *BillingSession) syncRelayInfo() {
 	if sub, ok := s.funding.(*SubscriptionFunding); ok {
 		info.SubscriptionId = sub.subscriptionId
 		info.SubscriptionPreConsumed = sub.preConsumed + int64(s.extraReserved)
+		info.SubscriptionQuotaUnit = sub.QuotaUnit()
 		info.SubscriptionPostDelta = 0
 		info.SubscriptionAmountTotal = sub.AmountTotal
 		info.SubscriptionAmountUsedAfterPreConsume = sub.AmountUsedAfter + int64(s.extraReserved)

@@ -25,11 +25,14 @@ import { z } from 'zod'
 export const subscriptionQuotaItemSchema = z.object({
   model: z.string(),
   count: z.number(),
-  /** "call" (default) or "token"; unknown/empty values are treated as "call". */
+  /** Mirrors the plan quota unit; kept for rows saved before it existed. */
   unit: z.string().optional(),
 })
 
 export type SubscriptionQuotaItem = z.infer<typeof subscriptionQuotaItemSchema>
+
+/** The single unit a plan's total quota and per-model quotas are expressed in. */
+export type PlanQuotaUnit = 'amount' | 'call' | 'token'
 
 export const subscriptionPlanSchema = z.object({
   id: z.number(),
@@ -56,6 +59,8 @@ export const subscriptionPlanSchema = z.object({
   allow_wallet_overflow: z.boolean().optional().default(true),
   max_purchase_per_user: z.number(),
   total_amount: z.number(),
+  /** Single unit for total_amount and every quota item: amount | call | token. */
+  quota_unit: z.string().optional(),
   upgrade_group: z.string().optional(),
   downgrade_group: z.string().optional(),
   stripe_price_id: z.string().optional(),
@@ -84,12 +89,35 @@ export const userSubscriptionSchema = z.object({
   amount_total: z.number(),
   amount_used: z.number(),
   next_reset_time: z.number().optional(),
+  /** Ledger unit snapshot (amount | call | token). */
+  quota_unit: z.string().optional(),
 })
 
 export type UserSubscription = z.infer<typeof userSubscriptionSchema>
 
+/** Per-model quota line with consumption, in the subscription's quota unit. */
+export interface SubscriptionQuotaUsage {
+  model: string
+  unit: string
+  limit: number
+  used: number
+  remaining: number
+}
+
+/** Quota definition attached to a subscription. */
+export interface SubscriptionPlanSnapshot {
+  id: number
+  title: string
+  quota_unit: string
+  total_amount: number
+  quota_items: SubscriptionQuotaItem[]
+  shared_limit: number
+}
+
 export interface UserSubscriptionRecord {
   subscription: UserSubscription
+  plan?: SubscriptionPlanSnapshot | null
+  model_usage?: SubscriptionQuotaUsage[] | null
 }
 
 // ============================================================================

@@ -47,6 +47,7 @@ import {
   paySubscriptionBalance,
 } from '../../api'
 import { formatDuration, formatResetPeriod } from '../../lib'
+import { formatQuotaInUnit, quotaUnitSuffixKey } from '../../lib/quota'
 import type { PlanRecord } from '../../types'
 
 interface PaymentMethod {
@@ -99,6 +100,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
     selectedEpayMethod ||
     t('Select payment method')
   const totalAmount = Number(plan.total_amount || 0)
+  const quotaUnitLabel = quotaUnitSuffixKey(plan.quota_unit)
   const price = formatLocalCurrencyAmount(Number(plan.price_amount || 0))
   const quotaPerUnit =
     currency?.quotaPerUnit && currency.quotaPerUnit > 0
@@ -304,7 +306,11 @@ export function SubscriptionPurchaseDialog(props: Props) {
             </span>
             <span className='flex items-center gap-1 text-sm'>
               <Package className='h-3.5 w-3.5' />
-              {totalAmount > 0 ? formatQuota(totalAmount) : t('Unlimited')}
+              {totalAmount > 0
+                ? `${formatQuotaInUnit(totalAmount, plan.quota_unit)}${
+                    quotaUnitLabel ? ` ${t(quotaUnitLabel)}` : ''
+                  }`
+                : t('Unlimited')}
             </span>
           </div>
           {plan.upgrade_group && (

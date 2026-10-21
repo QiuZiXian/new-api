@@ -5384,6 +5384,20 @@
     "Select a model": "選擇模型",
     "Unit": "單位",
     "Shown per model on the plans page as calls or tokens. Actual deduction still follows the plan quota above.": "在套餐頁按模型展示次數或 Token 額度。實際扣費仍按上方套餐額度執行。",
-    "Listed models are capped at the configured calls or tokens per reset cycle. Leave empty to skip per-model limits; unlisted models still use the plan quota above.": "已列出的模型按配置的次數或 Token 封頂（每個復位週期）。留空則不啟用逐模型額度；未列出的模型仍使用上方套餐額度。"
+    "Listed models are capped at the configured calls or tokens per reset cycle. Leave empty to skip per-model limits; unlisted models still use the plan quota above.": "已列出的模型按配置的次數或 Token 封頂（每個復位週期）。留空則不啟用逐模型額度；未列出的模型仍使用上方套餐額度。",
+    "Quota unit": "額度單位",
+    "Calls": "次數",
+    "Total quota": "總額度",
+    "Allocated": "已分配",
+    "Plan total": "套餐總額",
+    "Shared pool": "共享池",
+    "Shared quota": "共享額度",
+    "Enter the total number of calls": "輸入總次數",
+    "Enter the total number of tokens": "輸入總 Token 數",
+    "Quota (framework amount)": "額度（框架金額）",
+    "The single unit for the plan total and every per-model quota. Switching it clears the amounts.": "套餐總額與每個模型額度共用的唯一單位，切換後會清空已填寫的數值。",
+    "Total quota included in the plan for each reset cycle. 0 means unlimited.": "每個復位週期的套餐總額度，0 表示不限。",
+    "Per-model quota is expressed in the plan quota unit. The sum must not exceed the plan total; whatever is left over stays available as a shared pool.": "分模型額度使用套餐額度單位，總和不能超過套餐總額；剩餘部分作為共享池，未列出的模型仍可使用。",
+    "Allocated per-model quota exceeds the plan total": "分模型額度合計超過套餐總額"
   }
 }

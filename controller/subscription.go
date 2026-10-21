@@ -205,6 +205,10 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		return
 	}
 	req.Plan.NormalizePresentation()
+	if err := req.Plan.ValidateQuotaAllocation(); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
 	err := model.DB.Create(&req.Plan).Error
 	if err != nil {
 		common.ApiError(c, err)
@@ -280,6 +284,10 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		return
 	}
 	req.Plan.NormalizePresentation()
+	if err := req.Plan.ValidateQuotaAllocation(); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
 	quotaItemsValue, err := req.Plan.QuotaItems.Value()
 	if err != nil {
 		common.ApiError(c, err)
@@ -308,6 +316,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"waffo_pancake_product_id":   req.Plan.WaffoPancakeProductId,
 			"max_purchase_per_user":      req.Plan.MaxPurchasePerUser,
 			"total_amount":               req.Plan.TotalAmount,
+			"quota_unit":                 req.Plan.QuotaUnit,
 			"upgrade_group":              req.Plan.UpgradeGroup,
 			"downgrade_group":            req.Plan.DowngradeGroup,
 			"quota_reset_period":         req.Plan.QuotaResetPeriod,

@@ -55,7 +55,7 @@ import {
   SheetDescription,
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
-import { formatQuota } from '@/lib/format'
+import { formatLocalCurrencyAmount } from '@/lib/currency'
 
 import {
   getAdminPlans,
@@ -66,6 +66,7 @@ import {
   resetUserSubscriptionsByPlan,
 } from '../../api'
 import { formatTimestamp } from '../../lib'
+import { formatQuotaInUnit, quotaUnitSuffixKey } from '../../lib/quota'
 import type { PlanRecord, UserSubscriptionRecord } from '../../types'
 
 interface Props {
@@ -251,8 +252,11 @@ export function UserSubscriptionsDialog(props: Props) {
                   value: String(p.plan.id),
                   label: (
                     <>
-                      {p.plan.title}($
-                      {Number(p.plan.price_amount || 0).toFixed(2)})
+                      {p.plan.title}(
+                      {formatLocalCurrencyAmount(
+                        Number(p.plan.price_amount || 0)
+                      )}
+                      )
                     </>
                   ),
                 }))}
@@ -266,8 +270,11 @@ export function UserSubscriptionsDialog(props: Props) {
                   <SelectGroup>
                     {plans.map((p) => (
                       <SelectItem key={p.plan.id} value={String(p.plan.id)}>
-                        {p.plan.title} ($
-                        {Number(p.plan.price_amount || 0).toFixed(2)})
+                        {p.plan.title} (
+                        {formatLocalCurrencyAmount(
+                          Number(p.plan.price_amount || 0)
+                        )}
+                        )
                       </SelectItem>
                     ))}
                   </SelectGroup>
@@ -345,8 +352,12 @@ export function UserSubscriptionsDialog(props: Props) {
                     const sub = record.subscription
                     const total = Number(sub.amount_total || 0)
                     const used = Number(sub.amount_used || 0)
+                    const unit = record.plan?.quota_unit ?? sub.quota_unit
+                    const unitLabel = quotaUnitSuffixKey(unit)
                     return total > 0
-                      ? `${formatQuota(used)}/${formatQuota(total)}`
+                      ? `${formatQuotaInUnit(used, unit)}/${formatQuotaInUnit(total, unit)}${
+                          unitLabel ? ` ${t(unitLabel)}` : ''
+                        }`
                       : t('Unlimited')
                   },
                 },

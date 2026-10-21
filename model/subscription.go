@@ -46,21 +46,56 @@ const (
 	maxSubscriptionPlanFeatures = 24
 )
 
-// Quota units used by the per-model breakdown on the plans page.
-// "call" counts requests, "token" counts tokens.
+// Quota units a plan can be defined in.
+//
+// A plan has exactly ONE quota unit, shared by its total quota and by every
+// per-model quota item:
+//   - amount: framework quota units (money-like, deducted by real cost)
+//   - call:   number of requests
+//   - token:  number of tokens
+//
+// Splitting the same plan across several units would make "per-model quota
+// sums up to the plan total" unverifiable, so the unit is a plan-level field.
 const (
-	SubscriptionQuotaUnitCall  = "call"
-	SubscriptionQuotaUnitToken = "token"
+	SubscriptionQuotaUnitAmount = "amount"
+	SubscriptionQuotaUnitCall   = "call"
+	SubscriptionQuotaUnitToken  = "token"
 )
 
-// NormalizeQuotaUnit maps any incoming value onto a supported quota unit.
-// Unknown or empty values fall back to "call" so historical rows stay valid.
+// NormalizePlanQuotaUnit maps any incoming value onto a plan-level quota unit.
+// Unknown or empty values fall back to "amount", which keeps historical plans
+// on their original money-based semantics.
+func NormalizePlanQuotaUnit(unit string) string {
+	switch strings.ToLower(strings.TrimSpace(unit)) {
+	case SubscriptionQuotaUnitCall, "calls":
+		return SubscriptionQuotaUnitCall
+	case SubscriptionQuotaUnitToken, "tokens":
+		return SubscriptionQuotaUnitToken
+	default:
+		return SubscriptionQuotaUnitAmount
+	}
+}
+
+// NormalizeQuotaUnit maps a legacy per-item unit onto "call" or "token".
+// It is only used when migrating plans saved before the plan-level unit existed.
 func NormalizeQuotaUnit(unit string) string {
 	switch strings.ToLower(strings.TrimSpace(unit)) {
 	case SubscriptionQuotaUnitToken, "tokens":
 		return SubscriptionQuotaUnitToken
 	default:
 		return SubscriptionQuotaUnitCall
+	}
+}
+
+// SubscriptionQuotaUnitLabel returns the English label used in error messages.
+func SubscriptionQuotaUnitLabel(unit string) string {
+	switch NormalizePlanQuotaUnit(unit) {
+	case SubscriptionQuotaUnitCall:
+		return "calls"
+	case SubscriptionQuotaUnitToken:
+		return "tokens"
+	default:
+		return "quota"
 	}
 }
 
@@ -171,14 +206,16 @@ func InvalidateSubscriptionPlanCache(planId int) {
 // SubscriptionQuotaItem is a single line of the per-model quota breakdown,
 // e.g. "glm-5.3: 1000 calls".
 //
-// When a plan defines quota items, they are enforced: a listed model can only
-// consume up to Count units (calls or tokens) per reset cycle. Models that are
-// not listed keep using the plan-wide TotalAmount pool.
+// Count is always expressed in the plan's QuotaUnit. When a plan defines quota
+// items they are enforced: a listed model can only consume up to Count units
+// per reset cycle. The remainder (plan total - sum of items) stays available to
+// models that are not listed, and is surfaced as a shared pool.
 type SubscriptionQuotaItem struct {
 	Model string `json:"model"`
-	// Count is expressed in the unit below.
+	// Count is expressed in the plan's quota unit.
 	Count int64 `json:"count"`
-	// Unit is "call" (default) or "token".
+	// Unit mirrors the plan's quota unit. Kept for rows written before the
+	// plan-level unit existed; NormalizePresentation rewrites it on save.
 	Unit string `json:"unit"`
 }
 
@@ -305,8 +342,14 @@ type SubscriptionPlan struct {
 	// Downgrade user group on expiry (empty = revert to the group held before purchase)
 	DowngradeGroup string `json:"downgrade_group" gorm:"type:varchar(64);default:''"`
 
-	// Total quota (amount in quota units, 0 = unlimited)
+	// Total quota (in QuotaUnit above, 0 = unlimited). It is the only quota
+	// pool this plan deducts from, so the ledger unit always matches the unit
+	// shown to users.
 	TotalAmount int64 `json:"total_amount" gorm:"type:bigint;not null;default:0"`
+
+	// QuotaUnit is the single unit used by TotalAmount and every QuotaItem:
+	// "amount" (framework quota), "call" or "token".
+	QuotaUnit string `json:"quota_unit" gorm:"type:varchar(16);not null;default:'amount'"`
 
 	// Quota reset period for plan
 	QuotaResetPeriod        string `json:"quota_reset_period" gorm:"type:varchar(16);default:'never'"`
@@ -340,11 +383,14 @@ func (p *SubscriptionPlan) NormalizeDefaults() {
 
 // NormalizePresentation trims and bounds the display-only plan fields so the
 // admin UI cannot persist malformed lists that would break the plans page.
+// It also unifies the quota unit: the total quota and every per-model item are
+// expressed in p.QuotaUnit.
 func (p *SubscriptionPlan) NormalizePresentation() {
 	p.BillingNote = strings.TrimSpace(p.BillingNote)
 	p.Badge = strings.TrimSpace(p.Badge)
 	p.Icon = strings.TrimSpace(p.Icon)
 	p.Accent = strings.TrimSpace(p.Accent)
+	p.QuotaUnit = NormalizePlanQuotaUnit(p.QuotaUnit)
 
 	if p.QuotaItems == nil {
 		p.QuotaItems = SubscriptionQuotaItems{}
@@ -365,7 +411,7 @@ func (p *SubscriptionPlan) NormalizePresentation() {
 		quotaItems = append(quotaItems, SubscriptionQuotaItem{
 			Model: model,
 			Count: item.Count,
-			Unit:  NormalizeQuotaUnit(item.Unit),
+			Unit:  p.QuotaUnit,
 		})
 		if len(quotaItems) >= maxSubscriptionQuotaItems {
 			break
@@ -393,6 +439,48 @@ func (p *SubscriptionPlan) NormalizePresentation() {
 		}
 	}
 	p.Features = features
+}
+
+// QuotaItemsTotal sums the per-model quota items. It is expressed in the same
+// unit as TotalAmount.
+func (p *SubscriptionPlan) QuotaItemsTotal() int64 {
+	if p == nil {
+		return 0
+	}
+	var total int64
+	for _, item := range p.QuotaItems {
+		if item.Count > 0 {
+			total += item.Count
+		}
+	}
+	return total
+}
+
+// ValidateQuotaAllocation enforces the single-unit quota rule:
+//   - every per-model item belongs to the plan's unit (normalized on save);
+//   - the sum of the items never exceeds the plan total;
+//   - a plan with items must expose a positive total (derived when omitted).
+//
+// A sum below the total is allowed: the remainder is a shared pool that any
+// model not listed in the breakdown can still consume.
+func (p *SubscriptionPlan) ValidateQuotaAllocation() error {
+	if p == nil {
+		return errors.New("plan is nil")
+	}
+	unit := NormalizePlanQuotaUnit(p.QuotaUnit)
+	allocated := p.QuotaItemsTotal()
+	if allocated <= 0 {
+		return nil
+	}
+	if p.TotalAmount <= 0 {
+		p.TotalAmount = allocated
+		return nil
+	}
+	if allocated > p.TotalAmount {
+		return fmt.Errorf("per-model quota (%d %s) exceeds the plan total (%d %s)",
+			allocated, SubscriptionQuotaUnitLabel(unit), p.TotalAmount, SubscriptionQuotaUnitLabel(unit))
+	}
+	return nil
 }
 
 // Subscription order (payment -> webhook -> create UserSubscription)
@@ -442,6 +530,10 @@ type UserSubscription struct {
 
 	AmountTotal int64 `json:"amount_total" gorm:"type:bigint;not null;default:0"`
 	AmountUsed  int64 `json:"amount_used" gorm:"type:bigint;not null;default:0"`
+	// QuotaUnit is snapshotted from the plan at purchase time so later plan
+	// edits cannot change how an existing subscription's numbers are read.
+	// Empty means "amount" (subscriptions created before the unit existed).
+	QuotaUnit string `json:"quota_unit" gorm:"type:varchar(16);not null;default:'amount'"`
 
 	StartTime int64  `json:"start_time" gorm:"bigint"`
 	EndTime   int64  `json:"end_time" gorm:"bigint;index;index:idx_user_sub_active,priority:3"`
@@ -477,8 +569,35 @@ func (s *UserSubscription) BeforeUpdate(tx *gorm.DB) error {
 	return nil
 }
 
+// SubscriptionPlanSnapshot is the quota definition attached to a subscription,
+// so the client can render the breakdown without a second request.
+type SubscriptionPlanSnapshot struct {
+	Id          int                    `json:"id"`
+	Title       string                 `json:"title"`
+	QuotaUnit   string                 `json:"quota_unit"`
+	TotalAmount int64                  `json:"total_amount"`
+	QuotaItems  SubscriptionQuotaItems `json:"quota_items"`
+	// SharedLimit is the part of the total that is not allocated to a specific
+	// model. It stays usable by models that are not listed.
+	SharedLimit int64 `json:"shared_limit"`
+}
+
+// SubscriptionQuotaUsage is one per-model line with its consumption, expressed
+// in the subscription's quota unit.
+type SubscriptionQuotaUsage struct {
+	Model     string `json:"model"`
+	Unit      string `json:"unit"`
+	Limit     int64  `json:"limit"`
+	Used      int64  `json:"used"`
+	Remaining int64  `json:"remaining"`
+}
+
 type SubscriptionSummary struct {
 	Subscription *UserSubscription `json:"subscription"`
+	// Plan is the quota definition snapshot (unit, per-model breakdown).
+	Plan *SubscriptionPlanSnapshot `json:"plan,omitempty"`
+	// ModelUsage reports used/remaining per listed model.
+	ModelUsage []SubscriptionQuotaUsage `json:"model_usage,omitempty"`
 }
 
 type SubscriptionResetResult struct {
@@ -723,6 +842,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 		PlanId:              plan.Id,
 		AmountTotal:         plan.TotalAmount,
 		AmountUsed:          0,
+		QuotaUnit:           NormalizePlanQuotaUnit(plan.QuotaUnit),
 		StartTime:           now.Unix(),
 		EndTime:             endUnix,
 		Status:              "active",
@@ -1098,12 +1218,94 @@ func buildSubscriptionSummaries(subs []UserSubscription) []SubscriptionSummary {
 	if len(subs) == 0 {
 		return []SubscriptionSummary{}
 	}
+	planIds := make([]int, 0, len(subs))
+	subIds := make([]int, 0, len(subs))
+	for _, sub := range subs {
+		if sub.PlanId > 0 {
+			planIds = append(planIds, sub.PlanId)
+		}
+		if sub.Id > 0 {
+			subIds = append(subIds, sub.Id)
+		}
+	}
+
+	planMap := make(map[int]*SubscriptionPlan, len(planIds))
+	if len(planIds) > 0 {
+		var plans []SubscriptionPlan
+		if err := DB.Where("id IN ?", planIds).Find(&plans).Error; err == nil {
+			for i := range plans {
+				planMap[plans[i].Id] = &plans[i]
+			}
+		}
+	}
+
+	usageMap := make(map[int]map[string]*SubscriptionModelUsage, len(subIds))
+	if len(subIds) > 0 {
+		var rows []SubscriptionModelUsage
+		if err := DB.Where("user_subscription_id IN ?", subIds).Find(&rows).Error; err == nil {
+			for i := range rows {
+				row := &rows[i]
+				bucket := usageMap[row.UserSubscriptionId]
+				if bucket == nil {
+					bucket = make(map[string]*SubscriptionModelUsage)
+					usageMap[row.UserSubscriptionId] = bucket
+				}
+				bucket[strings.ToLower(strings.TrimSpace(row.Model))] = row
+			}
+		}
+	}
+
 	result := make([]SubscriptionSummary, 0, len(subs))
 	for _, sub := range subs {
 		subCopy := sub
-		result = append(result, SubscriptionSummary{
-			Subscription: &subCopy,
-		})
+		summary := SubscriptionSummary{Subscription: &subCopy}
+		plan := planMap[sub.PlanId]
+		if plan != nil {
+			unit := NormalizePlanQuotaUnit(sub.QuotaUnit)
+			if strings.TrimSpace(sub.QuotaUnit) == "" {
+				unit = NormalizePlanQuotaUnit(plan.QuotaUnit)
+			}
+			allocated := plan.QuotaItemsTotal()
+			shared := sub.AmountTotal - allocated
+			if shared < 0 {
+				shared = 0
+			}
+			summary.Plan = &SubscriptionPlanSnapshot{
+				Id:          plan.Id,
+				Title:       plan.Title,
+				QuotaUnit:   unit,
+				TotalAmount: sub.AmountTotal,
+				QuotaItems:  plan.QuotaItems,
+				SharedLimit: shared,
+			}
+			bucket := usageMap[sub.Id]
+			for _, item := range plan.QuotaItems {
+				usage := bucket[strings.ToLower(strings.TrimSpace(item.Model))]
+				var used int64
+				if usage != nil {
+					switch unit {
+					case SubscriptionQuotaUnitCall:
+						used = usage.Calls
+					case SubscriptionQuotaUnitToken:
+						used = usage.Tokens
+					default:
+						used = usage.Amount
+					}
+				}
+				remaining := item.Count - used
+				if remaining < 0 {
+					remaining = 0
+				}
+				summary.ModelUsage = append(summary.ModelUsage, SubscriptionQuotaUsage{
+					Model:     item.Model,
+					Unit:      unit,
+					Limit:     item.Count,
+					Used:      used,
+					Remaining: remaining,
+				})
+			}
+		}
+		result = append(result, summary)
 	}
 	return result
 }
@@ -1325,6 +1527,8 @@ type SubscriptionPreConsumeResult struct {
 	AmountTotal        int64
 	AmountUsedBefore   int64
 	AmountUsedAfter    int64
+	// QuotaUnit is the subscription's ledger unit ("amount"/"call"/"token").
+	QuotaUnit string
 }
 
 // ExpireDueSubscriptions marks expired subscriptions and handles group downgrade.
@@ -1433,8 +1637,10 @@ type SubscriptionPreConsumeRecord struct {
 	UserSubscriptionId int    `json:"user_subscription_id" gorm:"index"`
 	PreConsumed        int64  `json:"pre_consumed" gorm:"type:bigint;not null;default:0"`
 	// Model and Tokens are recorded so a refund can roll the per-model counters back.
-	Model     string `json:"model" gorm:"type:varchar(128);default:''"`
-	Tokens    int64  `json:"tokens" gorm:"type:bigint;not null;default:0"`
+	Model  string `json:"model" gorm:"type:varchar(128);default:''"`
+	Tokens int64  `json:"tokens" gorm:"type:bigint;not null;default:0"`
+	// QuotaUnit snapshots the unit PreConsumed was expressed in.
+	QuotaUnit string `json:"quota_unit" gorm:"type:varchar(16);not null;default:'amount'"`
 	Status    string `json:"status" gorm:"type:varchar(32);index"` // consumed/refunded
 	CreatedAt int64  `json:"created_at" gorm:"bigint"`
 	UpdatedAt int64  `json:"updated_at" gorm:"bigint;index"`
@@ -1459,11 +1665,16 @@ type SubscriptionModelUsage struct {
 	Id                 int    `json:"id"`
 	UserSubscriptionId int    `json:"user_subscription_id" gorm:"uniqueIndex:idx_sub_model_usage,priority:1"`
 	Model              string `json:"model" gorm:"type:varchar(128);uniqueIndex:idx_sub_model_usage,priority:2"`
-	// Calls counts requests charged to this subscription for this model.
+	// Calls counts requests charged to this subscription for this model. It is
+	// tracked for every unit because it is useful for reporting, but it is only
+	// enforced when the plan's quota unit is "call".
 	Calls int64 `json:"calls" gorm:"type:bigint;not null;default:0"`
 	// Tokens counts billed tokens for this model (estimated at pre-consume,
 	// corrected with the actual usage at settlement).
-	Tokens    int64 `json:"tokens" gorm:"type:bigint;not null;default:0"`
+	Tokens int64 `json:"tokens" gorm:"type:bigint;not null;default:0"`
+	// Amount counts consumed framework quota for this model. Enforced when the
+	// plan's quota unit is "amount".
+	Amount    int64 `json:"amount" gorm:"type:bigint;not null;default:0"`
 	CreatedAt int64 `json:"created_at" gorm:"bigint"`
 	UpdatedAt int64 `json:"updated_at" gorm:"bigint"`
 }
@@ -1500,11 +1711,11 @@ func getSubscriptionModelUsageTx(tx *gorm.DB, subscriptionId int, modelName stri
 // applySubscriptionModelUsageTx adjusts the per-model counters, clamping at zero.
 // Callers hold the UserSubscription row lock, so concurrent pre-consumes of the
 // same subscription are serialized.
-func applySubscriptionModelUsageTx(tx *gorm.DB, subscriptionId int, modelName string, callDelta int64, tokenDelta int64) error {
+func applySubscriptionModelUsageTx(tx *gorm.DB, subscriptionId int, modelName string, callDelta int64, tokenDelta int64, amountDelta int64) error {
 	if tx == nil || subscriptionId <= 0 || modelName == "" {
 		return nil
 	}
-	if callDelta == 0 && tokenDelta == 0 {
+	if callDelta == 0 && tokenDelta == 0 && amountDelta == 0 {
 		return nil
 	}
 	usage, err := getSubscriptionModelUsageTx(tx, subscriptionId, modelName)
@@ -1519,8 +1730,12 @@ func applySubscriptionModelUsageTx(tx *gorm.DB, subscriptionId int, modelName st
 	if newTokens < 0 {
 		newTokens = 0
 	}
+	newAmount := usage.Amount + amountDelta
+	if newAmount < 0 {
+		newAmount = 0
+	}
 	if usage.Id == 0 {
-		if newCalls == 0 && newTokens == 0 {
+		if newCalls == 0 && newTokens == 0 && newAmount == 0 {
 			return nil
 		}
 		return tx.Create(&SubscriptionModelUsage{
@@ -1528,6 +1743,7 @@ func applySubscriptionModelUsageTx(tx *gorm.DB, subscriptionId int, modelName st
 			Model:              modelName,
 			Calls:              newCalls,
 			Tokens:             newTokens,
+			Amount:             newAmount,
 		}).Error
 	}
 	return tx.Model(&SubscriptionModelUsage{}).
@@ -1535,6 +1751,7 @@ func applySubscriptionModelUsageTx(tx *gorm.DB, subscriptionId int, modelName st
 		Updates(map[string]interface{}{
 			"calls":      newCalls,
 			"tokens":     newTokens,
+			"amount":     newAmount,
 			"updated_at": common.GetTimestamp(),
 		}).Error
 }
@@ -1551,14 +1768,27 @@ func ClearSubscriptionModelUsageTx(tx *gorm.DB, subscriptionId int) error {
 		Delete(&SubscriptionModelUsage{}).Error
 }
 
-// AdjustSubscriptionModelTokens applies the difference between actual and
-// estimated token usage to the per-model counter. Only existing rows are touched
-// so models without a quota item never get a tracking row.
-func AdjustSubscriptionModelTokens(subscriptionId int, modelName string, deltaTokens int64) error {
-	if subscriptionId <= 0 || modelName == "" || deltaTokens == 0 {
+// SettleSubscriptionTokens applies the difference between actual and estimated
+// token usage. When the subscription is token-metered the ledger is corrected
+// as well; the per-model counter is only touched when a tracking row already
+// exists, so models without a quota item never get a row.
+func SettleSubscriptionTokens(subscriptionId int, modelName string, deltaTokens int64) error {
+	if subscriptionId <= 0 || deltaTokens == 0 {
 		return nil
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
+		var sub UserSubscription
+		if err := lockForUpdate(tx).Where("id = ?", subscriptionId).First(&sub).Error; err != nil {
+			return err
+		}
+		if NormalizePlanQuotaUnit(sub.QuotaUnit) == SubscriptionQuotaUnitToken {
+			if err := applySubscriptionUsedDeltaTx(tx, &sub, deltaTokens); err != nil {
+				return err
+			}
+		}
+		if modelName == "" {
+			return nil
+		}
 		usage, err := getSubscriptionModelUsageTx(tx, subscriptionId, modelName)
 		if err != nil {
 			return err
@@ -1566,15 +1796,14 @@ func AdjustSubscriptionModelTokens(subscriptionId int, modelName string, deltaTo
 		if usage.Id == 0 {
 			return nil
 		}
-		return applySubscriptionModelUsageTx(tx, subscriptionId, modelName, 0, deltaTokens)
+		return applySubscriptionModelUsageTx(tx, subscriptionId, modelName, 0, deltaTokens, 0)
 	})
 }
 
-// RefundSubscriptionModelUsage rolls back one request from the per-model counters.
-// Async tasks refund quota through PostConsumeUserSubscriptionDelta instead of the
-// request-id record, so their call counter has to be rolled back explicitly.
-func RefundSubscriptionModelUsage(subscriptionId int, modelName string) error {
-	if subscriptionId <= 0 || modelName == "" {
+// AdjustSubscriptionModelAmount applies the settlement difference to the
+// per-model amount counter (only for amount-metered subscriptions).
+func AdjustSubscriptionModelAmount(subscriptionId int, modelName string, deltaAmount int64) error {
+	if subscriptionId <= 0 || modelName == "" || deltaAmount == 0 {
 		return nil
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
@@ -1585,7 +1814,41 @@ func RefundSubscriptionModelUsage(subscriptionId int, modelName string) error {
 		if usage.Id == 0 {
 			return nil
 		}
-		return applySubscriptionModelUsageTx(tx, subscriptionId, modelName, -1, 0)
+		return applySubscriptionModelUsageTx(tx, subscriptionId, modelName, 0, 0, deltaAmount)
+	})
+}
+
+// RefundSubscriptionUsage rolls back one pre-consumed request for async tasks.
+// Async tasks refund quota through PostConsumeUserSubscriptionDelta instead of
+// the request-id record, so both the ledger and the per-model counters have to
+// be rolled back explicitly. reserved and estTokens are expressed in the
+// subscription's quota unit.
+func RefundSubscriptionUsage(subscriptionId int, modelName string, unit string, reserved int64, estTokens int64) error {
+	if subscriptionId <= 0 {
+		return nil
+	}
+	unit = NormalizePlanQuotaUnit(unit)
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var sub UserSubscription
+		if err := lockForUpdate(tx).Where("id = ?", subscriptionId).First(&sub).Error; err != nil {
+			return err
+		}
+		if reserved > 0 {
+			if err := applySubscriptionUsedDeltaTx(tx, &sub, -reserved); err != nil {
+				return err
+			}
+		}
+		if modelName == "" {
+			return nil
+		}
+		var amountDelta, tokenDelta int64
+		switch unit {
+		case SubscriptionQuotaUnitAmount:
+			amountDelta = -reserved
+		case SubscriptionQuotaUnitToken:
+			tokenDelta = -estTokens
+		}
+		return applySubscriptionModelUsageTx(tx, subscriptionId, modelName, -1, tokenDelta, amountDelta)
 	})
 }
 
@@ -1604,15 +1867,19 @@ func findPlanQuotaItem(plan *SubscriptionPlan, modelName string) (SubscriptionQu
 }
 
 // subscriptionQuotaItemExhausted reports whether one more request would exceed
-// the item limit for the given usage snapshot.
-func subscriptionQuotaItemExhausted(item SubscriptionQuotaItem, usage *SubscriptionModelUsage, addCalls int64, addTokens int64) bool {
+// the item limit for the given usage snapshot, comparing in the plan unit.
+func subscriptionQuotaItemExhausted(item SubscriptionQuotaItem, usage *SubscriptionModelUsage, unit string, addCalls int64, addTokens int64, addAmount int64) bool {
 	if item.Count <= 0 || usage == nil {
 		return false
 	}
-	if NormalizeQuotaUnit(item.Unit) == SubscriptionQuotaUnitToken {
+	switch NormalizePlanQuotaUnit(unit) {
+	case SubscriptionQuotaUnitToken:
 		return usage.Tokens+addTokens > item.Count
+	case SubscriptionQuotaUnitCall:
+		return usage.Calls+addCalls > item.Count
+	default:
+		return usage.Amount+addAmount > item.Count
 	}
-	return usage.Calls+addCalls > item.Count
 }
 
 // maybeResetUserSubscriptionWithPlanTx resets the quota pool when the plan's
@@ -1669,16 +1936,18 @@ type SubscriptionPreConsumeInput struct {
 	RequestId string
 	UserId    int
 	ModelName string
-	// Amount is the quota amount to reserve.
+	// Amount is the real cost in framework quota units. It is only used as the
+	// ledger delta when the subscription is amount-metered.
 	Amount int64
-	// Tokens is the estimated token count of this request. It is used by
-	// token-unit per-model quotas; zero means unknown at pre-consume time.
+	// Tokens is the estimated token count of this request. It seeds the ledger
+	// delta for token-metered subscriptions and the per-model token counter.
 	Tokens int64
 }
 
-// PreConsumeUserSubscription pre-consumes from any active subscription total quota.
-// When the plan defines per-model quota items, the model's counter is checked and
-// incremented as well.
+// PreConsumeUserSubscription pre-consumes from any active subscription, using
+// the subscription's own quota unit ("amount", "call" or "token"). When the
+// plan defines per-model quota items, the model's counter is checked and
+// incremented in the same unit as well.
 func PreConsumeUserSubscription(input SubscriptionPreConsumeInput) (*SubscriptionPreConsumeResult, error) {
 	requestId := strings.TrimSpace(input.RequestId)
 	userId := input.UserId
@@ -1720,6 +1989,7 @@ func PreConsumeUserSubscription(input SubscriptionPreConsumeInput) (*Subscriptio
 			returnValue.AmountTotal = sub.AmountTotal
 			returnValue.AmountUsedBefore = sub.AmountUsed
 			returnValue.AmountUsedAfter = sub.AmountUsed
+			returnValue.QuotaUnit = NormalizePlanQuotaUnit(sub.QuotaUnit)
 			return nil
 		}
 
@@ -1744,20 +2014,40 @@ func PreConsumeUserSubscription(input SubscriptionPreConsumeInput) (*Subscriptio
 				return err
 			}
 
+			unit := NormalizePlanQuotaUnit(sub.QuotaUnit)
+			if strings.TrimSpace(sub.QuotaUnit) == "" {
+				// Subscriptions created before the unit snapshot existed fall
+				// back to the plan unit.
+				unit = NormalizePlanQuotaUnit(plan.QuotaUnit)
+			}
+			// The ledger delta always uses the subscription's own unit, so the
+			// pool check and the unit shown to users can never disagree.
+			reserve := amount
+			switch unit {
+			case SubscriptionQuotaUnitCall:
+				reserve = 1
+			case SubscriptionQuotaUnitToken:
+				reserve = estTokens
+			}
+
 			// Per-model quota item (only enforced when the plan lists this model).
 			quotaItem, hasQuotaItem := findPlanQuotaItem(plan, modelName)
 			addCalls := int64(0)
 			addTokens := int64(0)
+			addAmount := int64(0)
 			if hasQuotaItem {
 				usage, err := getSubscriptionModelUsageTx(tx, sub.Id, strings.TrimSpace(quotaItem.Model))
 				if err != nil {
 					return err
 				}
 				addCalls = 1
-				if NormalizeQuotaUnit(quotaItem.Unit) == SubscriptionQuotaUnitToken {
+				switch unit {
+				case SubscriptionQuotaUnitToken:
 					addTokens = estTokens
+				case SubscriptionQuotaUnitAmount:
+					addAmount = reserve
 				}
-				if subscriptionQuotaItemExhausted(quotaItem, usage, addCalls, addTokens) {
+				if subscriptionQuotaItemExhausted(quotaItem, usage, unit, addCalls, addTokens, addAmount) {
 					// 该订阅的此模型额度已用尽，尝试下一个订阅。
 					modelLimitHit = true
 					continue
@@ -1767,7 +2057,7 @@ func PreConsumeUserSubscription(input SubscriptionPreConsumeInput) (*Subscriptio
 			usedBefore := sub.AmountUsed
 			if sub.AmountTotal > 0 {
 				remain := sub.AmountTotal - usedBefore
-				if remain < amount {
+				if remain < reserve {
 					continue
 				}
 			}
@@ -1775,9 +2065,10 @@ func PreConsumeUserSubscription(input SubscriptionPreConsumeInput) (*Subscriptio
 				RequestId:          requestId,
 				UserId:             userId,
 				UserSubscriptionId: sub.Id,
-				PreConsumed:        amount,
+				PreConsumed:        reserve,
 				Model:              modelName,
 				Tokens:             estTokens,
+				QuotaUnit:          unit,
 				Status:             "consumed",
 			}
 			if err := tx.Create(record).Error; err != nil {
@@ -1791,25 +2082,27 @@ func PreConsumeUserSubscription(input SubscriptionPreConsumeInput) (*Subscriptio
 					returnValue.AmountTotal = sub.AmountTotal
 					returnValue.AmountUsedBefore = sub.AmountUsed
 					returnValue.AmountUsedAfter = sub.AmountUsed
+					returnValue.QuotaUnit = NormalizePlanQuotaUnit(sub.QuotaUnit)
 					return nil
 				}
 				return err
 			}
-			sub.AmountUsed += amount
+			sub.AmountUsed += reserve
 			if err := tx.Save(&sub).Error; err != nil {
 				return err
 			}
 			if hasQuotaItem {
 				itemModel := strings.TrimSpace(quotaItem.Model)
-				if err := applySubscriptionModelUsageTx(tx, sub.Id, itemModel, addCalls, addTokens); err != nil {
+				if err := applySubscriptionModelUsageTx(tx, sub.Id, itemModel, addCalls, addTokens, addAmount); err != nil {
 					return err
 				}
 			}
 			returnValue.UserSubscriptionId = sub.Id
-			returnValue.PreConsumed = amount
+			returnValue.PreConsumed = reserve
 			returnValue.AmountTotal = sub.AmountTotal
 			returnValue.AmountUsedBefore = usedBefore
 			returnValue.AmountUsedAfter = sub.AmountUsed
+			returnValue.QuotaUnit = unit
 			return nil
 		}
 		if modelLimitHit {
@@ -1822,7 +2115,6 @@ func PreConsumeUserSubscription(input SubscriptionPreConsumeInput) (*Subscriptio
 	}
 	return returnValue, nil
 }
-
 
 // RefundSubscriptionPreConsume is idempotent and refunds pre-consumed subscription quota by requestId.
 func RefundSubscriptionPreConsume(requestId string) error {
@@ -1838,9 +2130,17 @@ func RefundSubscriptionPreConsume(requestId string) error {
 		if record.Status == "refunded" {
 			return nil
 		}
-		// 回滚逐模型计数（预扣时每次请求 +1 次、+预估 token）。
+		// 回滚逐模型计数：无论哪种单位都回滚 1 次调用，再按单位回滚对应的量。
 		if record.Model != "" {
-			if err := applySubscriptionModelUsageTx(tx, record.UserSubscriptionId, record.Model, -1, -record.Tokens); err != nil {
+			unit := NormalizePlanQuotaUnit(record.QuotaUnit)
+			var tokenDelta, amountDelta int64
+			switch unit {
+			case SubscriptionQuotaUnitToken:
+				tokenDelta = -record.Tokens
+			case SubscriptionQuotaUnitAmount:
+				amountDelta = -record.PreConsumed
+			}
+			if err := applySubscriptionModelUsageTx(tx, record.UserSubscriptionId, record.Model, -1, tokenDelta, amountDelta); err != nil {
 				common.SysLog(fmt.Sprintf("error rolling back subscription model usage (sub=%d model=%s): %v",
 					record.UserSubscriptionId, record.Model, err))
 			}
@@ -1849,7 +2149,11 @@ func RefundSubscriptionPreConsume(requestId string) error {
 			record.Status = "refunded"
 			return tx.Save(&record).Error
 		}
-		if err := PostConsumeUserSubscriptionDelta(record.UserSubscriptionId, -record.PreConsumed); err != nil {
+		var sub UserSubscription
+		if err := lockForUpdate(tx).Where("id = ?", record.UserSubscriptionId).First(&sub).Error; err != nil {
+			return err
+		}
+		if err := applySubscriptionUsedDeltaTx(tx, &sub, -record.PreConsumed); err != nil {
 			return err
 		}
 		record.Status = "refunded"
@@ -1947,6 +2251,27 @@ func GetSubscriptionPlanInfoByUserSubscriptionId(userSubscriptionId int) (*Subsc
 	return info, nil
 }
 
+// applySubscriptionUsedDeltaTx applies a usage delta to an already locked
+// subscription row, clamping at zero and at the total quota.
+func applySubscriptionUsedDeltaTx(tx *gorm.DB, sub *UserSubscription, delta int64) error {
+	if tx == nil || sub == nil || delta == 0 {
+		return nil
+	}
+	newUsed := sub.AmountUsed + delta
+	if newUsed < 0 {
+		newUsed = 0
+	}
+	if sub.AmountTotal > 0 && newUsed > sub.AmountTotal {
+		// 实际用量超出总额度时扣满为止，不再返回错误：
+		// 返回错误会让整次结算失败，导致实际用量完全不扣（少扣）。
+		common.SysError(fmt.Sprintf("subscription usage exceeded total, clamped: subscription_id=%d delta=%d used=%d total=%d",
+			sub.Id, delta, newUsed, sub.AmountTotal))
+		newUsed = sub.AmountTotal
+	}
+	sub.AmountUsed = newUsed
+	return tx.Save(sub).Error
+}
+
 // Update subscription used amount by delta (positive consume more, negative refund).
 func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error {
 	if userSubscriptionId <= 0 {
@@ -1962,18 +2287,23 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 			First(&sub).Error; err != nil {
 			return err
 		}
-		newUsed := sub.AmountUsed + delta
-		if newUsed < 0 {
-			newUsed = 0
-		}
-		if sub.AmountTotal > 0 && newUsed > sub.AmountTotal {
-			// 实际用量超出总额度时扣满为止，不再返回错误：
-			// 返回错误会让整次结算失败，导致实际用量完全不扣（少扣）。
-			common.SysError(fmt.Sprintf("subscription usage exceeded total, clamped: subscription_id=%d delta=%d used=%d total=%d",
-				userSubscriptionId, delta, newUsed, sub.AmountTotal))
-			newUsed = sub.AmountTotal
-		}
-		sub.AmountUsed = newUsed
-		return tx.Save(&sub).Error
+		return applySubscriptionUsedDeltaTx(tx, &sub, delta)
 	})
+}
+
+// GetSubscriptionQuotaUnit returns the ledger unit of a subscription. It is used
+// by async task settlement, which does not keep a plan snapshot in memory.
+func GetSubscriptionQuotaUnit(userSubscriptionId int) string {
+	if userSubscriptionId <= 0 {
+		return SubscriptionQuotaUnitAmount
+	}
+	var unit string
+	if err := DB.Model(&UserSubscription{}).
+		Where("id = ?", userSubscriptionId).
+		Select("quota_unit").
+		Limit(1).
+		Scan(&unit).Error; err != nil {
+		return SubscriptionQuotaUnitAmount
+	}
+	return NormalizePlanQuotaUnit(unit)
 }

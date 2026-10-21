@@ -81,10 +81,12 @@ type SubscriptionFunding struct {
 	requestId      string
 	userId         int
 	modelName      string
-	amount         int64 // 预扣的订阅额度（subConsume）
+	amount         int64 // 本请求的真实费用（框架额度），仅 amount 单位使用
 	estTokens      int64 // 预扣时估算的 token 数，结算时用于校正逐模型 token 额度
 	subscriptionId int
 	preConsumed    int64
+	// quotaUnit 是订阅的记账单位（amount/call/token），预扣成功后填充。
+	quotaUnit string
 	// 以下字段在 PreConsume 成功后填充，供 RelayInfo 同步使用
 	AmountTotal     int64
 	AmountUsedAfter int64
@@ -94,8 +96,17 @@ type SubscriptionFunding struct {
 
 func (s *SubscriptionFunding) Source() string { return BillingSourceSubscription }
 
+// QuotaUnit reports the subscription ledger unit resolved during pre-consume.
+func (s *SubscriptionFunding) QuotaUnit() string {
+	if s.quotaUnit == "" {
+		return model.SubscriptionQuotaUnitAmount
+	}
+	return s.quotaUnit
+}
+
 func (s *SubscriptionFunding) PreConsume(_ int) error {
-	// amount 参数被忽略，使用内部 s.amount（已在构造时根据 preConsumedQuota 计算）
+	// amount 参数被忽略：订阅按自身配额单位记账（金额/次数/Token），
+	// 由 model 层根据套餐单位决定实际预扣量。
 	res, err := model.PreConsumeUserSubscription(model.SubscriptionPreConsumeInput{
 		RequestId: s.requestId,
 		UserId:    s.userId,
@@ -108,6 +119,7 @@ func (s *SubscriptionFunding) PreConsume(_ int) error {
 	}
 	s.subscriptionId = res.UserSubscriptionId
 	s.preConsumed = res.PreConsumed
+	s.quotaUnit = res.QuotaUnit
 	s.AmountTotal = res.AmountTotal
 	s.AmountUsedAfter = res.AmountUsedAfter
 	// 获取订阅计划信息
@@ -118,7 +130,7 @@ func (s *SubscriptionFunding) PreConsume(_ int) error {
 	return nil
 }
 
-// SettleTokens 用实际 token 数校正逐模型 token 额度：
+// SettleTokens 用实际 token 数校正逐模型额度：
 // 预扣时只有估算值，结算时才有上游返回的真实用量。
 func (s *SubscriptionFunding) SettleTokens(actualTokens int64) error {
 	if s.subscriptionId <= 0 || s.modelName == "" || actualTokens <= 0 {
@@ -128,11 +140,16 @@ func (s *SubscriptionFunding) SettleTokens(actualTokens int64) error {
 	if delta == 0 {
 		return nil
 	}
-	return model.AdjustSubscriptionModelTokens(s.subscriptionId, s.modelName, delta)
+	return model.SettleSubscriptionTokens(s.subscriptionId, s.modelName, delta)
 }
 
 func (s *SubscriptionFunding) Settle(delta int) error {
 	if delta == 0 {
+		return nil
+	}
+	// 只有金额口径的订阅会随真实费用调整账本；按次/按 token 的预扣量在
+	// 预扣时已经确定，金额差额不能直接加到次数或 token 上。
+	if s.QuotaUnit() != model.SubscriptionQuotaUnitAmount {
 		return nil
 	}
 	return model.PostConsumeUserSubscriptionDelta(s.subscriptionId, int64(delta))
