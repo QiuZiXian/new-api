@@ -68,6 +68,10 @@ type Task struct {
 	// 禁止返回给用户，内部可能包含key等隐私信息
 	PrivateData TaskPrivateData `json:"-" gorm:"column:private_data;type:json"`
 	Data        json.RawMessage `json:"data" gorm:"type:json"`
+	// PromptTokens / CompletionTokens 是上游在任务终态回报的 token 用量，用于消费日志
+	// 展示与任务列表的「输入/输出」列；提交阶段未知，保持 0。
+	PromptTokens     int `json:"prompt_tokens" gorm:"default:0"`
+	CompletionTokens int `json:"completion_tokens" gorm:"default:0"`
 }
 
 func (t *Task) SetData(data any) {
@@ -106,17 +110,17 @@ type TaskPrivateData struct {
 	UpstreamTaskID string `json:"upstream_task_id,omitempty"` // 上游真实 task ID
 	ResultURL      string `json:"result_url,omitempty"`       // 任务成功后的结果 URL（视频地址等）
 	// 计费上下文：用于异步退款/差额结算（轮询阶段读取）
-	BillingSource  string              `json:"billing_source,omitempty"`  // "wallet" 或 "subscription"
-	SubscriptionId int                 `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
+	BillingSource  string `json:"billing_source,omitempty"`  // "wallet" 或 "subscription"
+	SubscriptionId int    `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
 	// SubscriptionQuotaUnit / SubscriptionReserved snapshot how the subscription
 	// ledger was charged at submit time ("amount"/"call"/"token" + units).
 	// Async settlement needs them because the ledger unit may not be money.
-	SubscriptionQuotaUnit string `json:"subscription_quota_unit,omitempty"`
-	SubscriptionReserved  int64  `json:"subscription_reserved,omitempty"`
-	SubscriptionTokens    int64  `json:"subscription_tokens,omitempty"`
-	TokenId        int                 `json:"token_id,omitempty"`        // 令牌 ID，用于令牌额度退款
-	NodeName       string              `json:"node_name,omitempty"`       // 发起任务的节点名，轮询结算阶段据此归属日志而非最后查询节点
-	BillingContext *TaskBillingContext `json:"billing_context,omitempty"` // 计费参数快照（用于轮询阶段重新计算）
+	SubscriptionQuotaUnit string              `json:"subscription_quota_unit,omitempty"`
+	SubscriptionReserved  int64               `json:"subscription_reserved,omitempty"`
+	SubscriptionTokens    int64               `json:"subscription_tokens,omitempty"`
+	TokenId               int                 `json:"token_id,omitempty"`        // 令牌 ID，用于令牌额度退款
+	NodeName              string              `json:"node_name,omitempty"`       // 发起任务的节点名，轮询结算阶段据此归属日志而非最后查询节点
+	BillingContext        *TaskBillingContext `json:"billing_context,omitempty"` // 计费参数快照（用于轮询阶段重新计算）
 }
 
 // TaskBillingContext 记录任务提交时的计费参数，以便轮询阶段可以重新计算额度。
@@ -128,6 +132,11 @@ type TaskBillingContext struct {
 	OriginModelName string             `json:"origin_model_name,omitempty"` // 模型名称，必须为OriginModelName
 	PerCallBilling  bool               `json:"per_call_billing,omitempty"`  // 按次计费：跳过轮询阶段的差额结算
 	UseVideoSecond  bool               `json:"use_video_second,omitempty"`  // 按秒计费：终态按真实视频时长差额结算
+	// EstimateOnlyRatios 记录只参与预扣估算、不参与终态结算的 OtherRatios key。
+	// 视频按 token 计费时 seconds 属于这一类：上游 token 已含时长，结算不能再乘。
+	EstimateOnlyRatios []string `json:"estimate_only_ratios,omitempty"`
+	// EstimatedTokens 是提交时按官方公式估算的 token 用量（用于预扣与对账排查）。
+	EstimatedTokens int `json:"estimated_tokens,omitempty"`
 }
 
 // GetUpstreamTaskID 获取上游真实 task ID（用于与 provider 通信）
@@ -549,5 +558,6 @@ func (t *Task) ToOpenAIVideo() *dto.OpenAIVideo {
 	openAIVideo.CreatedAt = t.CreatedAt
 	openAIVideo.CompletedAt = t.UpdatedAt
 	openAIVideo.SetMetadata("url", t.GetResultURL())
+	openAIVideo.SetUsage(t.PromptTokens, t.CompletionTokens, t.PromptTokens+t.CompletionTokens)
 	return openAIVideo
 }

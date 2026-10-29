@@ -60,6 +60,9 @@ const MODELS_SECTIONS = [
               settings['general_setting.ping_interval_enabled'],
             ping_interval_seconds:
               settings['general_setting.ping_interval_seconds'],
+            error_log_enabled: settings['general_setting.error_log_enabled'],
+            error_log_request_detail:
+              settings['general_setting.error_log_request_detail'],
           },
         }}
       />

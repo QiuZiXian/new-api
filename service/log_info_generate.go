@@ -87,6 +87,11 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 		other["is_model_mapped"] = true
 		other["upstream_model_name"] = relayInfo.UpstreamModelName
 	}
+	// 结算补扣时余额不足、没有被扣到的额度：单独记在日志里，
+	// 避免把「欠费」误读成「实际消费」。
+	if relayInfo.UnpaidQuota > 0 {
+		other["unpaid_quota"] = relayInfo.UnpaidQuota
+	}
 
 	isSystemPromptOverwritten := common.GetContextKeyBool(ctx, constant.ContextKeySystemPromptOverride)
 	if isSystemPromptOverwritten {

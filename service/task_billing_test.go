@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/glebarez/sqlite"
 	"github.com/shopspring/decimal"
@@ -247,6 +248,8 @@ func TestTaskBillingContextPriceDataFiltersMultiplier(t *testing.T) {
 
 	require.NotNil(t, priceData)
 	assert.Equal(t, 6.0, priceData.OtherRatioMultiplier())
+	// 旧快照没有「仅预扣」标记时，seconds 默认不参与结算连乘
+	assert.Equal(t, 3.0, priceData.SettlementOtherRatioMultiplier())
 	assert.Equal(t, map[string]float64{
 		"seconds":  2,
 		"size":     3,
@@ -1225,4 +1228,197 @@ func TestSettle_NonPerCallBilling_AppliesAdaptorAdjustment(t *testing.T) {
 	log := getLastLog(t)
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeRefund, log.Type)
+}
+
+// ===========================================================================
+// 按秒 / 按 token 口径隔离
+// ===========================================================================
+
+// withModelRatio 在测试期间临时写入按 token 单价，结束后恢复。
+func withModelRatio(t *testing.T, jsonStr string) {
+	t.Helper()
+	original := ratio_setting.ModelRatio2JSONString()
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(jsonStr))
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(original))
+	})
+}
+
+// withVideoSecondPrice 在测试期间临时写入按秒分档价，结束后恢复。
+func withVideoSecondPrice(t *testing.T, jsonStr string) {
+	t.Helper()
+	original := ratio_setting.VideoSecondPrice2JSONString()
+	require.NoError(t, ratio_setting.UpdateVideoSecondPriceByJSONString(jsonStr))
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateVideoSecondPriceByJSONString(original))
+	})
+}
+
+// TestSettle_VideoSecondConfigSettlesByTokens 守护「按秒只影响展示与预扣」：
+// 模型同时配了按秒价和按 token 倍率时，终态结算必须以上游 token 为准，
+// 且结算连乘要跳过 seconds / video_variant。
+func TestSettle_VideoSecondConfigSettlesByTokens(t *testing.T) {
+	withModelRatio(t, `{"test-model":1}`)
+	withVideoSecondPrice(t, `{"test-model":{"default":0.0005}}`)
+
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 41, 41, 41
+	const initQuota, preConsumed = 100000, 50000
+	const totalTokens = 1000
+
+	seedUser(t, userID, initQuota)
+	seedToken(t, tokenID, userID, "sk-token-first", initQuota)
+	seedChannel(t, channelID)
+	seedChargedAccounting(t, userID, channelID, tokenID, preConsumed, 1)
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	task.PrivateData.BillingContext.UseVideoSecond = true
+	task.PrivateData.BillingContext.OtherRatios = map[string]float64{
+		"seconds":       4,
+		"video_variant": 2,
+	}
+	task.PrivateData.BillingContext.EstimateOnlyRatios = []string{"seconds", "video_variant"}
+	// 轮询阶段会把上游 usage 写回 task，结算日志据此展示输入/输出
+	task.PromptTokens = 0
+	task.CompletionTokens = totalTokens
+	require.NoError(t, model.DB.Create(task).Error)
+
+	taskResult := &relaycommon.TaskInfo{
+		Status:       model.TaskStatusSuccess,
+		TotalTokens:  totalTokens,
+		VideoSeconds: 4,
+		VideoVariant: "720p",
+	}
+	settleTaskBillingOnComplete(ctx, &mockAdaptor{}, task, taskResult)
+
+	// 1000 tokens × ratio 1 × group 1 × 1（seconds/video_variant 不参与结算）
+	assert.Equal(t, totalTokens, task.Quota)
+	assert.Equal(t, initQuota+(preConsumed-totalTokens), getUserQuota(t, userID))
+
+	log := getLastLog(t)
+	require.NotNil(t, log)
+	assert.Contains(t, log.Content, "otherMultiplier=1.0000")
+	assert.Equal(t, totalTokens, log.PromptTokens+log.CompletionTokens)
+}
+
+// TestSettle_VideoSecondFallsBackToSeconds 覆盖上游没回报 token 的情况：
+// 按秒配置的模型用真实时长兜底结算。
+func TestSettle_VideoSecondFallsBackToSeconds(t *testing.T) {
+	withVideoSecondPrice(t, `{"test-model":{"default":0.0005}}`)
+
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 42, 42, 42
+	const initQuota, preConsumed = 100000, 1000
+
+	seedUser(t, userID, initQuota)
+	seedToken(t, tokenID, userID, "sk-second-fallback", initQuota)
+	seedChannel(t, channelID)
+	seedChargedAccounting(t, userID, channelID, tokenID, preConsumed, 1)
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	task.PrivateData.BillingContext.UseVideoSecond = true
+	task.PrivateData.BillingContext.GroupRatio = 1
+	require.NoError(t, model.DB.Create(task).Error)
+
+	// 0.0005/s × 4s × 500000 quota/美元 = 1000 quota
+	taskResult := &relaycommon.TaskInfo{
+		Status:       model.TaskStatusSuccess,
+		VideoSeconds: 4,
+		VideoVariant: "default",
+	}
+	settleTaskBillingOnComplete(ctx, &mockAdaptor{}, task, taskResult)
+
+	assert.Equal(t, 1000, task.Quota)
+	assert.Equal(t, initQuota, getUserQuota(t, userID))
+}
+
+// TestSettlementMultiplierSkipsEstimateOnly 校验结算倍率与预扣倍率的差异。
+func TestSettlementMultiplierSkipsEstimateOnly(t *testing.T) {
+	priceData := &types.PriceData{}
+	require.True(t, priceData.ReplaceOtherRatios(map[string]float64{
+		"seconds":     5,
+		"video_input": 1.2,
+	}))
+	priceData.MarkOtherRatioEstimateOnly("seconds")
+
+	assert.Equal(t, []string{"seconds"}, priceData.EstimateOnlyRatios())
+	assert.InDelta(t, 6.0, priceData.OtherRatioMultiplier(), 1e-9)
+	assert.InDelta(t, 1.2, priceData.SettlementOtherRatioMultiplier(), 1e-9)
+
+	// 快照恢复后仍能识别估算专用项
+	restored := &types.PriceData{}
+	require.True(t, restored.ReplaceOtherRatios(map[string]float64{
+		"seconds":     5,
+		"video_input": 1.2,
+	}))
+	restored.ReplaceEstimateOnlyRatios([]string{"seconds"})
+	assert.InDelta(t, 1.2, restored.SettlementOtherRatioMultiplier(), 1e-9)
+}
+
+// ===========================================================================
+// 余额透支保护
+// ===========================================================================
+
+// TestDecreaseUserQuotaUpToNeverOverdraws 守护「余额不会被扣成负数」：
+// 结算补扣最多扣到 0，返回实际扣除额。
+func TestDecreaseUserQuotaUpToNeverOverdraws(t *testing.T) {
+	truncate(t)
+	seedUser(t, 61, 300)
+
+	charged, err := model.DecreaseUserQuotaUpTo(61, 1000, false)
+	require.NoError(t, err)
+	assert.Equal(t, 300, charged)
+	assert.Zero(t, getUserQuota(t, 61))
+
+	// 余额已为 0，再扣不会再变成负数
+	charged, err = model.DecreaseUserQuotaUpTo(61, 500, false)
+	require.NoError(t, err)
+	assert.Zero(t, charged)
+	assert.Zero(t, getUserQuota(t, 61))
+}
+
+// TestSettle_InsufficientBalanceRecordsUnpaid 覆盖结算补扣时余额不足的场景：
+// 预扣 1000 后余额只剩 100，实际应收 5000 —— 只补扣 100，欠费 3900 记在日志里，
+// 任务记录的实际扣费按真实扣款回写，余额不会变成负数。
+func TestSettle_InsufficientBalanceRecordsUnpaid(t *testing.T) {
+	withModelRatio(t, `{"test-model":1}`)
+
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 62, 62, 62
+	const preConsumed = 1000
+	const remaining = 100
+	const actualTokens = 5000
+
+	seedUser(t, userID, remaining)
+	seedToken(t, tokenID, userID, "sk-unpaid", remaining)
+	seedChannel(t, channelID)
+	seedChargedAccounting(t, userID, channelID, tokenID, preConsumed, 1)
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	require.NoError(t, model.DB.Create(task).Error)
+
+	settleTaskBillingOnComplete(ctx, &mockAdaptor{}, task, &relaycommon.TaskInfo{
+		Status:      model.TaskStatusSuccess,
+		TotalTokens: actualTokens,
+	})
+
+	assert.Zero(t, getUserQuota(t, userID), "余额不允许被扣成负数")
+	assert.Equal(t, preConsumed+remaining, task.Quota, "任务记录的是真实扣款额")
+
+	log := getLastLog(t)
+	require.NotNil(t, log)
+	assert.Contains(t, log.Content, "欠费")
+	// 结算补扣日志只记真实扣到的额度
+	assert.Equal(t, remaining, log.Quota)
+
+	var other map[string]any
+	require.NoError(t, json.Unmarshal([]byte(log.Other), &other))
+	assert.Equal(t, float64(actualTokens), other["actual_quota"])
+	assert.Equal(t, float64(actualTokens-preConsumed-remaining), other["unpaid_quota"])
 }

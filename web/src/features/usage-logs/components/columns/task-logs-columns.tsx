@@ -29,6 +29,7 @@ import { formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import { TASK_ACTIONS, TASK_STATUS } from '../../constants'
+import { getTaskTokenUsage } from '../../lib/format'
 import { taskActionMapper, taskStatusMapper } from '../../lib/mappers'
 import type { TaskLog } from '../../types'
 import {
@@ -213,6 +214,34 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
       },
     },
     createProgressColumn<TaskLog>({ headerLabel: t('Progress') }),
+    {
+      id: 'tokens',
+      header: 'Tokens',
+      accessorFn: (row) => {
+        const { prompt, completion } = getTaskTokenUsage(row)
+        return prompt + completion
+      },
+      cell: function TokensCell({ row }) {
+        const { prompt, completion } = getTaskTokenUsage(row.original)
+        if (prompt === 0 && completion === 0) {
+          return <span className='text-muted-foreground text-xs'>-</span>
+        }
+
+        return (
+          <div
+            className='flex flex-col gap-0.5'
+            title={`${t('Input Tokens')}: ${prompt.toLocaleString()} · ${t(
+              'Output Tokens'
+            )}: ${completion.toLocaleString()}`}
+          >
+            <span className='font-mono text-xs font-medium tabular-nums'>
+              {prompt.toLocaleString()} / {completion.toLocaleString()}
+            </span>
+          </div>
+        )
+      },
+      size: 130,
+    },
     {
       accessorKey: 'fail_reason',
       header: t('Details'),

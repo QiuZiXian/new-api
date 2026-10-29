@@ -295,6 +295,10 @@ export interface TaskLog {
   task_id: string
   action: string // MUSIC, LYRICS, GENERATE, TEXT_GENERATE, etc.
   channel_id: number
+  quota?: number
+  // 上游终态回报的 token 用量；0 表示该渠道未上报（提交阶段也一直是 0）
+  prompt_tokens?: number
+  completion_tokens?: number
   submit_time: number // seconds
   finish_time?: number // seconds
   progress?: string

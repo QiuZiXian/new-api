@@ -1314,6 +1314,11 @@ func increaseUserQuota(id int, quota int) (err error) {
 	return ErrWalletQuotaLimitExceeded
 }
 
+// DecreaseUserQuota 无条件扣减用户额度（余额可为负）。
+//
+// 只适用于「余额已在同一流程中校验过」或「明确允许透支记账」的场景（如预扣阶段的
+// 追加预留）。结算补扣这类无法事先拒绝的扣费必须用 DecreaseUserQuotaUpTo，
+// 否则会把余额扣成负数。
 func DecreaseUserQuota(id int, quota int, db bool) (err error) {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
@@ -1337,6 +1342,80 @@ func decreaseUserQuota(id int, quota int) (err error) {
 		return err
 	}
 	return err
+}
+
+// DecreaseUserQuotaUpTo 扣减用户额度，但绝不把余额扣成负数：最多扣到 0，
+// 返回实际扣除的额度（charged < want 表示余额不足，差额即欠费）。
+//
+// 预扣阶段由 TryReserveUserQuota 原子校验余额、余额不足直接拒绝；但「预扣不足、
+// 结算补扣」发生在请求已经完成之后，无法再拒绝服务。此时若无条件扣减，
+// 余额会被打成负数且无法追讨。调用方应使用本函数，并在 charged < want 时
+// 记录欠费与告警。
+func DecreaseUserQuotaUpTo(id int, want int, db bool) (charged int, err error) {
+	if want < 0 {
+		return 0, errors.New("quota 不能为负数！")
+	}
+	if want == 0 {
+		return 0, nil
+	}
+
+	// 批量更新模式：以当前可见余额为上限做钳制，真正的扣减交给批量任务。
+	if !db && common.BatchUpdateEnabled {
+		available, err := GetUserQuota(id, false)
+		if err != nil {
+			return 0, err
+		}
+		charged = clampQuotaToAvailable(available, want)
+		if charged == 0 {
+			return 0, nil
+		}
+		gopool.Go(func() {
+			if err := cacheDecrUserQuota(id, int64(charged)); err != nil {
+				common.SysLog("failed to decrease user quota: " + err.Error())
+			}
+		})
+		addNewRecord(BatchUpdateTypeUserQuota, id, -charged)
+		return charged, nil
+	}
+
+	// 条件更新保证并发下也不会扣穿余额；条件未命中说明余额已被并发扣减，
+	// 回库重算一次可扣额度。
+	for attempt := 0; attempt < 2 && charged < want; attempt++ {
+		available, err := GetUserQuota(id, attempt > 0)
+		if err != nil {
+			return charged, err
+		}
+		chunk := clampQuotaToAvailable(available, want-charged)
+		if chunk == 0 {
+			return charged, nil
+		}
+		result := DB.Model(&User{}).Where("id = ? AND quota >= ?", id, chunk).
+			Update("quota", gorm.Expr("quota - ?", chunk))
+		if result.Error != nil {
+			return charged, result.Error
+		}
+		if result.RowsAffected != 1 {
+			continue
+		}
+		gopool.Go(func() {
+			if err := cacheDecrUserQuota(id, int64(chunk)); err != nil {
+				common.SysLog("failed to decrease user quota: " + err.Error())
+			}
+		})
+		charged += chunk
+	}
+	return charged, nil
+}
+
+// clampQuotaToAvailable 返回不超过可用余额的扣减额。
+func clampQuotaToAvailable(available int, want int) int {
+	if available <= 0 || want <= 0 {
+		return 0
+	}
+	if available < want {
+		return available
+	}
+	return want
 }
 
 func DeltaUpdateUserQuota(id int, delta int) (err error) {

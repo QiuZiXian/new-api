@@ -51,7 +51,12 @@ import {
   updateBillingPreference,
 } from '@/features/subscriptions/api'
 import { SubscriptionPurchaseDialog } from '@/features/subscriptions/components/dialogs/subscription-purchase-dialog'
-import { formatDuration, formatResetPeriod } from '@/features/subscriptions/lib'
+import {
+  daysUntil,
+  formatDuration,
+  formatResetPeriod,
+  remainingUntil,
+} from '@/features/subscriptions/lib'
 import {
   formatQuotaInUnit,
   normalizePlanQuotaUnit,
@@ -195,6 +200,29 @@ export function SubscriptionPlansCard({
 
   const hasActive = activeSubscriptions.length > 0
   const hasAny = allSubscriptions.length > 0
+  // Queued purchases of the same plan: bought now, starting when the current
+  // period ends.
+  const scheduledCount = useMemo(
+    () =>
+      allSubscriptions.filter(
+        (record) => record.subscription?.status === 'scheduled'
+      ).length,
+    [allSubscriptions]
+  )
+  const inactiveCount =
+    allSubscriptions.length - activeSubscriptions.length - scheduledCount
+  // The API orders by end time, which puts a queued period above the running
+  // one. Show the running period first, then what starts next, then history.
+  const orderedSubscriptions = useMemo(() => {
+    const rank = (status?: string) => {
+      if (status === 'active') return 0
+      if (status === 'scheduled') return 1
+      return 2
+    }
+    return [...allSubscriptions].sort(
+      (a, b) => rank(a.subscription?.status) - rank(b.subscription?.status)
+    )
+  }, [allSubscriptions])
   const isAvailable = loading || plans.length > 0 || hasAny
   const disablePref = !hasActive
   const isSubPref =
@@ -227,11 +255,21 @@ export function SubscriptionPlansCard({
     return map
   }, [plans])
 
-  const getRemainingDays = (sub: UserSubscriptionRecord) => {
-    const endTime = sub?.subscription?.end_time || 0
-    if (!endTime) return 0
-    const now = Date.now() / 1000
-    return Math.max(0, Math.ceil((endTime - now) / 86400))
+  // Remaining time is always `end_time - now`, rendered with days and hours so
+  // it can never disagree with the "until" date shown next to it.
+  const formatRemainingTime = (sub: UserSubscriptionRecord) => {
+    const remaining = remainingUntil(sub?.subscription?.end_time || 0)
+    if (remaining.expired) return t('Expired')
+    if (remaining.days > 0) {
+      return t('{{days}} days {{hours}} hours remaining', {
+        days: remaining.days,
+        hours: remaining.hours,
+      })
+    }
+    return t('{{hours}} hours {{minutes}} minutes remaining', {
+      hours: remaining.hours,
+      minutes: remaining.minutes,
+    })
   }
 
   const getUsagePercent = (sub: UserSubscriptionRecord) => {
@@ -297,12 +335,19 @@ export function SubscriptionPlansCard({
                     {t('No Active')}
                   </span>
                 )}
-                {allSubscriptions.length > activeSubscriptions.length && (
+                {scheduledCount > 0 && (
                   <>
                     <span className='text-muted-foreground/30'>·</span>
                     <span className='text-muted-foreground'>
-                      {allSubscriptions.length - activeSubscriptions.length}{' '}
-                      {t('expired')}
+                      {scheduledCount} {t('scheduled')}
+                    </span>
+                  </>
+                )}
+                {inactiveCount > 0 && (
+                  <>
+                    <span className='text-muted-foreground/30'>·</span>
+                    <span className='text-muted-foreground'>
+                      {inactiveCount} {t('expired')}
                     </span>
                   </>
                 )}
@@ -403,7 +448,7 @@ export function SubscriptionPlansCard({
             <>
               <Separator className='my-3' />
               <div className='max-h-64 space-y-3 overflow-y-auto pr-1'>
-                {allSubscriptions.map((sub) => {
+                {orderedSubscriptions.map((sub) => {
                   const subscription = sub.subscription
                   const subUnit = normalizePlanQuotaUnit(
                     sub.plan?.quota_unit ?? subscription?.quota_unit
@@ -415,11 +460,12 @@ export function SubscriptionPlansCard({
                     totalAmount > 0 ? Math.max(0, totalAmount - usedAmount) : 0
                   const planTitle =
                     planTitleMap.get(subscription?.plan_id) || ''
-                  const remainDays = getRemainingDays(sub)
                   const usagePercent = getUsagePercent(sub)
                   const now = Date.now() / 1000
+                  const startTime = Number(subscription?.start_time || 0)
                   const isExpired = (subscription?.end_time || 0) < now
                   const isCancelled = subscription?.status === 'cancelled'
+                  const isScheduled = subscription?.status === 'scheduled'
                   const isActive =
                     subscription?.status === 'active' && !isExpired
                   const nextResetTime = subscription?.next_reset_time ?? 0
@@ -438,6 +484,14 @@ export function SubscriptionPlansCard({
                         copyable={false}
                       />
                     )
+                  } else if (isScheduled) {
+                    statusBadge = (
+                      <StatusBadge
+                        label={t('Scheduled')}
+                        variant='info'
+                        copyable={false}
+                      />
+                    )
                   } else if (isCancelled) {
                     statusBadge = (
                       <StatusBadge
@@ -449,7 +503,7 @@ export function SubscriptionPlansCard({
                   }
 
                   let endTimeLabel = t('Expired at')
-                  if (isActive) {
+                  if (isActive || isScheduled) {
                     endTimeLabel = t('Until')
                   } else if (isCancelled) {
                     endTimeLabel = t('Cancelled at')
@@ -471,12 +525,23 @@ export function SubscriptionPlansCard({
                         </div>
                         {isActive && (
                           <span className='text-muted-foreground'>
-                            {t('{{count}} days remaining', {
-                              count: remainDays,
+                            {formatRemainingTime(sub)}
+                          </span>
+                        )}
+                        {isScheduled && (
+                          <span className='text-muted-foreground'>
+                            {t('Starts in {{count}} days', {
+                              count: Math.max(1, daysUntil(startTime)),
                             })}
                           </span>
                         )}
                       </div>
+                      {isScheduled && startTime > 0 && (
+                        <div className='text-muted-foreground mt-1.5'>
+                          {t('Starts at')}{' '}
+                          {new Date(startTime * 1000).toLocaleString()}
+                        </div>
+                      )}
                       <div className='text-muted-foreground mt-1.5'>
                         {endTimeLabel}{' '}
                         {new Date(
@@ -510,7 +575,7 @@ export function SubscriptionPlansCard({
                         ) : (
                           t('Unlimited')
                         )}
-                        {totalAmount > 0 && (
+                        {totalAmount > 0 && !isScheduled && (
                           <span className='ml-2'>
                             {t('Used')} {usagePercent}%
                           </span>
@@ -709,6 +774,14 @@ export function SubscriptionPlansCard({
                         ))}
                       </div>
                     ) : null}
+
+                    {ownedSubscription && !reached && (
+                      <p className='text-muted-foreground mb-3 text-[11px]'>
+                        {t(
+                          'Buying again starts a new period after the current one ends'
+                        )}
+                      </p>
+                    )}
 
                     <Separator className='mb-3' />
 

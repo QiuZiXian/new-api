@@ -68,6 +68,14 @@ func (s *BillingSession) Settle(actualQuota int) error {
 		if err := s.funding.Settle(fundingDelta); err != nil {
 			return err
 		}
+		// 钱包补扣被余额上限钳制时，差额记为欠费并随消费日志上报。
+		if wallet, ok := s.funding.(*WalletFunding); ok {
+			if unpaid := wallet.UnpaidQuota(); unpaid > 0 {
+				s.relayInfo.UnpaidQuota += unpaid
+				common.SysLog(fmt.Sprintf("结算补扣余额不足，欠费 %s（userId=%d, model=%s）",
+					logger.FormatQuota(unpaid), s.relayInfo.UserId, s.relayInfo.OriginModelName))
+			}
+		}
 		s.fundingSettled = true
 	}
 	// 2) 调整令牌额度

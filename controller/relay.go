@@ -92,6 +92,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	defer func() {
 		if newAPIError != nil {
 			logger.LogError(c, fmt.Sprintf("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
+			// 请求现场详情：已在上游错误处理中输出过则跳过，避免重复刷屏
+			service.LogRelayRequestDetail(c, "relay")
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
@@ -374,7 +376,7 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		})
 	}
 
-	if constant.ErrorLogEnabled && types.IsRecordErrorLog(err) {
+	if service.IsErrorLogEnabled() && types.IsRecordErrorLog(err) {
 		// 保存错误日志到mysql中
 		userId := c.GetInt("id")
 		tokenName := c.GetString("token_name")
@@ -392,6 +394,10 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		other["channel_id"] = channelId
 		other["channel_name"] = c.GetString("channel_name")
 		other["channel_type"] = c.GetInt("channel_type")
+		// 请求现场（path/query/header/body，敏感字段已脱敏）
+		if detail := service.LogRelayRequestDetail(c, "relay"); detail != nil {
+			other["request"] = detail
+		}
 		adminInfo := make(map[string]interface{})
 		adminInfo["use_channel"] = c.GetStringSlice("use_channel")
 		isMultiKey := common.GetContextKeyBool(c, constant.ContextKeyChannelIsMultiKey)
@@ -588,13 +594,15 @@ func RelayTask(c *gin.Context) {
 		task.PrivateData.TokenId = relayInfo.TokenId
 		task.PrivateData.NodeName = common.NodeName
 		task.PrivateData.BillingContext = &model.TaskBillingContext{
-			ModelPrice:      relayInfo.PriceData.ModelPrice,
-			GroupRatio:      relayInfo.PriceData.GroupRatioInfo.GroupRatio,
-			ModelRatio:      relayInfo.PriceData.ModelRatio,
-			OtherRatios:     relayInfo.PriceData.OtherRatios(),
-			OriginModelName: relayInfo.OriginModelName,
-			PerCallBilling:  common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice,
-			UseVideoSecond:  relayInfo.PriceData.UseVideoSecond,
+			ModelPrice:         relayInfo.PriceData.ModelPrice,
+			GroupRatio:         relayInfo.PriceData.GroupRatioInfo.GroupRatio,
+			ModelRatio:         relayInfo.PriceData.ModelRatio,
+			OtherRatios:        relayInfo.PriceData.OtherRatios(),
+			EstimateOnlyRatios: relayInfo.PriceData.EstimateOnlyRatios(),
+			EstimatedTokens:    relayInfo.PriceData.EstimatedTokens,
+			OriginModelName:    relayInfo.OriginModelName,
+			PerCallBilling:     common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice,
+			UseVideoSecond:     relayInfo.PriceData.UseVideoSecond,
 		}
 		task.Quota = result.Quota
 		task.Data = result.TaskData
@@ -614,6 +622,8 @@ func respondTaskError(c *gin.Context, taskErr *taskdto.TaskError) {
 	if taskErr.StatusCode == http.StatusTooManyRequests {
 		taskErr.Message = "当前分组上游负载已饱和，请稍后再试"
 	}
+	// 任务类接口的错误现场只进 stdout，暂不落库（落库范围见 errors 表策略）
+	service.LogRelayRequestDetail(c, "task")
 	c.JSON(taskErr.StatusCode, taskErr)
 }
 

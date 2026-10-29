@@ -1,6 +1,7 @@
 package channel
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -487,6 +488,26 @@ func keepUpstreamRedirectResponse(_ *http.Request, _ []*http.Request) error {
 	return http.ErrUseLastResponse
 }
 
+// requestBodyForLog 通过 GetBody 取一份请求体副本用于日志，不消耗待发送的 body。
+// GetBody 不可用时返回 nil，日志里只保留 URL 与 header。
+func requestBodyForLog(req *http.Request) []byte {
+	if req == nil || req.GetBody == nil {
+		return nil
+	}
+	body, err := req.GetBody()
+	if err != nil || body == nil {
+		return nil
+	}
+	defer func() {
+		_ = body.Close()
+	}()
+	data, err := io.ReadAll(io.LimitReader(body, 1<<20))
+	if err != nil {
+		return nil
+	}
+	return data
+}
+
 func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
 	client, err := service.GetHttpClientWithProxySettings(info.ChannelSetting.Proxy, info.ChannelSetting)
 	if err != nil {
@@ -531,11 +552,24 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 
 	resp, err := relayClient.Do(req)
 	if err != nil {
+		service.LogUpstreamExchange(c, req, 0, nil, requestBodyForLog(req))
 		logger.LogError(c, "do request failed: "+err.Error())
 		return nil, types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithHideErrMsg("upstream error: do request failed"))
 	}
 	if resp == nil {
 		return nil, errors.New("resp is nil")
+	}
+	if resp.StatusCode >= http.StatusBadRequest {
+		// 只在上游报错时留痕：peek 响应体后原样接回去，不改变后续处理。
+		peeked, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
+		resp.Body = struct {
+			io.Reader
+			io.Closer
+		}{io.MultiReader(bytes.NewReader(peeked), resp.Body), resp.Body}
+		if readErr != nil {
+			logger.LogError(c, "failed to peek upstream error body: "+readErr.Error())
+		}
+		service.LogUpstreamExchange(c, req, resp.StatusCode, peeked, requestBodyForLog(req))
 	}
 	if common2.DebugEnabled {
 		policy := service.NormalizeHTTPTransportPolicy(info.ChannelSetting)

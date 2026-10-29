@@ -20,6 +20,10 @@ type GeneralSetting struct {
 	CustomCurrencySymbol string `json:"custom_currency_symbol"`
 	// 自定义货币与美元汇率（1 USD = X Custom）
 	CustomCurrencyExchangeRate float64 `json:"custom_currency_exchange_rate"`
+	// 错误日志开关：记录鉴权拒绝、上游失败等异常请求（需同时开启环境变量 ERROR_LOG_ENABLED）
+	ErrorLogEnabled bool `json:"error_log_enabled"`
+	// 错误日志详情开关：额外记录请求/上游的 path、query、header、body（敏感字段自动脱敏）
+	ErrorLogRequestDetail bool `json:"error_log_request_detail"`
 }
 
 // 默认配置
@@ -30,6 +34,8 @@ var generalSetting = GeneralSetting{
 	QuotaDisplayType:           QuotaDisplayTypeUSD,
 	CustomCurrencySymbol:       "¤",
 	CustomCurrencyExchangeRate: 1.0,
+	ErrorLogEnabled:            true,
+	ErrorLogRequestDetail:      true,
 }
 
 func init() {

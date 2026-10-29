@@ -25,7 +25,7 @@ import {
 } from '@/features/pricing/lib/billing-expr'
 
 import type { UsageLog } from '../data/schema'
-import type { LogOtherData } from '../types'
+import type { LogOtherData, TaskLog } from '../types'
 
 export { normalizeTierLabel }
 
@@ -164,6 +164,55 @@ export function parseLogOther(other: string): LogOtherData | null {
     // eslint-disable-next-line no-console
     console.error('Failed to parse log other field:', error)
     return null
+  }
+}
+
+/**
+ * Read a task log's token usage as (input, output).
+ *
+ * New tasks persist prompt_tokens / completion_tokens once the upstream reports
+ * the final state. Historical tasks predate those columns, so fall back to the
+ * upstream usage block kept in the task's `data` payload (e.g. Seedance only
+ * reports completion_tokens / total_tokens).
+ */
+export function getTaskTokenUsage(log: TaskLog): {
+  prompt: number
+  completion: number
+} {
+  const prompt = Math.max(0, log.prompt_tokens || 0)
+  const completion = Math.max(0, log.completion_tokens || 0)
+  if (prompt > 0 || completion > 0) {
+    return { prompt, completion }
+  }
+
+  let data: unknown = log.data
+  if (typeof data === 'string') {
+    try {
+      data = JSON.parse(data)
+    } catch {
+      return { prompt: 0, completion: 0 }
+    }
+  }
+  if (!data || typeof data !== 'object') {
+    return { prompt: 0, completion: 0 }
+  }
+
+  const usage = (data as Record<string, unknown>).usage
+  if (!usage || typeof usage !== 'object') {
+    return { prompt: 0, completion: 0 }
+  }
+
+  const toCount = (value: unknown) => {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 0
+  }
+  const usageRecord = usage as Record<string, unknown>
+  const dataPrompt = toCount(usageRecord.prompt_tokens)
+  const dataCompletion = toCount(usageRecord.completion_tokens)
+  const dataTotal = toCount(usageRecord.total_tokens)
+  return {
+    prompt: dataPrompt,
+    completion: dataCompletion || Math.max(0, dataTotal - dataPrompt),
   }
 }
 

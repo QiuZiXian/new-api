@@ -288,9 +288,12 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 	otherStr := common.MapToJsonStr(other)
 	// 判断是否需要记录 IP
 	needRecordIp := false
-	if settingMap, err := GetUserSetting(userId, false); err == nil {
-		if settingMap.RecordIpLog {
-			needRecordIp = true
+	// userId 为 0 表示请求在鉴权阶段就被拒绝，没有可查的用户设置
+	if userId > 0 {
+		if settingMap, err := GetUserSetting(userId, false); err == nil {
+			if settingMap.RecordIpLog {
+				needRecordIp = true
+			}
 		}
 	}
 	log := &Log{
@@ -410,10 +413,14 @@ type RecordTaskBillingLogParams struct {
 	ChannelId int
 	ModelName string
 	Quota     int
-	TokenId   int
-	Group     string
-	Other     map[string]interface{}
-	NodeName  string // 任务发起节点；为空时回退当前节点
+	// PromptTokens/CompletionTokens 是上游终态回报的 token 用量。
+	// 任务提交阶段未知，只有差额结算/退款阶段才有值。
+	PromptTokens     int
+	CompletionTokens int
+	TokenId          int
+	Group            string
+	Other            map[string]interface{}
+	NodeName         string // 任务发起节点；为空时回退当前节点
 }
 
 func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
@@ -429,18 +436,20 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	}
 	createdAt := common.GetTimestamp()
 	log := &Log{
-		UserId:    params.UserId,
-		Username:  username,
-		CreatedAt: createdAt,
-		Type:      params.LogType,
-		Content:   params.Content,
-		TokenName: tokenName,
-		ModelName: params.ModelName,
-		Quota:     params.Quota,
-		ChannelId: params.ChannelId,
-		TokenId:   params.TokenId,
-		Group:     params.Group,
-		Other:     common.MapToJsonStr(params.Other),
+		UserId:           params.UserId,
+		Username:         username,
+		CreatedAt:        createdAt,
+		Type:             params.LogType,
+		Content:          params.Content,
+		PromptTokens:     params.PromptTokens,
+		CompletionTokens: params.CompletionTokens,
+		TokenName:        tokenName,
+		ModelName:        params.ModelName,
+		Quota:            params.Quota,
+		ChannelId:        params.ChannelId,
+		TokenId:          params.TokenId,
+		Group:            params.Group,
+		Other:            common.MapToJsonStr(params.Other),
 	}
 	err := createLog(log)
 	if err != nil {
@@ -457,6 +466,7 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 			ModelName: params.ModelName,
 			Quota:     params.Quota,
 			CreatedAt: createdAt,
+			TokenUsed: params.PromptTokens + params.CompletionTokens,
 			UseGroup:  params.Group,
 			TokenID:   params.TokenId,
 			ChannelID: params.ChannelId,

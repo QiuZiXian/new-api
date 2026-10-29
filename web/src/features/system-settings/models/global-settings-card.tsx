@@ -96,6 +96,8 @@ const schema = z.object({
   general_setting: z.object({
     ping_interval_enabled: z.boolean(),
     ping_interval_seconds: z.coerce.number().min(1),
+    error_log_enabled: z.boolean(),
+    error_log_request_detail: z.boolean(),
   }),
 })
 
@@ -108,6 +110,8 @@ type FlatGlobalModelSettings = {
   'global.chat_completions_to_responses_policy': string
   'general_setting.ping_interval_enabled': boolean
   'general_setting.ping_interval_seconds': number
+  'general_setting.error_log_enabled': boolean
+  'general_setting.error_log_request_detail': boolean
 }
 
 const flattenGlobalValues = (
@@ -127,6 +131,10 @@ const flattenGlobalValues = (
     values.general_setting.ping_interval_enabled,
   'general_setting.ping_interval_seconds':
     values.general_setting.ping_interval_seconds,
+  'general_setting.error_log_enabled':
+    values.general_setting.error_log_enabled,
+  'general_setting.error_log_request_detail':
+    values.general_setting.error_log_request_detail,
 })
 
 function normalizeJsonText(value: string, fallback: string) {
@@ -156,6 +164,7 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
   }, [defaultValues, form])
 
   const pingEnabled = form.watch('general_setting.ping_interval_enabled')
+  const errorLogEnabled = form.watch('general_setting.error_log_enabled')
 
   const onSubmit = async (values: GlobalModelSettingsFormValues) => {
     const flattenedDefaults = flattenGlobalValues(defaultValues)
@@ -371,6 +380,55 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
                 </FormDescription>
                 <FormMessage />
               </FormItem>
+            )}
+          />
+
+          <Separator />
+
+          <FormField
+            control={form.control}
+            name='general_setting.error_log_enabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Error logs')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Record rejected requests (invalid token, no available channel, rate limit) and upstream failures into the logs table.'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='general_setting.error_log_request_detail'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Error log request details')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Include request path, query, headers and body, plus the upstream request, in error logs. Credentials are masked automatically.'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    disabled={!errorLogEnabled}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
             )}
           />
         </SettingsForm>

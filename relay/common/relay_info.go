@@ -147,13 +147,16 @@ type RelayInfo struct {
 	// BillingTokens is the actual total token count reported by upstream for this
 	// request. It is used to correct per-model token usage at settlement time.
 	BillingTokens int
-	IsClaudeBetaQuery                     bool // /v1/messages?beta=true
-	IsChannelTest                         bool // channel test request
-	RetryIndex                            int
-	LastError                             *types.NewAPIError
-	RuntimeHeadersOverride                map[string]interface{}
-	UseRuntimeHeadersOverride             bool
-	ParamOverrideAudit                    []string
+	// UnpaidQuota 记录结算补扣时因余额不足而没有扣到的额度（欠费）。
+	// 余额不会被扣成负数，差额写入消费日志的 unpaid_quota 字段。
+	UnpaidQuota               int
+	IsClaudeBetaQuery         bool // /v1/messages?beta=true
+	IsChannelTest             bool // channel test request
+	RetryIndex                int
+	LastError                 *types.NewAPIError
+	RuntimeHeadersOverride    map[string]interface{}
+	UseRuntimeHeadersOverride bool
+	ParamOverrideAudit        []string
 
 	PriceData hosttypes.PriceData
 
@@ -961,6 +964,7 @@ type TaskInfo struct {
 	Url              string `json:"url,omitempty"`
 	RemoteUrl        string `json:"remote_url,omitempty"`
 	Progress         string `json:"progress,omitempty"`
+	PromptTokens     int    `json:"prompt_tokens,omitempty"`     // 输入 token，用于日志展示与按倍率计费
 	CompletionTokens int    `json:"completion_tokens,omitempty"` // 用于按倍率计费
 	TotalTokens      int    `json:"total_tokens,omitempty"`      // 用于按倍率计费
 	// VideoSeconds 是上游回报的真实视频时长（秒），终态回调里用于按秒计费的差额结算。

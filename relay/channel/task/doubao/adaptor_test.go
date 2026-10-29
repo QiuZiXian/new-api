@@ -1,12 +1,14 @@
 package doubao
 
 import (
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -117,39 +119,49 @@ func TestEstimateBilling_Duration(t *testing.T) {
 	}
 
 	a := &TaskAdaptor{}
-	info := &common.RelayInfo{OriginModelName: "doubao-seedance-2-0-260128"}
+	newInfo := func() *common.RelayInfo {
+		return &common.RelayInfo{OriginModelName: "doubao-seedance-2-0-260128"}
+	}
+	// 官方公式：tokens = (输入时长 + 输出时长) × 宽 × 高 × 帧率 / 1024
+	expectTokens := func(seconds, width, height int) int {
+		return int(math.Round(float64(seconds*width*height*24) / 1024))
+	}
 
-	t.Run("no duration and no video gives nil (no multipliers)", func(t *testing.T) {
-		ctx := newCtxWithReq(t, common.TaskSubmitReq{})
-		assert.Nil(t, a.EstimateBilling(ctx, info))
+	t.Run("no duration and no video still estimates tokens at defaults", func(t *testing.T) {
+		info := newInfo()
+		assert.Nil(t, a.EstimateBilling(newCtxWithReq(t, common.TaskSubmitReq{}), info))
+		// 上游默认 720p / 5s，预扣按官方公式估算，而不是固定 25 万 token
+		assert.Equal(t, expectTokens(5, 1280, 720), info.PriceData.EstimatedTokens)
 	})
 
-	t.Run("positive duration adds seconds ratio", func(t *testing.T) {
-		ctx := newCtxWithReq(t, common.TaskSubmitReq{Duration: 10})
-		ratios := a.EstimateBilling(ctx, info)
-		require.NotNil(t, ratios)
-		assert.InDelta(t, 10.0, ratios["seconds"], 1e-9)
-		_, hasVideo := ratios["video_input"]
-		assert.False(t, hasVideo, "no video input → no video_input multiplier")
+	t.Run("positive duration estimates tokens instead of seconds ratio", func(t *testing.T) {
+		info := newInfo()
+		ratios := a.EstimateBilling(newCtxWithReq(t, common.TaskSubmitReq{Duration: 10}), info)
+		assert.Nil(t, ratios, "no video input → no other ratios")
+		assert.Equal(t, expectTokens(10, 1280, 720), info.PriceData.EstimatedTokens)
+		assert.False(t, info.PriceData.IsOtherRatioEstimateOnly("seconds"))
 	})
 
-	t.Run("video input adds video_input ratio on top of seconds", func(t *testing.T) {
-		ctx := newCtxWithReq(t, common.TaskSubmitReq{
+	t.Run("video input adds video_input ratio and keeps token estimate", func(t *testing.T) {
+		info := newInfo()
+		ratios := a.EstimateBilling(newCtxWithReq(t, common.TaskSubmitReq{
 			Duration: 5,
 			Metadata: map[string]interface{}{
 				"content": []interface{}{
 					map[string]interface{}{"type": "video_url"},
 				},
 			},
-		})
-		ratios := a.EstimateBilling(ctx, info)
+		}), info)
 		require.NotNil(t, ratios)
-		assert.InDelta(t, 5.0, ratios["seconds"], 1e-9)
 		assert.InDelta(t, 28.0/46.0, ratios["video_input"], 1e-9)
+		_, hasSeconds := ratios["seconds"]
+		assert.False(t, hasSeconds, "token 已含时长，不能再乘 seconds")
+		assert.Equal(t, expectTokens(5, 1280, 720), info.PriceData.EstimatedTokens)
 	})
 
-	t.Run("1080p+video adds composed ratio", func(t *testing.T) {
-		ctx := newCtxWithReq(t, common.TaskSubmitReq{
+	t.Run("1080p+video uses 1080p pixels", func(t *testing.T) {
+		info := newInfo()
+		ratios := a.EstimateBilling(newCtxWithReq(t, common.TaskSubmitReq{
 			Duration: 6,
 			Metadata: map[string]interface{}{
 				"resolution": "1080p",
@@ -157,35 +169,114 @@ func TestEstimateBilling_Duration(t *testing.T) {
 					map[string]interface{}{"type": "video_url"},
 				},
 			},
-		})
-		ratios := a.EstimateBilling(ctx, info)
+		}), info)
 		require.NotNil(t, ratios)
-		assert.InDelta(t, 6.0, ratios["seconds"], 1e-9)
 		assert.InDelta(t, 31.0/46.0, ratios["video_input"], 1e-9)
+		assert.Equal(t, expectTokens(6, 1920, 1080), info.PriceData.EstimatedTokens)
+	})
+
+	t.Run("portrait ratio swaps width and height", func(t *testing.T) {
+		info := newInfo()
+		a.EstimateBilling(newCtxWithReq(t, common.TaskSubmitReq{
+			Duration: 5,
+			Metadata: map[string]interface{}{
+				"resolution": "720p",
+				"ratio":      "9:16",
+			},
+		}), info)
+		assert.Equal(t, expectTokens(5, 720, 1280), info.PriceData.EstimatedTokens)
 	})
 
 	t.Run("seconds string field is honored when duration is zero", func(t *testing.T) {
-		ctx := newCtxWithReq(t, common.TaskSubmitReq{Seconds: "8"})
-		ratios := a.EstimateBilling(ctx, info)
-		require.NotNil(t, ratios)
-		assert.InDelta(t, 8.0, ratios["seconds"], 1e-9)
-	})
-
-	t.Run("negative seconds is ignored", func(t *testing.T) {
-		ctx := newCtxWithReq(t, common.TaskSubmitReq{Seconds: "-1"})
-		ratios := a.EstimateBilling(ctx, info)
-		assert.Nil(t, ratios, "duration=-1 means auto → no pre-consume multiplier")
-	})
-
-	t.Run("non-numeric seconds is ignored", func(t *testing.T) {
-		ctx := newCtxWithReq(t, common.TaskSubmitReq{Seconds: "auto"})
-		assert.Nil(t, a.EstimateBilling(ctx, info))
+		info := newInfo()
+		a.EstimateBilling(newCtxWithReq(t, common.TaskSubmitReq{Seconds: "8"}), info)
+		assert.Equal(t, expectTokens(8, 1280, 720), info.PriceData.EstimatedTokens)
 	})
 
 	t.Run("oversized duration is clamped to MaxTaskDurationSeconds", func(t *testing.T) {
-		ctx := newCtxWithReq(t, common.TaskSubmitReq{Duration: 1_000_000})
-		ratios := a.EstimateBilling(ctx, info)
+		info := newInfo()
+		a.EstimateBilling(newCtxWithReq(t, common.TaskSubmitReq{Duration: 1_000_000}), info)
+		assert.Equal(t, expectTokens(common.MaxTaskDurationSeconds, 1280, 720), info.PriceData.EstimatedTokens)
+	})
+
+	t.Run("unknown resolution falls back to seconds ratio", func(t *testing.T) {
+		info := newInfo()
+		ratios := a.EstimateBilling(newCtxWithReq(t, common.TaskSubmitReq{
+			Duration: 4,
+			Metadata: map[string]interface{}{"resolution": "8k"},
+		}), info)
 		require.NotNil(t, ratios)
-		assert.InDelta(t, float64(common.MaxTaskDurationSeconds), ratios["seconds"], 1e-9)
+		assert.InDelta(t, 4.0, ratios["seconds"], 1e-9)
+		assert.True(t, info.PriceData.IsOtherRatioEstimateOnly("seconds"))
+		assert.Zero(t, info.PriceData.EstimatedTokens)
+	})
+}
+
+// TestEstimateBilling_EstimateOnlyRatios 守护「按秒」与「按 token」两种乘数不混用：
+// seconds 只放大预扣冻结额度，终态结算不再乘；video_input 属于按 token 单价档，
+// 两个口径都要参与结算。
+func TestEstimateBilling_EstimateOnlyRatios(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	newCtx := func(t *testing.T) *gin.Context {
+		t.Helper()
+		request := httptest.NewRequest(http.MethodPost, "/v1/video/generations", strings.NewReader("{}"))
+		request.Header.Set("Content-Type", "application/json")
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		ctx.Request = request
+		ctx.Set("task_request", common.TaskSubmitReq{
+			Duration: 5,
+			Metadata: map[string]interface{}{
+				"resolution": "1080p",
+				"content": []interface{}{
+					map[string]interface{}{"type": "video_url"},
+				},
+			},
+		})
+		return ctx
+	}
+
+	a := &TaskAdaptor{}
+
+	t.Run("token mode", func(t *testing.T) {
+		info := &common.RelayInfo{OriginModelName: "doubao-seedance-2-0-260128"}
+		ratios := a.EstimateBilling(newCtx(t), info)
+		require.NotNil(t, ratios)
+		// 调用方（RelayTaskSubmit）负责把返回的 ratios 写回 PriceData
+		for key, ratio := range ratios {
+			info.PriceData.AddOtherRatio(key, ratio)
+		}
+
+		// 预估 token 已含时长，token 模式不再产生 seconds 倍率；
+		// video_input 是「每 token 单价档」，预扣和结算都要乘。
+		assert.False(t, info.PriceData.IsOtherRatioEstimateOnly("video_input"))
+		assert.Greater(t, info.PriceData.EstimatedTokens, 0)
+		assert.InDelta(t, 31.0/46.0, info.PriceData.SettlementOtherRatioMultiplier(), 1e-9)
+		assert.InDelta(t, 31.0/46.0, info.PriceData.OtherRatioMultiplier(), 1e-9)
+	})
+
+	t.Run("per-second mode excludes both second-dimension ratios", func(t *testing.T) {
+		original := ratio_setting.VideoSecondPrice2JSONString()
+		require.NoError(t, ratio_setting.UpdateVideoSecondPriceByJSONString(
+			`{"doubao-seedance-2-0-260128":{"default":1,"1080p":1.51}}`))
+		t.Cleanup(func() {
+			require.NoError(t, ratio_setting.UpdateVideoSecondPriceByJSONString(original))
+		})
+
+		info := &common.RelayInfo{OriginModelName: "doubao-seedance-2-0-260128"}
+		info.PriceData.UseVideoSecond = true
+		ratios := a.EstimateBilling(newCtx(t), info)
+		require.NotNil(t, ratios)
+		for key, ratio := range ratios {
+			info.PriceData.AddOtherRatio(key, ratio)
+		}
+
+		assert.InDelta(t, 5.0, ratios["seconds"], 1e-9)
+		assert.InDelta(t, 1.51, ratios["video_variant"], 1e-9)
+		assert.True(t, info.PriceData.IsOtherRatioEstimateOnly("seconds"))
+		assert.True(t, info.PriceData.IsOtherRatioEstimateOnly("video_variant"))
+		// 预扣乘满，结算不乘
+		assert.InDelta(t, 5*1.51, info.PriceData.OtherRatioMultiplier(), 1e-9)
+		assert.InDelta(t, 1.0, info.PriceData.SettlementOtherRatioMultiplier(), 1e-9)
 	})
 }

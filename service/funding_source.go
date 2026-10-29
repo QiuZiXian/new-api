@@ -35,6 +35,7 @@ var ErrInsufficientWalletQuota = errors.New("wallet quota insufficient")
 type WalletFunding struct {
 	userId   int
 	consumed int // 实际预扣的用户额度
+	unpaid   int // 结算补扣时余额不足、没有扣到的额度（欠费）
 }
 
 func (w *WalletFunding) Source() string { return BillingSourceWallet }
@@ -59,9 +60,23 @@ func (w *WalletFunding) Settle(delta int) error {
 		return nil
 	}
 	if delta > 0 {
-		return model.DecreaseUserQuota(w.userId, delta, false)
+		// 补扣可能发生在余额已被别的请求用掉之后：最多扣到 0，差额记为欠费，
+		// 不能把余额扣成负数。
+		charged, err := model.DecreaseUserQuotaUpTo(w.userId, delta, false)
+		if err != nil {
+			return err
+		}
+		if charged < delta {
+			w.unpaid += delta - charged
+		}
+		return nil
 	}
 	return model.IncreaseUserQuota(w.userId, -delta, false)
+}
+
+// UnpaidQuota 返回结算阶段因余额不足而没有扣到的额度。
+func (w *WalletFunding) UnpaidQuota() int {
+	return w.unpaid
 }
 
 func (w *WalletFunding) Refund() error {

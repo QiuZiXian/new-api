@@ -112,6 +112,8 @@ func ResolveOriginTask(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 			for s, f := range originTask.PrivateData.BillingContext.OtherRatios {
 				info.PriceData.AddOtherRatio(s, f)
 			}
+			// 「仅预扣」标记也要一起继承，否则 remix 任务结算会把时长再乘一次
+			info.PriceData.ReplaceEstimateOnlyRatios(originTask.PrivateData.BillingContext.EstimateOnlyRatios)
 		} else {
 			// 旧的 remix 逻辑：直接从 task data 解析 seconds 和 size（如果存在）
 			var taskData map[string]interface{}
@@ -194,6 +196,13 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		}
 	}
 
+	// 5.5 按 token 计费的视频任务：适配器已按官方公式估出 token 用量时，用它替换
+	// 「25 万 token」的默认粗估基数，让预扣冻结额度贴近终态结算。
+	// 预估 token 已含时长，EstimateBilling 不会再返回 seconds 倍率。
+	if baseQuota, ok := taskBaseQuotaFromEstimatedTokens(info, modelName); ok {
+		info.PriceData.Quota = baseQuota
+	}
+
 	// 6. 将 OtherRatios 应用到基础额度（饱和转换，防止溢出成负数）
 	if !common.StringsContains(constant.TaskPricePatches, modelName) {
 		quotaWithRatios := info.PriceData.ApplyOtherRatiosToFloat(float64(info.PriceData.Quota))
@@ -258,6 +267,28 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		Platform:       platform,
 		Quota:          finalQuota,
 	}, nil
+}
+
+// taskBaseQuotaFromEstimatedTokens 按预估 token 计算任务预扣基数：
+//
+//	quota = 预估 tokens × modelRatio × groupRatio
+//
+// 附加倍率（如 video_input 单价档）随后由 ApplyOtherRatios 连乘。
+// 仅适用于「按 token 计费、且能估出 token」的视频任务；按次/按秒/免费模型返回 false。
+func taskBaseQuotaFromEstimatedTokens(info *relaycommon.RelayInfo, modelName string) (int, bool) {
+	if info == nil {
+		return 0, false
+	}
+	estTokens := info.PriceData.EstimatedTokens
+	if estTokens <= 0 || info.PriceData.ModelRatio <= 0 ||
+		info.PriceData.UsePrice || info.PriceData.UseVideoSecond || info.PriceData.FreeModel ||
+		common.StringsContains(constant.TaskPricePatches, modelName) {
+		return 0, false
+	}
+	quota, clamp := common.QuotaFromFloatChecked(
+		float64(estTokens) * info.PriceData.ModelRatio * info.PriceData.GroupRatioInfo.GroupRatio)
+	noteTaskQuotaClamp(info, clamp)
+	return quota, true
 }
 
 // recalcQuotaFromRatios 根据 adjustedRatios 重新计算 quota。
@@ -550,25 +581,27 @@ func mapTaskStatusToSimple(status model.TaskStatus) string {
 
 func TaskModel2Dto(task *model.Task) *dto.TaskDto {
 	return &dto.TaskDto{
-		ID:         task.ID,
-		CreatedAt:  task.CreatedAt,
-		UpdatedAt:  task.UpdatedAt,
-		TaskID:     task.TaskID,
-		Platform:   string(task.Platform),
-		UserId:     task.UserId,
-		Group:      task.Group,
-		ChannelId:  task.ChannelId,
-		Quota:      task.Quota,
-		Action:     task.Action,
-		Status:     string(task.Status),
-		FailReason: task.FailReason,
-		ResultURL:  task.GetResultURL(),
-		SubmitTime: task.SubmitTime,
-		StartTime:  task.StartTime,
-		FinishTime: task.FinishTime,
-		Progress:   task.Progress,
-		Properties: task.Properties,
-		Username:   task.Username,
-		Data:       task.Data,
+		ID:               task.ID,
+		CreatedAt:        task.CreatedAt,
+		UpdatedAt:        task.UpdatedAt,
+		TaskID:           task.TaskID,
+		Platform:         string(task.Platform),
+		UserId:           task.UserId,
+		Group:            task.Group,
+		ChannelId:        task.ChannelId,
+		Quota:            task.Quota,
+		PromptTokens:     task.PromptTokens,
+		CompletionTokens: task.CompletionTokens,
+		Action:           task.Action,
+		Status:           string(task.Status),
+		FailReason:       task.FailReason,
+		ResultURL:        task.GetResultURL(),
+		SubmitTime:       task.SubmitTime,
+		StartTime:        task.StartTime,
+		FinishTime:       task.FinishTime,
+		Progress:         task.Progress,
+		Properties:       task.Properties,
+		Username:         task.Username,
+		Data:             task.Data,
 	}
 }

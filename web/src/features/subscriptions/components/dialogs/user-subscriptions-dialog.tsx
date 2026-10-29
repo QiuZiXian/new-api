@@ -93,6 +93,15 @@ function SubscriptionStatusBadge(props: {
       />
     )
   }
+  if (props.sub.status === 'scheduled') {
+    return (
+      <StatusBadge
+        label={props.t('Scheduled')}
+        variant='info'
+        copyable={false}
+      />
+    )
+  }
   if (props.sub.status === 'cancelled') {
     return (
       <StatusBadge

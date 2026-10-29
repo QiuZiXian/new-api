@@ -367,6 +367,9 @@ func migrateDB() error {
 	if err := migrateSubscriptionQuotaUnits(); err != nil {
 		return err
 	}
+	if _, err := StackParallelSubscriptions(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -453,6 +456,9 @@ func migrateDBFast() error {
 		}
 	}
 	if err := migrateSubscriptionQuotaUnits(); err != nil {
+		return err
+	}
+	if _, err := StackParallelSubscriptions(); err != nil {
 		return err
 	}
 	common.SysLog("database migrated")

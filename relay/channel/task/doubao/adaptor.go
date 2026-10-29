@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -16,7 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
-	relaycommon 	"github.com/QuantumNous/new-api/relay/common"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -89,6 +90,7 @@ type responseTask struct {
 		Type string `json:"type"`
 	} `json:"tools"`
 	Usage struct {
+		PromptTokens     int `json:"prompt_tokens"`
 		CompletionTokens int `json:"completion_tokens"`
 		TotalTokens      int `json:"total_tokens"`
 		ToolUsage        struct {
@@ -140,11 +142,18 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 }
 
 // EstimateBilling 根据请求 metadata 中的输出分辨率、是否包含视频输入以及视频时长，
-// 返回相对基准价的计费 OtherRatio。Seedance 按 token 计费，时长是主因子：
-//   - "video_input"：分辨率档 + 是否含视频输入（来自价格表）
-//   - "seconds"：用户显式请求的视频时长（秒），仅在客户端提供正数时写入；
-//     未提供时（duration=-1 / 缺省）不写入，留给 AdjustBillingOnComplete 按
-//     usage.completion_tokens 真实值结算。
+// 返回相对基准价的计费 OtherRatio。按秒 / 按 token 两种模式的乘数严格分开：
+//   - 按秒模式（模型配置了分档秒价）：
+//   - "video_variant"：命中档位价 / 基准秒价
+//   - "seconds"：用户显式请求的视频时长（秒）
+//     两者只参与「展示 + 预扣」，终态结算以上游 token 为准（见 MarkOtherRatioEstimateOnly）。
+//   - 按 token 模式：
+//   - "video_input"：分辨率档 + 是否含视频输入带来的单价差（来自价格表），参与结算
+//   - "seconds"：仅在无法按官方公式估算 token 时兜底，用于放大预扣冻结额度，
+//     结算不参与（上游 token 已含时长）
+//
+// 按 token 模式下若能估出 token（分辨率 + 时长可确定），会把预估 token 写入
+// info.PriceData.EstimatedTokens，由 relay 层据此计算预扣基数。
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
@@ -168,6 +177,9 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 		if len(ratios) == 0 {
 			return nil
 		}
+		// 按秒模式的乘数只服务于「展示 + 预扣」：终态结算以上游真实 token 为准，
+		// 档位倍率与时长都不能再参与结算连乘。
+		info.PriceData.MarkOtherRatioEstimateOnly("video_variant", "seconds")
 		return ratios
 	}
 
@@ -176,14 +188,30 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 		ratios["video_input"] = ratio
 	}
 
-	if seconds := resolveTaskSeconds(&req); seconds > 0 {
+	seconds := resolveTaskSeconds(&req)
+	if seconds > relaycommon.MaxTaskDurationSeconds {
 		// 与 sora remix 路径一致：作为计费乘数前必须钳制，避免 int 溢出为负
-		if seconds > relaycommon.MaxTaskDurationSeconds {
-			seconds = relaycommon.MaxTaskDurationSeconds
-		}
-		ratios["seconds"] = float64(seconds)
+		seconds = relaycommon.MaxTaskDurationSeconds
+	}
+	ratio, _ := req.Metadata["ratio"].(string)
+	// 按 token 计费：用官方公式直接估算 token 用量，替换「25 万 token」的默认粗估基数。
+	// 预估 token 已包含时长维度，因此不再把 seconds 作为独立乘数。
+	if tokens := estimateVideoTokens(resolution, ratio, seconds); tokens > 0 {
+		info.PriceData.EstimatedTokens = tokens
+		return ratiosIfAny(ratios)
 	}
 
+	// 无法估算（分辨率未知等）时回退到「时长放大」：仅影响预扣冻结额度，
+	// 终态结算仍以上游真实 token 为准。
+	if seconds > 0 {
+		ratios["seconds"] = float64(seconds)
+		info.PriceData.MarkOtherRatioEstimateOnly("seconds")
+	}
+	return ratiosIfAny(ratios)
+}
+
+// ratiosIfAny 避免返回空 map，调用方以 nil 表示「没有附加倍率」。
+func ratiosIfAny(ratios map[string]float64) map[string]float64 {
 	if len(ratios) == 0 {
 		return nil
 	}
@@ -208,6 +236,85 @@ func resolveTaskSeconds(req *relaycommon.TaskSubmitReq) int {
 		return 0
 	}
 	return v
+}
+
+// arkVideoTokenDivisor 是火山方舟视频模型的 token 换算除数：
+//
+//	token 用量 = (输入视频时长 + 输出视频时长) × 输出宽 × 输出高 × 输出帧率 / 1024
+const arkVideoTokenDivisor = 1024
+
+// defaultVideoOutputFPS 是 Seedance 未显式指定帧率时的输出帧率。
+const defaultVideoOutputFPS = 24
+
+// defaultVideoDurationSeconds 是请求未带时长时上游的默认生成时长（Seedance 默认 5 秒）。
+const defaultVideoDurationSeconds = 5
+
+// defaultVideoResolution 是请求未带分辨率时上游的默认输出档（Seedance 默认 720p）。
+const defaultVideoResolution = "720p"
+
+// videoResolutionBaseDims 是各分辨率档在 16:9 下的官方输出尺寸，
+// 用于还原官方 token 公式里的「输出宽 × 输出高」。
+var videoResolutionBaseDims = map[string][2]int{
+	"480p":  {864, 480},
+	"720p":  {1280, 720},
+	"1080p": {1920, 1080},
+	"4k":    {3840, 2160},
+}
+
+// estimateVideoTokens 按火山官方公式估算一次视频生成消耗的 token：
+//
+//	tokens = (输入视频时长 + 输出视频时长) × 输出宽 × 输出高 × 输出帧率 / 1024
+//
+// 请求里只有输出时长，输入视频时长未知：含视频输入的场景会略微低估，
+// 预扣阶段可接受（终态仍以上游回报的真实 usage 结算）。
+// 分辨率未知时按上游默认 720p、时长未知时按默认 5 秒估算，保证预扣不至于
+// 用「25 万 token」的通用粗估冻结出十倍金额。
+func estimateVideoTokens(resolution, ratio string, seconds int) int {
+	if resolution == "" {
+		resolution = defaultVideoResolution
+	}
+	if seconds <= 0 {
+		seconds = defaultVideoDurationSeconds
+	}
+	if seconds > relaycommon.MaxTaskDurationSeconds {
+		seconds = relaycommon.MaxTaskDurationSeconds
+	}
+	base, ok := videoResolutionBaseDims[strings.ToLower(strings.TrimSpace(resolution))]
+	if !ok {
+		return 0
+	}
+	width, height := resolveOutputDims(base[0], base[1], ratio)
+	if width <= 0 || height <= 0 {
+		return 0
+	}
+	tokens := float64(seconds) * float64(width) * float64(height) * defaultVideoOutputFPS / arkVideoTokenDivisor
+	if tokens < 1 {
+		return 0
+	}
+	return int(math.Round(tokens))
+}
+
+// resolveOutputDims 按宽高比把 16:9 基准尺寸换算成实际输出尺寸。
+// ratio 形如 "16:9" / "9:16" / "1:1"；缺省或非数值（如 adaptive）时按 16:9 处理。
+func resolveOutputDims(baseWidth, baseHeight int, ratio string) (int, int) {
+	ratio = strings.ToLower(strings.TrimSpace(ratio))
+	if ratio == "" || ratio == "adaptive" || ratio == "auto" {
+		return baseWidth, baseHeight
+	}
+	parts := strings.Split(ratio, ":")
+	if len(parts) != 2 {
+		return baseWidth, baseHeight
+	}
+	w, errW := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
+	h, errH := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
+	if errW != nil || errH != nil || w <= 0 || h <= 0 {
+		return baseWidth, baseHeight
+	}
+	if w >= h {
+		return int(math.Round(float64(baseHeight) * w / h)), baseHeight
+	}
+	// 竖屏：短边仍是 baseHeight（如 720p 9:16 = 720×1280）
+	return baseHeight, int(math.Round(float64(baseHeight) * h / w))
 }
 
 // hasVideoInMetadata 直接检查 metadata 的 content 数组是否包含 video_url 条目，
@@ -528,9 +635,17 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		taskResult.Status = model.TaskStatusSuccess
 		taskResult.Progress = "100%"
 		taskResult.Url = resTask.Content.VideoURL
-		// 解析 usage 信息用于按倍率计费
+		// 解析 usage 信息用于按倍率计费与日志展示。
+		// 上游只回报 completion_tokens / total_tokens，输入 token 用差值兜底。
 		taskResult.CompletionTokens = resTask.Usage.CompletionTokens
 		taskResult.TotalTokens = resTask.Usage.TotalTokens
+		if taskResult.TotalTokens <= 0 {
+			taskResult.TotalTokens = taskResult.CompletionTokens
+		}
+		taskResult.PromptTokens = resTask.Usage.PromptTokens
+		if taskResult.PromptTokens <= 0 && taskResult.TotalTokens > taskResult.CompletionTokens {
+			taskResult.PromptTokens = taskResult.TotalTokens - taskResult.CompletionTokens
+		}
 		// 真实时长与分辨率档，供按秒计费在终态按实际结果补扣
 		taskResult.VideoSeconds = resTask.Duration
 		taskResult.VideoVariant = resTask.Resolution
@@ -562,6 +677,19 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	openAIVideo.CreatedAt = originTask.CreatedAt
 	openAIVideo.CompletedAt = originTask.UpdatedAt
 	openAIVideo.Model = originTask.Properties.OriginModelName
+	// 生成参数与 token 用量对齐上游终态字段，便于调用方核对实际计费口径。
+	openAIVideo.Duration = dResp.Duration
+	openAIVideo.Resolution = dResp.Resolution
+	openAIVideo.Ratio = dResp.Ratio
+	openAIVideo.FramesPerSecond = dResp.FramesPerSecond
+	promptTokens, completionTokens, totalTokens := originTask.PromptTokens, originTask.CompletionTokens, 0
+	if promptTokens == 0 && completionTokens == 0 {
+		// 历史任务没有持久化 token 用量，回退到任务 Data 里的上游 usage。
+		promptTokens = dResp.Usage.PromptTokens
+		completionTokens = dResp.Usage.CompletionTokens
+		totalTokens = dResp.Usage.TotalTokens
+	}
+	openAIVideo.SetUsage(promptTokens, completionTokens, totalTokens)
 
 	if dResp.Status == "failed" {
 		openAIVideo.Error = &dto.OpenAIVideoError{

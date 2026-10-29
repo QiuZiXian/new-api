@@ -541,6 +541,16 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		if task.FinishTime == 0 {
 			task.FinishTime = now
 		}
+		// 上游终态回报的 token 用量：随 task 一起落库，供任务日志与消费日志展示。
+		// 只有回报了正数才覆盖，避免把已知数据清空；只回报 total_tokens 的渠道
+		// 按输出 token 记账。
+		if taskResult.PromptTokens > 0 || taskResult.CompletionTokens > 0 {
+			task.PromptTokens = taskResult.PromptTokens
+			task.CompletionTokens = taskResult.CompletionTokens
+		}
+		if task.PromptTokens == 0 && task.CompletionTokens == 0 && taskResult.TotalTokens > 0 {
+			task.CompletionTokens = taskResult.TotalTokens
+		}
 		if strings.HasPrefix(taskResult.Url, "data:") {
 			// data: URI (e.g. Vertex base64 encoded video) — keep in Data, not in ResultURL
 			task.PrivateData.ResultURL = taskcommon.BuildProxyURL(task.TaskID)
@@ -640,8 +650,11 @@ func truncateBase64(s string) string {
 // settleTaskBillingOnComplete 任务完成时的统一计费调整。
 // 优先级：1. adaptor.AdjustBillingOnComplete 返回正数 → 使用 adaptor 计算的额度
 //
-//  2. taskResult.TotalTokens > 0 → 按 token 重算
-//  3. 都不满足 → 保持预扣额度不变
+//  2. taskResult.TotalTokens > 0 → 按 token 重算（上游真实用量，唯一事实来源）
+//  3. 按秒定价的模型在缺少 token 时 → 用上游回报的真实时长重算
+//  4. 都不满足 → 保持预扣额度不变
+//
+// 说明：按秒定价只决定「展示 + 预扣」，结算仍以上游 token 为准，两种口径不混用。
 func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor, task *model.Task, taskResult *relaycommon.TaskInfo) {
 	// 0. 按次计费的任务不做差额结算
 	if bc := task.PrivateData.BillingContext; bc != nil && bc.PerCallBilling {
@@ -653,18 +666,16 @@ func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor
 		RecalculateTaskQuota(ctx, task, actualQuota, "adaptor计费调整")
 		return
 	}
-	// 1.5 按秒计费：上游回报真实时长后按实际秒数补扣。
-	// 放在 token 重算之前，避免被 completion_tokens 的估算口径覆盖。
+	// 2. 上游回报了 token：按 token 结算（按秒配置的模型同样走这里）
+	if taskResult.TotalTokens > 0 && RecalculateTaskQuotaByTokens(ctx, task, taskResult.TotalTokens) {
+		return
+	}
+	// 3. 按秒定价的模型没有可用 token（或没配按 token 单价）时，按真实时长兜底
 	if bc := task.PrivateData.BillingContext; bc != nil && bc.UseVideoSecond {
 		if taskResult != nil && taskResult.VideoSeconds > 0 {
 			RecalculateTaskQuotaBySeconds(ctx, task, taskResult.VideoSeconds, taskResult.VideoVariant)
 			return
 		}
 	}
-	// 2. 回退到 token 重算
-	if taskResult.TotalTokens > 0 {
-		RecalculateTaskQuotaByTokens(ctx, task, taskResult.TotalTokens)
-		return
-	}
-	// 3. 无调整，保持预扣额度
+	// 4. 无调整，保持预扣额度
 }

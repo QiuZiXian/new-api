@@ -89,6 +89,9 @@ type TaskDto struct {
 	Properties any             `json:"properties"`
 	Username   string          `json:"username,omitempty"`
 	Data       json.RawMessage `json:"data"`
+	// PromptTokens / CompletionTokens 为上游终态回报的 token 用量，0 表示未上报。
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
 }
 
 type FetchReq struct {

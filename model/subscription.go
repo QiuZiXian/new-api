@@ -26,6 +26,19 @@ const (
 	SubscriptionDurationCustom = "custom"
 )
 
+// Subscription lifecycle statuses.
+//
+// A repeat purchase of the same plan does not start a second parallel period:
+// it is stored as "scheduled" with a start time equal to the end of the current
+// period, and promoted to "active" once that time arrives. Only "active" rows
+// can be charged, so the validity windows stack instead of overlapping.
+const (
+	SubscriptionStatusActive    = "active"
+	SubscriptionStatusScheduled = "scheduled"
+	SubscriptionStatusExpired   = "expired"
+	SubscriptionStatusCancelled = "cancelled"
+)
+
 // Subscription quota reset period
 const (
 	SubscriptionResetNever   = "never"
@@ -807,16 +820,37 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 		}
 	}
 	nowUnix := GetDBTimestamp()
-	now := time.Unix(nowUnix, 0)
-	endUnix, err := calcPlanEndTime(now, plan)
+
+	// Stack repeat purchases of the same plan instead of running them in
+	// parallel: the new period starts where the current one ends, so the total
+	// validity grows by one duration per purchase.
+	startUnix := nowUnix
+	var latest UserSubscription
+	if err := tx.Where("user_id = ? AND plan_id = ? AND status IN ? AND end_time > ?",
+		userId, plan.Id,
+		[]string{SubscriptionStatusActive, SubscriptionStatusScheduled}, nowUnix).
+		Order("end_time desc, id desc").
+		Limit(1).
+		Find(&latest).Error; err != nil {
+		return nil, err
+	}
+	if latest.Id > 0 && latest.EndTime > startUnix {
+		startUnix = latest.EndTime
+	}
+	scheduled := startUnix > nowUnix
+	start := time.Unix(startUnix, 0)
+	endUnix, err := calcPlanEndTime(start, plan)
 	if err != nil {
 		return nil, err
 	}
-	resetBase := now
-	nextReset := calcNextResetTime(resetBase, plan, endUnix)
+	nextReset := calcNextResetTime(start, plan, endUnix)
 	lastReset := int64(0)
-	if nextReset > 0 {
-		lastReset = now.Unix()
+	if !scheduled && nextReset > 0 {
+		lastReset = startUnix
+	}
+	status := SubscriptionStatusActive
+	if scheduled {
+		status = SubscriptionStatusScheduled
 	}
 	upgradeGroup := strings.TrimSpace(plan.UpgradeGroup)
 	prevGroup := ""
@@ -825,7 +859,12 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 		if err != nil {
 			return nil, err
 		}
-		if currentGroup != upgradeGroup {
+		if scheduled {
+			// A queued period must not switch the user's group before it starts;
+			// the group at purchase time is stored as the snapshot the activation
+			// uses to decide whether the switch is still valid.
+			prevGroup = currentGroup
+		} else if currentGroup != upgradeGroup {
 			prevGroup = currentGroup
 			if err := tx.Model(&User{}).Where("id = ?", userId).
 				Update("group", upgradeGroup).Error; err != nil {
@@ -843,9 +882,9 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 		AmountTotal:         plan.TotalAmount,
 		AmountUsed:          0,
 		QuotaUnit:           NormalizePlanQuotaUnit(plan.QuotaUnit),
-		StartTime:           now.Unix(),
+		StartTime:           startUnix,
 		EndTime:             endUnix,
-		Status:              "active",
+		Status:              status,
 		Source:              source,
 		LastResetTime:       lastReset,
 		NextResetTime:       nextReset,
@@ -1022,6 +1061,7 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) (string, e
 		return "", err
 	}
 	groupChanged := false
+	queuedUntil := int64(0)
 	err = DB.Transaction(func(tx *gorm.DB) error {
 		// 与 CompleteSubscriptionOrder 一致：先锁用户行，再做购买次数检查。
 		var userRow User
@@ -1030,12 +1070,20 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) (string, e
 		}
 		subscription, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, "admin")
 		if err == nil {
-			groupChanged = subscription.PrevUserGroup != ""
+			groupChanged = subscription.Status == SubscriptionStatusActive && subscription.PrevUserGroup != ""
+			queuedUntil = 0
+			if subscription.Status == SubscriptionStatusScheduled {
+				queuedUntil = subscription.StartTime
+			}
 		}
 		return err
 	})
 	if err != nil {
 		return "", err
+	}
+	if queuedUntil > 0 {
+		return fmt.Sprintf("该用户已有同套餐有效订阅，新订阅将于 %s 生效",
+			time.Unix(queuedUntil, 0).Format("2006-01-02 15:04")), nil
 	}
 	if groupChanged {
 		refreshSubscriptionUserGroupCache(userId, "admin subscription creation")
@@ -1531,6 +1579,168 @@ type SubscriptionPreConsumeResult struct {
 	QuotaUnit string
 }
 
+// ActivateDueSubscriptions promotes queued ("scheduled") subscriptions whose
+// start time has arrived and applies the group upgrade they carry. It must run
+// before ExpireDueSubscriptions: when one period ends exactly where the next one
+// starts, the expiring row has to see the started row as active so the user's
+// group is not downgraded in between.
+func ActivateDueSubscriptions(limit int) (int, error) {
+	if limit <= 0 {
+		limit = 200
+	}
+	now := GetDBTimestamp()
+	var candidates []UserSubscription
+	if err := DB.Where("status = ? AND start_time > 0 AND start_time <= ?",
+		SubscriptionStatusScheduled, now).
+		Order("start_time asc, id asc").
+		Limit(limit).
+		Find(&candidates).Error; err != nil {
+		return 0, err
+	}
+	activated := 0
+	for _, candidate := range candidates {
+		group := ""
+		err := DB.Transaction(func(tx *gorm.DB) error {
+			var sub UserSubscription
+			if err := lockForUpdate(tx).
+				Where("id = ? AND status = ?", candidate.Id, SubscriptionStatusScheduled).
+				First(&sub).Error; err != nil {
+				return nil
+			}
+			if sub.EndTime <= now {
+				// The whole queued period elapsed while the server was down.
+				if err := tx.Model(&UserSubscription{}).Where("id = ?", sub.Id).
+					Updates(map[string]interface{}{
+						"status":     SubscriptionStatusExpired,
+						"updated_at": common.GetTimestamp(),
+					}).Error; err != nil {
+					return err
+				}
+				activated++
+				return nil
+			}
+			updates := map[string]interface{}{
+				"status":     SubscriptionStatusActive,
+				"updated_at": common.GetTimestamp(),
+			}
+			plan, planErr := getSubscriptionPlanByIdTx(tx, sub.PlanId)
+			if planErr == nil {
+				nextReset := calcNextResetTime(time.Unix(sub.StartTime, 0), plan, sub.EndTime)
+				lastReset := int64(0)
+				if nextReset > 0 {
+					lastReset = sub.StartTime
+				}
+				updates["next_reset_time"] = nextReset
+				updates["last_reset_time"] = lastReset
+			}
+			if err := tx.Model(&UserSubscription{}).Where("id = ?", sub.Id).
+				Updates(updates).Error; err != nil {
+				return err
+			}
+			activated++
+			upgradeGroup := strings.TrimSpace(sub.UpgradeGroup)
+			if upgradeGroup == "" {
+				return nil
+			}
+			currentGroup, err := getUserGroupByIdTx(tx, sub.UserId)
+			if err != nil {
+				return err
+			}
+			if currentGroup == upgradeGroup {
+				return nil
+			}
+			// Only switch when the group is still the one observed at purchase
+			// time; another subscription may own it in the meantime.
+			snapshot := strings.TrimSpace(sub.PrevUserGroup)
+			if snapshot != "" && currentGroup != snapshot {
+				return nil
+			}
+			if err := tx.Model(&UserSubscription{}).Where("id = ?", sub.Id).
+				Update("prev_user_group", currentGroup).Error; err != nil {
+				return err
+			}
+			if err := tx.Model(&User{}).Where("id = ?", sub.UserId).
+				Update("group", upgradeGroup).Error; err != nil {
+				return err
+			}
+			group = upgradeGroup
+			return nil
+		})
+		if err != nil {
+			return activated, err
+		}
+		if group != "" {
+			refreshSubscriptionUserGroupCache(candidate.UserId, "subscription activation")
+		}
+	}
+	return activated, nil
+}
+
+// StackParallelSubscriptions repairs subscriptions created before repeat
+// purchases were queued: several active subscriptions of the same plan used to
+// run in parallel, so the purchased validity never added up. Untouched
+// duplicates are re-sequenced into a chain starting at the current period's end;
+// a group that already consumed quota is left untouched, because moving consumed
+// usage into a future period would be worse than a missing extension.
+func StackParallelSubscriptions() (int, error) {
+	now := GetDBTimestamp()
+	var subs []UserSubscription
+	if err := DB.Where("status = ? AND end_time > ?", SubscriptionStatusActive, now).
+		Order("user_id asc, plan_id asc, end_time asc, id asc").
+		Find(&subs).Error; err != nil {
+		return 0, err
+	}
+	stacked := 0
+	for i := 0; i < len(subs); {
+		j := i + 1
+		for j < len(subs) && subs[j].UserId == subs[i].UserId && subs[j].PlanId == subs[i].PlanId {
+			j++
+		}
+		group := subs[i:j]
+		i = j
+		if len(group) < 2 {
+			continue
+		}
+		queued := make([]UserSubscription, 0, len(group)-1)
+		for _, sub := range group[1:] {
+			if sub.AmountUsed > 0 || sub.EndTime <= sub.StartTime {
+				queued = nil
+				break
+			}
+			queued = append(queued, sub)
+		}
+		if len(queued) == 0 {
+			continue
+		}
+		end := group[0].EndTime
+		err := DB.Transaction(func(tx *gorm.DB) error {
+			for _, sub := range queued {
+				duration := sub.EndTime - sub.StartTime
+				updates := map[string]interface{}{
+					"status":          SubscriptionStatusScheduled,
+					"start_time":      end,
+					"end_time":        end + duration,
+					// Reset schedule is recomputed when the period starts.
+					"last_reset_time": 0,
+					"next_reset_time": 0,
+					"updated_at":      common.GetTimestamp(),
+				}
+				if err := tx.Model(&UserSubscription{}).Where("id = ?", sub.Id).
+					Updates(updates).Error; err != nil {
+					return err
+				}
+				end += duration
+				stacked++
+			}
+			return nil
+		})
+		if err != nil {
+			return stacked, err
+		}
+	}
+	return stacked, nil
+}
+
 // ExpireDueSubscriptions marks expired subscriptions and handles group downgrade.
 func ExpireDueSubscriptions(limit int) (int, error) {
 	if limit <= 0 {
@@ -1568,10 +1778,12 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 			}
 			expiredCount += int(res.RowsAffected)
 
-			// If there's an active upgraded subscription, keep current group.
+			// If an active upgraded subscription remains, keep the current group.
+			// Queued rows are promoted to active by ActivateDueSubscriptions
+			// before this runs, so a back-to-back period is seen here.
 			var activeSub UserSubscription
 			activeQuery := tx.Where("user_id = ? AND status = ? AND end_time > ? AND upgrade_group <> ''",
-				userId, "active", now).
+				userId, SubscriptionStatusActive, now).
 				Order("end_time desc, id desc").
 				Limit(1).
 				Find(&activeSub)

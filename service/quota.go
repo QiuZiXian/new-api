@@ -457,7 +457,15 @@ func postConsumeQuotaWithResult(relayInfo *relaycommon.RelayInfo, quota int, pre
 	} else {
 		// Wallet
 		if quota > 0 {
-			err = model.DecreaseUserQuota(relayInfo.UserId, quota, false)
+			// 补扣最多扣到 0：余额不足时差额记为欠费，不能把余额扣成负数。
+			charged, deductErr := model.DecreaseUserQuotaUpTo(relayInfo.UserId, quota, false)
+			if deductErr != nil {
+				err = deductErr
+			} else if charged < quota {
+				relayInfo.UnpaidQuota += quota - charged
+				common.SysLog(fmt.Sprintf("结算补扣余额不足，欠费 %s（userId=%d, model=%s）",
+					logger.FormatQuota(quota-charged), relayInfo.UserId, relayInfo.OriginModelName))
+			}
 		} else {
 			err = model.IncreaseUserQuota(relayInfo.UserId, -quota, false)
 		}
