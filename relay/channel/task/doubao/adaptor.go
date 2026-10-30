@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	taskdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/videopricing"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -125,7 +126,76 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 // ValidateRequestAndSetAction parses body, validates fields and sets default action.
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *taskdto.TaskError) {
 	// Accept only POST /v1/video/generations as "generate" action.
-	return relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate)
+	// 上游支持 duration = -1（智能选择时长），对外文档也这样约定。
+	if taskErr = relaycommon.ValidateBasicTaskRequestWithSmartDuration(c, info, constant.TaskActionGenerate); taskErr != nil {
+		return taskErr
+	}
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		// 基础校验已通过，取不到请求体说明上下文异常，交回通用错误
+		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+	}
+	return validateGenerationParams(&req)
+}
+
+// validateGenerationParams 在本地拦掉上游必然拒绝的生成参数。
+// 之前非法值（resolution=2k、duration=999）会一路打到上游，被上游的业务错误
+// （如渠道余额不足 402）掩盖，客户端拿不到可行动的报错。
+func validateGenerationParams(req *relaycommon.TaskSubmitReq) *taskdto.TaskError {
+	if req == nil {
+		return nil
+	}
+	if resolution := strings.ToLower(strings.TrimSpace(req.Resolution)); resolution != "" {
+		if !lo.Contains(supportedVideoResolutions, resolution) {
+			return service.TaskErrorWrapperLocal(
+				fmt.Errorf("resolution must be one of %s", strings.Join(supportedVideoResolutions, ", ")),
+				"invalid_resolution", http.StatusBadRequest)
+		}
+	}
+	if ratio := strings.ToLower(strings.TrimSpace(req.Ratio)); ratio != "" {
+		if !lo.Contains(supportedVideoRatios, ratio) {
+			return service.TaskErrorWrapperLocal(
+				fmt.Errorf("ratio must be one of %s", strings.Join(supportedVideoRatios, ", ")),
+				"invalid_ratio", http.StatusBadRequest)
+		}
+	}
+	if req.Seed != nil && *req.Seed < -1 {
+		return service.TaskErrorWrapperLocal(fmt.Errorf("seed must be >= -1"), "invalid_seed", http.StatusBadRequest)
+	}
+	if minSeconds, maxSeconds, ok := videoDurationBounds(req.Model); ok {
+		// -1 表示由上游智能选择时长，不套用具体区间。
+		if seconds := resolveTaskSeconds(req); seconds > 0 && (seconds < minSeconds || seconds > maxSeconds) {
+			return service.TaskErrorWrapperLocal(
+				fmt.Errorf("duration must be between %d and %d for %s", minSeconds, maxSeconds, req.Model),
+				"invalid_duration", http.StatusBadRequest)
+		}
+	}
+	return nil
+}
+
+// requestResolution 取本次请求的输出分辨率档：优先顶层字段（对外文档写法），
+// 兼容历史 metadata 写法。计费与上游 payload 必须用同一份取值，否则档位与产物不一致。
+func requestResolution(req *relaycommon.TaskSubmitReq) string {
+	if req == nil {
+		return ""
+	}
+	if resolution := strings.TrimSpace(req.Resolution); resolution != "" {
+		return resolution
+	}
+	resolution, _ := req.Metadata["resolution"].(string)
+	return resolution
+}
+
+// requestRatio 取本次请求的宽高比，取值优先级同 requestResolution。
+func requestRatio(req *relaycommon.TaskSubmitReq) string {
+	if req == nil {
+		return ""
+	}
+	if ratio := strings.TrimSpace(req.Ratio); ratio != "" {
+		return ratio
+	}
+	ratio, _ := req.Metadata["ratio"].(string)
+	return ratio
 }
 
 // BuildRequestURL constructs the upstream URL.
@@ -160,7 +230,7 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 		return nil
 	}
 	ratios := make(map[string]float64)
-	resolution, _ := req.Metadata["resolution"].(string)
+	resolution := requestResolution(&req)
 
 	// 按秒计费：分档价格本身已含分辨率差异，这里只补时长与「当前档位 / 基准档位」
 	// 的倍率，不再叠加渠道内置的 video_input 倍率表（那是按 token 计费的口径）。
@@ -184,7 +254,7 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	}
 
 	hasVideo := hasVideoInMetadata(req.Metadata)
-	if ratio, ok := GetVideoInputRatio(info.OriginModelName, resolution, hasVideo); ok && ratio != 1.0 {
+	if ratio, ok := videopricing.GetTierRatio(info.OriginModelName, resolution, hasVideo); ok && ratio != 1.0 {
 		ratios["video_input"] = ratio
 	}
 
@@ -193,11 +263,11 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 		// 与 sora remix 路径一致：作为计费乘数前必须钳制，避免 int 溢出为负
 		seconds = relaycommon.MaxTaskDurationSeconds
 	}
-	ratio, _ := req.Metadata["ratio"].(string)
+	ratio := requestRatio(&req)
 	// 按 token 计费：用官方公式直接估算 token 用量，替换「25 万 token」的默认粗估基数。
 	// 预估 token 已包含时长维度，因此不再把 seconds 作为独立乘数。
 	if tokens := estimateVideoTokens(resolution, ratio, seconds); tokens > 0 {
-		info.PriceData.EstimatedTokens = tokens
+		info.PriceData.EstimatedTokens = applyPreConsumeFactor(info.OriginModelName, tokens)
 		return ratiosIfAny(ratios)
 	}
 
@@ -219,13 +289,13 @@ func ratiosIfAny(ratios map[string]float64) map[string]float64 {
 }
 
 // resolveTaskSeconds 从 TaskSubmitReq 中读出用户显式请求的视频时长（秒）。
-// 优先取 int 字段 req.Duration，兼容字符串字段 req.Seconds；
-// 与 convertToRequestPayload 中构造上游 duration 的取数策略保持一致。
+// 优先取 int 字段 req.Duration（-1 表示上游智能选择时长，原样返回，由调用方按「未知」处理），
+// 兼容字符串字段 req.Seconds；与 convertToRequestPayload 中构造上游 duration 的取数策略保持一致。
 func resolveTaskSeconds(req *relaycommon.TaskSubmitReq) int {
 	if req == nil {
 		return 0
 	}
-	if req.Duration > 0 {
+	if req.Duration != 0 {
 		return req.Duration
 	}
 	if req.Seconds == "" {
@@ -292,6 +362,21 @@ func estimateVideoTokens(resolution, ratio string, seconds int) int {
 		return 0
 	}
 	return int(math.Round(tokens))
+}
+
+// applyPreConsumeFactor 给预扣阶段的 token 估算加模型补偿系数。
+// 上游实际计量与官方公式存在偏差，按模型补偿可避免预扣严重低估
+// （低余额用户透支后补扣失败会留下欠费）。仅影响预扣冻结额度，
+// 终态结算仍以上游回报的真实 usage 为准。
+//
+// 实测（2026-10-29，2.0 / 720p / 5.088s）：上游回报 217,392 tokens，
+// 官方公式 108,000，比值 2.0129；同参数下 2.0-fast / 2.0-mini 为 108,900（≈公式值），
+// 不做补偿，故只对 2.0 基准档生效。
+func applyPreConsumeFactor(modelName string, tokens int) int {
+	if tokens <= 0 || videopricing.NormalizeModelName(modelName) != "doubao-seedance-2-0" {
+		return tokens
+	}
+	return int(math.Round(float64(tokens) * 2.0))
 }
 
 // resolveOutputDims 按宽高比把 16:9 基准尺寸换算成实际输出尺寸。
@@ -600,7 +685,26 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 		return nil, errors.Wrap(err, "unmarshal metadata failed")
 	}
 
-	if sec, _ := strconv.Atoi(req.Seconds); sec > 0 {
+	// 顶层生成参数优先于 metadata：对外文档要求客户端把 resolution / ratio /
+	// duration / seed / watermark / camera_fixed 写在请求体顶层，而这些字段
+	// 原先只在 metadata 里被识别，顶层写法会被静默丢弃。
+	if resolution := strings.ToLower(strings.TrimSpace(req.Resolution)); resolution != "" {
+		r.Resolution = resolution
+	}
+	if ratio := strings.ToLower(strings.TrimSpace(req.Ratio)); ratio != "" {
+		r.Ratio = ratio
+	}
+	if req.Seed != nil {
+		r.Seed = lo.ToPtr(dto.IntValue(*req.Seed))
+	}
+	if req.Watermark != nil {
+		r.Watermark = lo.ToPtr(dto.BoolValue(*req.Watermark))
+	}
+	if req.CameraFixed != nil {
+		r.CameraFixed = lo.ToPtr(dto.BoolValue(*req.CameraFixed))
+	}
+	// duration 优先取 int 字段，回退旧版字符串字段 seconds；-1 表示上游智能选择时长，需原样透传
+	if sec := resolveTaskSeconds(req); sec != 0 {
 		r.Duration = lo.ToPtr(dto.IntValue(sec))
 	}
 

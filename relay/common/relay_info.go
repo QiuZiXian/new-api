@@ -885,6 +885,15 @@ type TaskSubmitReq struct {
 	Seconds        string                 `json:"seconds,omitempty"`
 	InputReference string                 `json:"input_reference,omitempty"`
 	Metadata       map[string]interface{} `json:"metadata,omitempty"`
+
+	// 以下为视频生成的原生参数。客户端按对外文档写在请求体顶层；
+	// 结构体缺字段会在 JSON 反序列化阶段被直接丢弃（历史缺陷：参数全丢）。
+	// 指针类型用于区分「未传」与「显式传 false / 0」。
+	Resolution  string `json:"resolution,omitempty"`
+	Ratio       string `json:"ratio,omitempty"`
+	Seed        *int   `json:"seed,omitempty"`
+	Watermark   *bool  `json:"watermark,omitempty"`
+	CameraFixed *bool  `json:"camera_fixed,omitempty"`
 }
 
 func (t *TaskSubmitReq) GetPrompt() string {

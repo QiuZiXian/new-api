@@ -50,56 +50,6 @@ func TestTaskApiPath_FallsBackWithoutChannelMeta(t *testing.T) {
 	assert.Equal(t, defaultDoubaoTaskApiPath, a.taskApiPath(nil))
 }
 
-func TestGetVideoInputRatio(t *testing.T) {
-	cases := []struct {
-		name       string
-		model      string
-		resolution string
-		hasVideo   bool
-		wantRatio  float64
-		wantOK     bool
-	}{
-		// 2.0 全档
-		{"2-0 480p no video", "doubao-seedance-2-0-260128", "", false, 1.0, true},
-		{"2-0 480p with video", "doubao-seedance-2-0-260128", "", true, 28.0 / 46.0, true},
-		{"2-0 1080p no video", "doubao-seedance-2-0-260128", "1080p", false, 51.0 / 46.0, true},
-		{"2-0 4k with video", "doubao-seedance-2-0-260128", "4k", true, 16.0 / 46.0, true},
-		{"2-0 unknown resolution", "doubao-seedance-2-0-260128", "999p", false, 1.0, true},
-
-		// 2.0-fast 仅 480p
-		{"2-0-fast 480p with video", "doubao-seedance-2-0-fast-260128", "", true, 22.0 / 37.0, true},
-		{"2-0-fast 1080p falls back to base", "doubao-seedance-2-0-fast-260128", "1080p", false, 1.0, true},
-
-		// 2.0-mini 仅 480p
-		{"2-0-mini 480p no video", "doubao-seedance-2-0-mini", "", false, 1.0, true},
-		{"2-0-mini with video", "doubao-seedance-2-0-mini", "", true, 16.0 / 28.0, true},
-		{"2-0-mini 1080p falls back to base", "doubao-seedance-2-0-mini", "1080p", false, 1.0, true},
-
-		// 2.5 支持到 1080p
-		{"2.5 480p no video", "doubao-seedance-2.5", "", false, 1.0, true},
-		{"2.5 with video", "doubao-seedance-2.5", "", true, 24.0 / 40.0, true},
-		{"2.5 1080p", "doubao-seedance-2.5", "1080p", false, 46.0 / 40.0, true},
-		{"2.5 4k falls back to base", "doubao-seedance-2.5", "4k", false, 1.0, true},
-
-		// 1.5-pro / 1.0-pro / lite 系列
-		{"1-5-pro 480p", "doubao-seedance-1-5-pro-251215", "", false, 1.0, true},
-		{"1-5-pro with video", "doubao-seedance-1-5-pro-251215", "", true, 18.0 / 30.0, true},
-		{"1-0-pro 480p", "doubao-seedance-1-0-pro-250528", "", false, 1.0, true},
-		{"1-0-lite-t2v with video", "doubao-seedance-1-0-lite-t2v", "", true, 9.0 / 15.0, true},
-		{"1-0-lite-i2v with video", "doubao-seedance-1-0-lite-i2v", "", true, 11.0 / 18.0, true},
-
-		// 未知模型
-		{"unknown model returns false", "doubao-seedance-9-9-999999", "", false, 0, false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			ratio, ok := GetVideoInputRatio(tc.model, tc.resolution, tc.hasVideo)
-			assert.Equal(t, tc.wantOK, ok)
-			assert.InDelta(t, tc.wantRatio, ratio, 1e-9)
-		})
-	}
-}
-
 // TestEstimateBilling_Duration guards the billing invariant that user-supplied
 // duration is bounded and added as the "seconds" OtherRatio. It also verifies
 // that video_input ratio is composed with the seconds ratio, and that missing
@@ -123,8 +73,9 @@ func TestEstimateBilling_Duration(t *testing.T) {
 		return &common.RelayInfo{OriginModelName: "doubao-seedance-2-0-260128"}
 	}
 	// 官方公式：tokens = (输入时长 + 输出时长) × 宽 × 高 × 帧率 / 1024
+	// 2.0 基准档的预扣还要乘实测补偿系数（applyPreConsumeFactor），此处直接按 2 倍给出期望值。
 	expectTokens := func(seconds, width, height int) int {
-		return int(math.Round(float64(seconds*width*height*24) / 1024))
+		return 2 * int(math.Round(float64(seconds*width*height*24)/1024))
 	}
 
 	t.Run("no duration and no video still estimates tokens at defaults", func(t *testing.T) {
@@ -280,3 +231,152 @@ func TestEstimateBilling_EstimateOnlyRatios(t *testing.T) {
 		assert.InDelta(t, 1.0, info.PriceData.SettlementOtherRatioMultiplier(), 1e-9)
 	})
 }
+
+// TestConvertToRequestPayload_MapsGenerationParams 守护「客户端顶层参数必须到达上游」
+// 这条契约：resolution / ratio / seed / watermark / camera_fixed / duration
+// 曾经因为结构体缺字段被静默丢弃，上游只收到 model + content。
+func TestConvertToRequestPayload_MapsGenerationParams(t *testing.T) {
+	cfg := TaskAdaptor{}
+
+	t.Run("top-level params reach upstream payload", func(t *testing.T) {
+		req := &common.TaskSubmitReq{
+			Model:       "doubao-seedance-2-0-260128",
+			Prompt:      "a cat yawning",
+			Duration:    10,
+			Resolution:  "1080p",
+			Ratio:       "9:16",
+			Seed:        intPtr(11),
+			Watermark:   boolPtr(true),
+			CameraFixed: boolPtr(false),
+		}
+
+		payload, err := cfg.convertToRequestPayload(req)
+		require.NoError(t, err)
+		assert.Equal(t, "1080p", payload.Resolution)
+		assert.Equal(t, "9:16", payload.Ratio)
+		require.NotNil(t, payload.Seed)
+		assert.Equal(t, 11, int(*payload.Seed))
+		require.NotNil(t, payload.Watermark)
+		assert.True(t, bool(*payload.Watermark))
+		// 显式 false 不能被 omitempty 丢掉
+		require.NotNil(t, payload.CameraFixed)
+		assert.False(t, bool(*payload.CameraFixed))
+		require.NotNil(t, payload.Duration)
+		assert.Equal(t, 10, int(*payload.Duration))
+		require.Len(t, payload.Content, 1)
+		assert.Equal(t, "a cat yawning", payload.Content[0].Text)
+	})
+
+	t.Run("duration prefers int field over legacy seconds string", func(t *testing.T) {
+		payload, err := cfg.convertToRequestPayload(&common.TaskSubmitReq{
+			Model:    "doubao-seedance-2-0-260128",
+			Prompt:   "p",
+			Duration: 10,
+			Seconds:  "5",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, payload.Duration)
+		assert.Equal(t, 10, int(*payload.Duration))
+	})
+
+	t.Run("legacy seconds string still honored", func(t *testing.T) {
+		payload, err := cfg.convertToRequestPayload(&common.TaskSubmitReq{
+			Model:   "doubao-seedance-2-0-260128",
+			Prompt:  "p",
+			Seconds: "6",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, payload.Duration)
+		assert.Equal(t, 6, int(*payload.Duration))
+	})
+
+	t.Run("duration -1 (smart selection) is forwarded", func(t *testing.T) {
+		payload, err := cfg.convertToRequestPayload(&common.TaskSubmitReq{
+			Model:    "doubao-seedance-2-0-260128",
+			Prompt:   "p",
+			Duration: -1,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, payload.Duration)
+		assert.Equal(t, -1, int(*payload.Duration))
+	})
+
+	t.Run("top-level params override metadata workaround", func(t *testing.T) {
+		payload, err := cfg.convertToRequestPayload(&common.TaskSubmitReq{
+			Model:      "doubao-seedance-2-0-260128",
+			Prompt:     "p",
+			Resolution: "1080p",
+			Ratio:      "1:1",
+			Metadata: map[string]interface{}{
+				"resolution": "720p",
+				"ratio":      "16:9",
+			},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "1080p", payload.Resolution)
+		assert.Equal(t, "1:1", payload.Ratio)
+	})
+
+	t.Run("metadata fills params that top level omits", func(t *testing.T) {
+		payload, err := cfg.convertToRequestPayload(&common.TaskSubmitReq{
+			Model:  "doubao-seedance-2-0-260128",
+			Prompt: "p",
+			Metadata: map[string]interface{}{
+				"resolution": "720p",
+			},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "720p", payload.Resolution)
+	})
+}
+
+// TestValidateGenerationParams 守护本地参数校验：非法枚举/超范围时长必须在
+// 预扣费之前被拦下，而不是打到上游后由上游 4xx（常被余额不足等业务错误掩盖）。
+func TestValidateGenerationParams(t *testing.T) {
+	cases := []struct {
+		name    string
+		req     common.TaskSubmitReq
+		wantErr string
+	}{
+		{"valid 2.0 request", common.TaskSubmitReq{Model: "doubao-seedance-2.0", Resolution: "1080p", Ratio: "16:9", Duration: 10}, ""},
+		{"valid upper-case resolution", common.TaskSubmitReq{Model: "doubao-seedance-2.0", Resolution: "4K", Duration: 5}, ""},
+		{"valid adaptive ratio", common.TaskSubmitReq{Model: "doubao-seedance-2.0", Ratio: "adaptive", Duration: 5}, ""},
+		{"no optional params", common.TaskSubmitReq{Model: "doubao-seedance-2.0"}, ""},
+		{"unknown resolution", common.TaskSubmitReq{Model: "doubao-seedance-2.0", Resolution: "2k"}, "invalid_resolution"},
+		{"unknown ratio", common.TaskSubmitReq{Model: "doubao-seedance-2.0", Ratio: "7:3"}, "invalid_ratio"},
+		{"2.0 duration above model range", common.TaskSubmitReq{Model: "doubao-seedance-2.0", Duration: 16}, "invalid_duration"},
+		{"2.0 duration=999", common.TaskSubmitReq{Model: "doubao-seedance-2.0-fast", Duration: 999}, "invalid_duration"},
+		{"2.0 duration below model range", common.TaskSubmitReq{Model: "doubao-seedance-2.0-mini", Duration: 3}, "invalid_duration"},
+		{"2.5 allows 30s", common.TaskSubmitReq{Model: "doubao-seedance-2.5", Duration: 30}, ""},
+		{"2.5 rejects 31s", common.TaskSubmitReq{Model: "doubao-seedance-2.5", Duration: 31}, "invalid_duration"},
+		{"1.5-pro rejects 13s", common.TaskSubmitReq{Model: "doubao-seedance-1.5-pro", Duration: 13}, "invalid_duration"},
+		{"unlisted model keeps generic bounds", common.TaskSubmitReq{Model: "doubao-seedance-1.0-pro", Duration: 60}, ""},
+		{"seed -1 is allowed", common.TaskSubmitReq{Model: "doubao-seedance-2.0", Seed: intPtr(-1)}, ""},
+		{"seed below -1 rejected", common.TaskSubmitReq{Model: "doubao-seedance-2.0", Seed: intPtr(-2)}, "invalid_seed"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			taskErr := validateGenerationParams(&tc.req)
+			if tc.wantErr == "" {
+				assert.Nil(t, taskErr)
+				return
+			}
+			require.NotNil(t, taskErr)
+			assert.Equal(t, tc.wantErr, taskErr.Code)
+			assert.Equal(t, http.StatusBadRequest, taskErr.StatusCode)
+		})
+	}
+}
+
+// TestApplyPreConsumeFactor 守护预扣补偿只作用于 2.0 基准档：
+// 实测 2.0 的 token 是官方公式的 2 倍，fast / mini 与公式一致。
+func TestApplyPreConsumeFactor(t *testing.T) {
+	assert.Equal(t, 216000, applyPreConsumeFactor("doubao-seedance-2.0", 108000))
+	assert.Equal(t, 216000, applyPreConsumeFactor("doubao-seedance-2-0-260128", 108000))
+	assert.Equal(t, 108000, applyPreConsumeFactor("doubao-seedance-2.0-fast", 108000))
+	assert.Equal(t, 108000, applyPreConsumeFactor("doubao-seedance-2.0-mini", 108000))
+	assert.Equal(t, 0, applyPreConsumeFactor("doubao-seedance-2.0", 0))
+}
+
+func intPtr(v int) *int    { return &v }
+func boolPtr(v bool) *bool { return &v }

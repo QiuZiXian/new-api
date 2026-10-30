@@ -1,0 +1,79 @@
+{
+  "_说明": "复制为 config.json 后填入真实 Key。config.json 不入库。",
+  "base_url": "http://www.qsykai.com:33000",
+
+  "_accounts说明": "同一个账号只能落在一个分组。要验折扣必须提供不同分组的 Key；若 Seedance 未在该分组启用，请求会失败，脚本如实记录。",
+  "accounts": [
+    { "label": "默认组", "group": "默认", "token": "sk-a7FlaBETW9D0YUl41OrVm9LfyRbU6d8n1jqBKGzt7V76pvQt" }
+  ],
+
+  "_cases说明": "首轮 3 组定价：C1 基准档，C2 跨分辨率档，C3 跨模型。C4 为折扣对比（用 9折区账号跑 C1 同参）。",
+  "cases": [
+    {
+      "id": "C1",
+      "model": "doubao-seedance-2.0",
+      "resolution": "720p",
+      "ratio": "16:9",
+      "duration": 5,
+      "has_video": false
+    },
+    {
+      "id": "C2",
+      "model": "doubao-seedance-2.0",
+      "resolution": "1080p",
+      "ratio": "16:9",
+      "duration": 5,
+      "has_video": false
+    },
+    {
+      "id": "C3",
+      "model": "doubao-seedance-2.0-mini",
+      "resolution": "720p",
+      "ratio": "16:9",
+      "duration": 5,
+      "has_video": false
+    },
+    {
+      "id": "C4",
+      "_目的": "验证顶层 duration 是否透传：请求 10s，若成片仍是 5s 则确认 D-02",
+      "model": "doubao-seedance-2.0",
+      "resolution": "720p",
+      "ratio": "16:9",
+      "duration": 10,
+      "has_video": false
+    },
+    {
+      "id": "C5",
+      "_目的": "第三组定价：fast 720p，验证 37 元/M 档；2.0 渠道 404 时的替代样本",
+      "model": "doubao-seedance-2.0-fast",
+      "resolution": "720p",
+      "ratio": "16:9",
+      "duration": 5,
+      "has_video": false
+    },
+    {
+      "id": "C6",
+      "_目的": "验证顶层 duration 是否透传（2.0 渠道 404，改用 fast）：请求 10s",
+      "model": "doubao-seedance-2.0-fast",
+      "resolution": "720p",
+      "ratio": "16:9",
+      "duration": 10,
+      "has_video": false
+    }
+  ],
+
+  "group_ratios": {
+    "默认": 1.0,
+    "9.9折扣": 0.99,
+    "9折区": 0.9,
+    "8.5折区": 0.85,
+    "8折区": 0.8,
+    "7.5折区": 0.75
+  },
+
+  "tolerance": { "quota": 0.01, "tokens": 0.05, "discount": 0.005 },
+  "poll_interval": 5,
+  "timeout": 600,
+  "log_wait": 5,
+  "log_retries": 4
+}

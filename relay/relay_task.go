@@ -232,7 +232,8 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	}
 	if resp != nil && resp.StatusCode != http.StatusOK {
 		responseBody, _ := io.ReadAll(resp.Body)
-		return nil, service.TaskErrorWrapper(fmt.Errorf("%s", string(responseBody)), "fail_to_fetch_task", resp.StatusCode)
+		_ = resp.Body.Close()
+		return nil, taskErrorFromUpstream(resp.StatusCode, responseBody)
 	}
 
 	// 10. 返回 OtherRatios 给下游（header 必须在 DoResponse 写 body 之前设置）
@@ -267,6 +268,60 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		Platform:       platform,
 		Quota:          finalQuota,
 	}, nil
+}
+
+// taskErrorFromUpstream 把上游非 200 响应转换成对外 TaskError。
+// 上游的业务 code（如 InsufficientBalance / InvalidParameter）必须透传，
+// 否则客户端只能看到统一的 fail_to_fetch_task，无法按 code 分支处理；
+// 解析不出 code 时退回 fail_to_fetch_task，message 保留上游原文便于排查。
+func taskErrorFromUpstream(statusCode int, body []byte) *dto.TaskError {
+	code := "fail_to_fetch_task"
+	message := strings.TrimSpace(string(body))
+
+	var parsed struct {
+		Error *struct {
+			Code    any    `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+		Code    any    `json:"code"`
+		Message string `json:"message"`
+	}
+	if err := common.Unmarshal(body, &parsed); err == nil {
+		if parsed.Error != nil {
+			code = upstreamCodeOrDefault(parsed.Error.Code, code)
+			if parsed.Error.Message != "" {
+				message = parsed.Error.Message
+			}
+		} else {
+			code = upstreamCodeOrDefault(parsed.Code, code)
+			if parsed.Message != "" {
+				message = parsed.Message
+			}
+		}
+	}
+	if message == "" {
+		message = fmt.Sprintf("upstream returned http %d", statusCode)
+	}
+	return service.TaskErrorWrapper(errors.New(message), code, statusCode)
+}
+
+// upstreamCodeOrDefault 把上游 error.code（字符串或数字）转成对外 code，空值回退 fallback。
+func upstreamCodeOrDefault(v any, fallback string) string {
+	switch c := v.(type) {
+	case string:
+		if s := strings.TrimSpace(c); s != "" {
+			return s
+		}
+	case float64:
+		if c != 0 {
+			return strconv.FormatFloat(c, 'f', -1, 64)
+		}
+	case int:
+		if c != 0 {
+			return strconv.Itoa(c)
+		}
+	}
+	return fallback
 }
 
 // taskBaseQuotaFromEstimatedTokens 按预估 token 计算任务预扣基数：
@@ -413,7 +468,9 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		return
 	}
 	if !exist {
-		taskResp = service.TaskErrorWrapperLocal(errors.New("task_not_exist"), "task_not_exist", http.StatusBadRequest)
+		// 对外契约是 404（任务不存在），此前统一返回 400 会把「不存在」
+		// 和「参数非法」混在一起，客户端无法按状态码分支。
+		taskResp = service.TaskErrorWrapperLocal(errors.New("task_not_exist"), "task_not_exist", http.StatusNotFound)
 		return
 	}
 

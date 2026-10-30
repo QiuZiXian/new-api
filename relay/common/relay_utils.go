@@ -145,10 +145,15 @@ func validatePrompt(prompt string) *dto.TaskError {
 // overflow quota calculation into a negative charge.
 const MaxTaskDurationSeconds = 3600
 
-func validateTaskDurationBounds(req TaskSubmitReq) *dto.TaskError {
+// allowSmartDuration 为 true 时接受 -1（上游智能选择时长），
+// 该语义只在渠道文档明确支持时开放，避免负时长被当作计费乘数。
+func validateTaskDurationBounds(req TaskSubmitReq, allowSmartDuration bool) *dto.TaskError {
 	seconds := req.Duration
 	if seconds == 0 && req.Seconds != "" {
 		seconds, _ = strconv.Atoi(req.Seconds)
+	}
+	if allowSmartDuration && seconds == -1 {
+		return nil
 	}
 	if seconds < 0 || seconds > MaxTaskDurationSeconds {
 		return createTaskError(fmt.Errorf("seconds must be between 1 and %d", MaxTaskDurationSeconds), "invalid_seconds", http.StatusBadRequest, true)
@@ -234,7 +239,7 @@ func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
 		return taskErr
 	}
 
-	if taskErr := validateTaskDurationBounds(req); taskErr != nil {
+	if taskErr := validateTaskDurationBounds(req, false); taskErr != nil {
 		return taskErr
 	}
 
@@ -281,6 +286,17 @@ func isKnownTaskField(field string) bool {
 }
 
 func ValidateBasicTaskRequest(c *gin.Context, info *RelayInfo, action string) *dto.TaskError {
+	return validateBasicTaskRequest(c, info, action, false)
+}
+
+// ValidateBasicTaskRequestWithSmartDuration 与 ValidateBasicTaskRequest 相同，
+// 但额外接受 duration = -1（由上游智能选择时长）。仅用于文档明确支持该语义的渠道，
+// 其他渠道仍按 1..MaxTaskDurationSeconds 校验，避免负时长进入计费乘数。
+func ValidateBasicTaskRequestWithSmartDuration(c *gin.Context, info *RelayInfo, action string) *dto.TaskError {
+	return validateBasicTaskRequest(c, info, action, true)
+}
+
+func validateBasicTaskRequest(c *gin.Context, info *RelayInfo, action string, allowSmartDuration bool) *dto.TaskError {
 	var err error
 	contentType := c.GetHeader("Content-Type")
 	var req TaskSubmitReq
@@ -299,7 +315,7 @@ func ValidateBasicTaskRequest(c *gin.Context, info *RelayInfo, action string) *d
 		return taskErr
 	}
 
-	if taskErr := validateTaskDurationBounds(req); taskErr != nil {
+	if taskErr := validateTaskDurationBounds(req, allowSmartDuration); taskErr != nil {
 		return taskErr
 	}
 

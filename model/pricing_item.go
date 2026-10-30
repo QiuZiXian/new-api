@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/pkg/videopricing"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
@@ -20,16 +21,20 @@ import (
 // BillingRef 取值：把展示行绑定到既有计量配置上。
 // 命名与截图里的「模型计费标识」一致，纯展示文案，不参与计费匹配。
 const (
-	BillingRefInputTokens    = "input_tokens"
-	BillingRefOutputTokens   = "output_tokens"
-	BillingRefCachedInput    = "cached_input_tokens"
-	BillingRefCacheWrite     = "cache_write_tokens"
+	BillingRefInputTokens       = "input_tokens"
+	BillingRefOutputTokens      = "output_tokens"
+	BillingRefCachedInput       = "cached_input_tokens"
+	BillingRefCacheWrite        = "cache_write_tokens"
 	BillingRefAudioInput        = "audio_input_tokens"
 	BillingRefAudioOutput       = "audio_output_tokens"
 	BillingRefImageOutputTokens = "image_output_tokens"
 	BillingRefPerRequest        = "per_request"
 	BillingRefPerImageOutput    = "image_output_count"
 	BillingRefPerVideoSecond    = "video_output_second"
+	// BillingRefVideoInputTokens 是「按 token 计费的视频分档价」，支持后缀指定档位：
+	// video_input_tokens:1080p / video_input_tokens:4k+video。
+	// 不带后缀时按基准档（480p/720p 不含视频）展示。
+	BillingRefVideoInputTokens = "video_input_tokens"
 )
 
 // 展示单位取值。
@@ -199,16 +204,20 @@ type PriceRatioSource struct {
 // resolveDisplayPrice 依据 BillingRef 从既有计量配置推导展示价。
 // 返回 ok=false 表示这一行绑定的计量配置不存在，该行不渲染——
 // 这样「配了展示项但没配计费」不会渲染出 0 元这种误导性价格。
-func resolveDisplayPrice(ref string, src PriceRatioSource) (float64, bool) {
+//
+// modelName / variant 只用于识别视频分档（分辨率档 × 是否含视频）：
+// 计费侧对该档位乘了「档位单价 / 基准单价」，展示价必须用同一口径，否则
+// 六个档位会算出同一个数（模型广场的价格差异消失）。
+func resolveDisplayPrice(ref, modelName, variant string, src PriceRatioSource) (float64, bool) {
 	// 按秒计费支持「video_output_second」与「video_output_second:720p」两种写法：
 	// 不带档位取基准档单价，带档位取该分辨率档的单价，用于渲染多档价格表。
 	if strings.HasPrefix(ref, BillingRefPerVideoSecond) {
-		variant := strings.TrimPrefix(strings.TrimPrefix(ref, BillingRefPerVideoSecond), ":")
+		tierVariant := strings.TrimPrefix(strings.TrimPrefix(ref, BillingRefPerVideoSecond), ":")
 		if len(src.VideoSecondVariants) == 0 {
 			return 0, false
 		}
-		if variant != "" {
-			price, ok := src.VideoSecondVariants[variant]
+		if tierVariant != "" {
+			price, ok := src.VideoSecondVariants[tierVariant]
 			if !ok || price <= 0 {
 				return 0, false
 			}
@@ -218,6 +227,14 @@ func resolveDisplayPrice(ref string, src PriceRatioSource) (float64, bool) {
 			return price, true
 		}
 		return 0, false
+	}
+
+	// 按 token 计费的视频模型：档位价来自 pkg/videopricing（与计费同源），
+	// 展示价 = 模型基础单价 × 档位倍率。
+	if tier, ok := videoTokenTier(ref, variant); ok {
+		if tierPrice, basePrice, found := videopricing.GetTierPrice(modelName, tier.Resolution, tier.HasVideo); found && basePrice > 0 {
+			return tokenPricePerMillion(src.Ratio, tierPrice/basePrice), true
+		}
 	}
 
 	switch ref {
@@ -269,6 +286,64 @@ func resolveDisplayPrice(ref string, src PriceRatioSource) (float64, bool) {
 	return 0, false
 }
 
+// videoTokenTier 解析展示行绑定的视频 token 档位。
+//
+// 两种来源：
+//  1. billing_ref 显式后缀：video_input_tokens:1080p、video_input_tokens:4k+video；
+//  2. 「维度」文案推断：已经按档位分行、但 ref 仍绑 input_tokens/output_tokens 的存量配置，
+//     如「1080p含视频」「4K不含视频」。
+//
+// 只在 ref 属于 token 计费的三类取值时才推断，避免误改按次/按秒的展示行。
+func videoTokenTier(ref, variant string) (videopricing.Tier, bool) {
+	if strings.HasPrefix(ref, BillingRefVideoInputTokens) {
+		return parseExplicitVideoTier(strings.TrimPrefix(ref, BillingRefVideoInputTokens))
+	}
+	if ref == BillingRefInputTokens || ref == BillingRefOutputTokens {
+		return parseVideoTierFromVariant(variant)
+	}
+	return videopricing.Tier{}, false
+}
+
+// parseExplicitVideoTier 解析 billing_ref 后缀，形如 ":1080p" / ":4k+video" / 空（基准档）。
+func parseExplicitVideoTier(suffix string) (videopricing.Tier, bool) {
+	tier := videopricing.Tier{}
+	for _, part := range strings.Split(strings.ToLower(strings.TrimPrefix(strings.TrimSpace(suffix), ":")), "+") {
+		switch strings.TrimSpace(part) {
+		case "480p", "720p", "1080p", "4k":
+			tier.Resolution = strings.TrimSpace(part)
+		case "video", "with_video", "has_video":
+			tier.HasVideo = true
+		}
+	}
+	return tier, true
+}
+
+// parseVideoTierFromVariant 从「维度」文案里识别分辨率档与是否含视频。
+// 识别不出档位时返回 false，调用方回退到基础 token 价。
+func parseVideoTierFromVariant(variant string) (videopricing.Tier, bool) {
+	lower := strings.ToLower(variant)
+	tier := videopricing.Tier{}
+	switch {
+	case strings.Contains(lower, "4k"):
+		tier.Resolution = "4k"
+	case strings.Contains(lower, "1080p"):
+		tier.Resolution = "1080p"
+	case strings.Contains(lower, "720p"):
+		tier.Resolution = "720p"
+	case strings.Contains(lower, "480p"):
+		tier.Resolution = "480p"
+	}
+	// "不含视频" 也包含 "含视频"，必须先判否定。
+	noVideo := strings.Contains(variant, "不含视频") ||
+		strings.Contains(lower, "no video") || strings.Contains(lower, "no-video")
+	tier.HasVideo = !noVideo && (strings.Contains(variant, "含视频") ||
+		strings.Contains(lower, "with video") || strings.Contains(lower, "+video"))
+	if tier.Resolution == "" && !tier.HasVideo {
+		return videopricing.Tier{}, false
+	}
+	return tier, true
+}
+
 // BuildPriceItems 派生模型的展示行。
 //
 // ratio/completionRatio/cacheRatio/createCacheRatio/modelPrice 均来自既有计量配置
@@ -296,7 +371,7 @@ func BuildPriceItems(
 		if !cfg.Enabled {
 			continue
 		}
-		price, ok := resolveDisplayPrice(cfg.BillingRef, src)
+		price, ok := resolveDisplayPrice(cfg.BillingRef, modelName, cfg.Variant, src)
 		if !ok || price <= 0 {
 			continue
 		}

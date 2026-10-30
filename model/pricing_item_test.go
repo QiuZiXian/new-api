@@ -1,6 +1,9 @@
 package model
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 // 换算口径与前端 web/src/features/pricing/lib/price.ts 保持一致：
 //
@@ -122,6 +125,67 @@ func TestBuildPriceItemsAudioRefs(t *testing.T) {
 	}
 	if items[0].Price != 1 || items[1].Price != 3 { // 1*2*0.5, 1*2*1.5
 		t.Fatalf("want prices 1 / 3, got %v / %v", items[0].Price, items[1].Price)
+	}
+}
+
+// 视频按 token 计费的分档展示：同一模型六个档位必须算出不同价格。
+// 存量配置把档位写在「维度」文案里，ref 仍绑 input_tokens / output_tokens。
+func TestBuildPriceItemsVideoTierFromVariant(t *testing.T) {
+	stored := `[{"id":"v.720p","group_key":"input_tokens","variant":"480p/720p不含视频","billing_ref":"input_tokens","unit":"tokens","enabled":true},` +
+		`{"id":"v.720p_video","group_key":"input_tokens","variant":"480p/720p含视频","billing_ref":"input_tokens","unit":"tokens","enabled":true},` +
+		`{"id":"v.1080p","group_key":"input_tokens","variant":"1080p不含视频","billing_ref":"input_tokens","unit":"tokens","origin_price":51,"enabled":true},` +
+		`{"id":"v.1080p_video","group_key":"output_tokens","variant":"1080p含视频","billing_ref":"output_tokens","unit":"tokens","enabled":true},` +
+		`{"id":"v.4k","group_key":"output_tokens","variant":"4K不含视频","billing_ref":"output_tokens","unit":"tokens","enabled":true},` +
+		`{"id":"v.4k_video","group_key":"output_tokens","variant":"4K含视频","billing_ref":"output_tokens","unit":"tokens","enabled":true}]`
+	items := BuildPriceItems("doubao-seedance-2.0", stored, false, PriceRatioSource{
+		Ratio: 23, CompletionRatio: 1,
+	})
+	if len(items) != 6 {
+		t.Fatalf("want 6 tier items, got %d", len(items))
+	}
+	// 与 doubao 计费档位一致：46 / 28 / 51 / 31 / 26 / 16（元/百万 token）
+	want := []float64{46, 28, 51, 31, 26, 16}
+	for i, item := range items {
+		if math.Abs(item.Price-want[i]) > 1e-9 {
+			t.Errorf("item %s: want price %v, got %v", item.ID, want[i], item.Price)
+		}
+	}
+	// 1080p 档价已是 51，与原价相同 → 不再渲染划线价
+	if items[2].OriginPrice != nil || items[2].DiscountLabel != "" {
+		t.Errorf("1080p tier: origin price equals price, discount must be empty")
+	}
+}
+
+// 显式档位后缀优先于文案推断，未配置的档位按基准价展示。
+func TestBuildPriceItemsVideoTierFromBillingRef(t *testing.T) {
+	stored := `[{"id":"v.base","billing_ref":"video_input_tokens","unit":"tokens","enabled":true},` +
+		`{"id":"v.4k_video","billing_ref":"video_input_tokens:4k+video","unit":"tokens","enabled":true},` +
+		`{"id":"v.fast1080","billing_ref":"video_input_tokens:1080p","unit":"tokens","enabled":true}]`
+	items := BuildPriceItems("doubao-seedance-2.0-fast", stored, false, PriceRatioSource{
+		Ratio: 18.5, CompletionRatio: 1,
+	})
+	if len(items) != 3 {
+		t.Fatalf("want 3 items, got %d", len(items))
+	}
+	if items[0].Price != 37 {
+		t.Errorf("base tier: want 37, got %v", items[0].Price)
+	}
+	if items[1].Price != 37 {
+		t.Errorf("4k unsupported by fast → base price, got %v", items[1].Price)
+	}
+	if items[2].Price != 37 {
+		t.Errorf("1080p unsupported by fast → base price, got %v", items[2].Price)
+	}
+}
+
+// 非视频模型不受档位逻辑影响：没有档位价表时仍按 token 倍率换算。
+func TestBuildPriceItemsVideoTierIgnoredForOtherModels(t *testing.T) {
+	stored := `[{"id":"m.4k","billing_ref":"input_tokens","variant":"4K 高清","unit":"tokens","enabled":true}]`
+	items := BuildPriceItems("some-llm", stored, false, PriceRatioSource{
+		Ratio: 1, CompletionRatio: 1,
+	})
+	if len(items) != 1 || items[0].Price != 2 {
+		t.Fatalf("want one item at 2, got %+v", items)
 	}
 }
 
