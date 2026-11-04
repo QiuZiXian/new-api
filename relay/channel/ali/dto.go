@@ -73,6 +73,15 @@ type AliUsage struct {
 	OutputTokens int `json:"output_tokens"`
 	TotalTokens  int `json:"total_tokens"`
 	ImageCount   int `json:"image_count,omitempty"`
+	// 同步多模态生成端点（qwen-image / 京东云 modelservice 等）回报的是下面这组
+	// 字段，而不是 image_count。OutputImageCount 只统计成功生成的图片，正是
+	// 「仅对成功生成图片按张数计费」的可靠来源。
+	InputImageCount  int    `json:"input_image_count,omitempty"`
+	OutputImageCount int    `json:"output_image_count,omitempty"`
+	InputImageType   string `json:"input_image_type,omitempty"`
+	OutputImageType  string `json:"output_image_type,omitempty"`
+	OutputWidth      int    `json:"output_width,omitempty"`
+	OutputHeight     int    `json:"output_height,omitempty"`
 }
 
 type TaskResult struct {

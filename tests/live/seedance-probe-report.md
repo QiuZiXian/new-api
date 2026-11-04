@@ -1,7 +1,7 @@
 # Seedance 计费探测报告
 
 - 环境：http://www.qsykai.com:33000
-- 时间：2026-10-29 15:29:03
+- 时间：2026-10-30 11:31:57
 - 换算式：`¥ = quota / 500000`
 - 说明：异步任务消费日志为「预扣 + 差额补扣」，下表 quota 已按 task_id 求和。
 
@@ -11,6 +11,7 @@
 | C3 | 默认 | doubao-seedance-2.0-mini | 720p 16:9 | 5s | 5.088s | 0.088s | 109901 | 108900 | -0.91% | 23.0 | 1252350 | ¥2.5047 | -0.91% | PASS |
 | C5 | 默认 | doubao-seedance-2.0-fast | 720p 16:9 | 5s | 5.088s | 0.088s | 109901 | 108900 | -0.91% | 37.0 | 2014650 | ¥4.0293 | -0.91% | PASS |
 | C6 | 默认 | doubao-seedance-2.0-fast | 720p 16:9 | 10s | 5.088s | -4.912s | 109901 | 108900 | -0.91% | 37.0 | 2014650 | ¥4.0293 | -0.91% | FAIL |
+| C7 | 默认 | doubao-seedance-2.0 | 480p 16:9 | 5s | 5.062s | 0.062s | 50843 | 50638 | -0.40% | 46.0 | 1164674 | ¥2.3293 | -0.41% | PASS |
 
 ## 明细
 
@@ -32,6 +33,10 @@
   "state": "completed",
   "content_ok": true,
   "video_seconds": 5.088,
+  "video_dims": [
+    1280,
+    720
+  ],
   "log_lines": 2,
   "consume_quota": 5000016,
   "refund_quota": 0,
@@ -57,6 +62,10 @@
   "group_ratio": 1.0,
   "formula_tokens": 109901,
   "formula_basis_seconds": 5.088,
+  "formula_dims": [
+    1280,
+    720
+  ],
   "duration_dev": 0.088,
   "duration_ok": true,
   "expected_quota": 5000016.0,
@@ -89,6 +98,10 @@
   "state": "completed",
   "content_ok": true,
   "video_seconds": 5.088,
+  "video_dims": [
+    1280,
+    720
+  ],
   "log_lines": 2,
   "consume_quota": 1252350,
   "refund_quota": 0,
@@ -114,6 +127,10 @@
   "group_ratio": 1.0,
   "formula_tokens": 109901,
   "formula_basis_seconds": 5.088,
+  "formula_dims": [
+    1280,
+    720
+  ],
   "duration_dev": 0.088,
   "duration_ok": true,
   "expected_quota": 1252350.0,
@@ -146,6 +163,10 @@
   "state": "completed",
   "content_ok": true,
   "video_seconds": 5.088,
+  "video_dims": [
+    1280,
+    720
+  ],
   "log_lines": 2,
   "consume_quota": 2014650,
   "refund_quota": 0,
@@ -171,6 +192,10 @@
   "group_ratio": 1.0,
   "formula_tokens": 109901,
   "formula_basis_seconds": 5.088,
+  "formula_dims": [
+    1280,
+    720
+  ],
   "duration_dev": 0.088,
   "duration_ok": true,
   "expected_quota": 2014650.0,
@@ -203,6 +228,10 @@
   "state": "completed",
   "content_ok": true,
   "video_seconds": 5.088,
+  "video_dims": [
+    1280,
+    720
+  ],
   "log_lines": 2,
   "consume_quota": 3996000,
   "refund_quota": 1981350,
@@ -228,6 +257,10 @@
   "group_ratio": 1.0,
   "formula_tokens": 109901,
   "formula_basis_seconds": 5.088,
+  "formula_dims": [
+    1280,
+    720
+  ],
   "duration_dev": -4.912,
   "duration_ok": false,
   "expected_quota": 2014650.0,
@@ -236,6 +269,71 @@
   "amount_expected": 4.0663,
   "amount_dev": -0.0091,
   "platform_recompute": 2014650.0,
+  "platform_dev": 0.0,
+  "token_ok": true,
+  "amount_ok": true
+}
+```
+
+### C7 @ 默认组
+```json
+{
+  "case": "C7",
+  "account": "默认组",
+  "group": "默认",
+  "model": "doubao-seedance-2.0",
+  "resolution": "480p",
+  "ratio": "16:9",
+  "duration": 5,
+  "has_video": false,
+  "status": "PASS",
+  "expected_tokens": 47981,
+  "task_id": "task_FDIKqkSJpPkJj6CtwzYkO5DPCTLsEqtX",
+  "submit_http": 200,
+  "state": "completed",
+  "content_ok": true,
+  "video_seconds": 5.062,
+  "video_dims": [
+    864,
+    496
+  ],
+  "log_lines": 2,
+  "consume_quota": 2207126,
+  "refund_quota": 1042452,
+  "net_quota": 1164674,
+  "total_quota": 1164674,
+  "pre_consumed_quota": 2207126,
+  "actual_quota_field": 1164674,
+  "log_model_ratio": 23,
+  "log_group_ratio": 1,
+  "log_content": [
+    "操作 generate, 预估 tokens：95962",
+    "token重算：tokens=50638, modelRatio=23.00, groupRatio=1.00, otherMultiplier=1.0000"
+  ],
+  "log_types": [
+    2,
+    6
+  ],
+  "tokens_source": "log",
+  "actual_tokens": 50638,
+  "log_prompt_tokens": 0,
+  "log_completion_tokens": 50638,
+  "tier_price": 46.0,
+  "group_ratio": 1.0,
+  "formula_tokens": 50843,
+  "formula_basis_seconds": 5.062,
+  "formula_dims": [
+    864,
+    496
+  ],
+  "duration_dev": 0.062,
+  "duration_ok": true,
+  "expected_quota": 1164674.0,
+  "token_dev": -0.004,
+  "amount_cny": 2.3293,
+  "amount_expected": 2.3388,
+  "amount_dev": -0.0041,
+  "platform_recompute": 1164674.0,
   "platform_dev": 0.0,
   "token_ok": true,
   "amount_ok": true

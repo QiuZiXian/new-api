@@ -25,13 +25,17 @@ func oaiImage2AliImageRequest(info *relaycommon.RelayInfo, request dto.ImageRequ
 	var imageRequest AliImageRequest
 	imageRequest.Model = request.Model
 	imageRequest.ResponseFormat = request.ResponseFormat
+	// 自定义 API 路径通常指向第三方网关（如京东云 modelservice），它们只接受
+	// 空的 parameters：把 OpenAI 的 size/n 自动映射过去会报「参数解析失败」。
+	// 客户端仍可用 Extra["parameters"] 显式指定，这里只关闭自动映射。
+	customPath := imageApiPath(info) != ""
 	if request.Extra != nil {
 		if val, ok := request.Extra["parameters"]; ok {
 			err := common.Unmarshal(val, &imageRequest.Parameters)
 			if err != nil {
 				return nil, fmt.Errorf("invalid parameters field: %w", err)
 			}
-		} else {
+		} else if !customPath {
 			// 兼容没有parameters字段的情况，从openai标准字段中提取参数
 			imageRequest.Parameters = AliImageParameters{
 				Size:      strings.Replace(request.Size, "x", "*", -1),
@@ -60,9 +64,15 @@ func oaiImage2AliImageRequest(info *relaycommon.RelayInfo, request dto.ImageRequ
 	if imageRequest.Parameters.N < 0 || imageRequest.Parameters.N > dto.MaxImageN {
 		return nil, fmt.Errorf("parameters.n must be an integer between 1 and %d", dto.MaxImageN)
 	}
-	if imageRequest.Parameters.N != 0 {
-		info.PriceData.AddOtherRatio("n", float64(imageRequest.Parameters.N))
+	// 自定义端点不把 n 发给上游，但计费仍需要请求侧的预估输出张数。
+	billingN := imageRequest.Parameters.N
+	if billingN == 0 {
+		billingN = int(lo.FromPtrOr(request.N, uint(1)))
 	}
+	if billingN > 0 {
+		info.PriceData.AddOtherRatio("n", float64(billingN))
+	}
+	info.PriceData.SetImageCounts(info.PriceData.InputImageCount, billingN)
 
 	// 同步图片模型和异步图片模型请求格式不一样
 	if isSync {
@@ -333,10 +343,28 @@ func aliImageHandler(a *Adaptor, c *gin.Context, resp *http.Response, info *rela
 	}
 
 	imageResponses := responseAli2OpenAIImage(c, aliResponse, originRespBody, info, responseFormat)
-	if aliResponse.Usage.ImageCount != 0 {
-		info.PriceData.AddOtherRatio("n", float64(aliResponse.Usage.ImageCount))
-	} else if len(imageResponses.Data) != 0 {
-		info.PriceData.AddOtherRatio("n", float64(len(imageResponses.Data)))
+	usage := aliResponse.Usage
+
+	// 真实张数优先级：output_image_count（只含成功生成的图）> image_count
+	// （异步端点）> 返回图片条数 > 请求侧预估。上游完全不报时保留预估，
+	// 避免把结算金额误清零。SetImageCounts 会把张数钳到 MaxImageN。
+	inputCount := usage.InputImageCount
+	if inputCount <= 0 {
+		inputCount = info.PriceData.InputImageCount
+	}
+	outputCount := usage.OutputImageCount
+	if outputCount <= 0 {
+		outputCount = usage.ImageCount
+	}
+	if outputCount <= 0 && len(imageResponses.Data) > 0 {
+		outputCount = len(imageResponses.Data)
+	}
+	if outputCount <= 0 {
+		outputCount = info.PriceData.OutputImageCount
+	}
+	info.PriceData.SetImageCounts(inputCount, outputCount)
+	if info.PriceData.OutputImageCount > 0 {
+		info.PriceData.AddOtherRatio("n", float64(info.PriceData.OutputImageCount))
 	}
 	jsonResponse, err := common.Marshal(imageResponses)
 	if err != nil {

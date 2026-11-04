@@ -16,30 +16,31 @@ import (
 )
 
 type Pricing struct {
-	ModelName              string                  `json:"model_name"`
-	Description            string                  `json:"description,omitempty"`
-	Icon                   string                  `json:"icon,omitempty"`
-	Tags                   string                  `json:"tags,omitempty"`
-	HotLabel               string                  `json:"hot_label,omitempty"`
-	DiscountLabel          string                  `json:"discount_label,omitempty"`
-	VendorID               int                     `json:"vendor_id,omitempty"`
-	QuotaType              int                     `json:"quota_type"`
-	ModelRatio             float64                 `json:"model_ratio"`
-	ModelPrice             float64                 `json:"model_price"`
-	OwnerBy                string                  `json:"owner_by"`
-	CompletionRatio        float64                 `json:"completion_ratio"`
-	CacheRatio             *float64                `json:"cache_ratio,omitempty"`
-	CreateCacheRatio       *float64                `json:"create_cache_ratio,omitempty"`
-	ImageRatio             *float64                `json:"image_ratio,omitempty"`
-	ImageCompletionRatio   *float64                `json:"image_completion_ratio,omitempty"`
-	AudioRatio             *float64                `json:"audio_ratio,omitempty"`
-	AudioCompletionRatio   *float64                `json:"audio_completion_ratio,omitempty"`
-	VideoSecondPrice       map[string]float64      `json:"video_second_price,omitempty"`
-	EnableGroup            []string                `json:"enable_groups"`
-	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
-	BillingMode            string                  `json:"billing_mode,omitempty"`
-	BillingExpr            string                  `json:"billing_expr,omitempty"`
-	PricingVersion         string                  `json:"pricing_version,omitempty"`
+	ModelName              string                         `json:"model_name"`
+	Description            string                         `json:"description,omitempty"`
+	Icon                   string                         `json:"icon,omitempty"`
+	Tags                   string                         `json:"tags,omitempty"`
+	HotLabel               string                         `json:"hot_label,omitempty"`
+	DiscountLabel          string                         `json:"discount_label,omitempty"`
+	VendorID               int                            `json:"vendor_id,omitempty"`
+	QuotaType              int                            `json:"quota_type"`
+	ModelRatio             float64                        `json:"model_ratio"`
+	ModelPrice             float64                        `json:"model_price"`
+	OwnerBy                string                         `json:"owner_by"`
+	CompletionRatio        float64                        `json:"completion_ratio"`
+	CacheRatio             *float64                       `json:"cache_ratio,omitempty"`
+	CreateCacheRatio       *float64                       `json:"create_cache_ratio,omitempty"`
+	ImageRatio             *float64                       `json:"image_ratio,omitempty"`
+	ImageCompletionRatio   *float64                       `json:"image_completion_ratio,omitempty"`
+	AudioRatio             *float64                       `json:"audio_ratio,omitempty"`
+	AudioCompletionRatio   *float64                       `json:"audio_completion_ratio,omitempty"`
+	VideoSecondPrice       map[string]float64             `json:"video_second_price,omitempty"`
+	ImageCountPrice        *ratio_setting.ImageCountPrice `json:"image_count_price,omitempty"`
+	EnableGroup            []string                       `json:"enable_groups"`
+	SupportedEndpointTypes []constant.EndpointType        `json:"supported_endpoint_types"`
+	BillingMode            string                         `json:"billing_mode,omitempty"`
+	BillingExpr            string                         `json:"billing_expr,omitempty"`
+	PricingVersion         string                         `json:"pricing_version,omitempty"`
 
 	// 展示补充字段：来自 models 表，只供模型广场详情页渲染
 	ContextLength    int      `json:"context_length,omitempty"`
@@ -403,6 +404,12 @@ func updatePricing() {
 			// VideoSecondPrice，供详情页渲染「/秒」多档表格。
 			pricing.ModelPrice = secondPrice
 			pricing.QuotaType = 2
+		} else if imagePrice, ok := ratio_setting.GetImageCountPrice(model); ok {
+			// quota_type=3：按张计费。ModelPrice 落输出单张价（供 image_output_count
+			// 展示行复用），输入单张价单独下发在 ImageCountPrice。
+			pricing.ModelPrice = imagePrice.Output
+			pricing.ImageCountPrice = &imagePrice
+			pricing.QuotaType = 3
 		} else if findPrice {
 			pricing.ModelPrice = modelPrice
 			pricing.QuotaType = 1
@@ -452,7 +459,7 @@ func updatePricing() {
 			storedItems = meta.PriceItems
 		}
 		if pricing.BillingMode == "" {
-			pricing.PriceItems = BuildPriceItems(model, storedItems, !findPrice, PriceRatioSource{
+			pricing.PriceItems = BuildPriceItems(model, storedItems, pricing.QuotaType == 0, PriceRatioSource{
 				Ratio:                pricing.ModelRatio,
 				CompletionRatio:      pricing.CompletionRatio,
 				CacheRatio:           pricing.CacheRatio,

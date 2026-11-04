@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
@@ -68,6 +69,9 @@ type textQuotaSummary struct {
 	AudioInputPrice        float64
 	ToolSurchargeItems     []ToolSurchargeItem
 	ToolCallSurchargeQuota decimal.Decimal
+	// ImageCountBilling 标记本次按图片张数计费。图片请求的 usage 通常没有 token，
+	// 不能因为 hasBillableUsage 只看 token 就把真实扣费清零。
+	ImageCountBilling bool
 }
 
 // hasBillableUsage reports whether this request should incur any charge.
@@ -75,7 +79,7 @@ type textQuotaSummary struct {
 // surcharge (e.g. /v1/alpha/search returns no usage but bills one web_search
 // call), so token count alone is not sufficient to decide.
 func (s *textQuotaSummary) hasBillableUsage() bool {
-	return s.TotalTokens > 0 || !s.ToolCallSurchargeQuota.IsZero()
+	return s.TotalTokens > 0 || !s.ToolCallSurchargeQuota.IsZero() || s.ImageCountBilling
 }
 
 func cacheWriteTokensTotal(summary textQuotaSummary) int {
@@ -307,7 +311,20 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	summary.ToolCallSurchargeQuota = calculateTextToolCallSurcharge(ctx, relayInfo, &summary)
 
 	var audioInputQuota decimal.Decimal
-	if !relayInfo.PriceData.UsePrice {
+	if relayInfo.PriceData.UseImageCount {
+		// 按张计费：输入参考图与输出生成图是两条独立单价，费用为两者加和。
+		// 这里刻意不调用 ApplyOtherRatiosToDecimal——OtherRatios 里的 "n" 是
+		// 按次固定价模型的乘数，再乘一次会重复计费。
+		if price, ok := ratio_setting.GetImageCountPrice(summary.ModelName); ok {
+			summary.ImageCountBilling = true
+			cost := ratio_setting.ImageCountCost(price, relayInfo.PriceData.InputImageCount, relayInfo.PriceData.OutputImageCount)
+			quotaCalculateDecimal := decimal.NewFromFloat(cost).Mul(dQuotaPerUnit).Mul(dGroupRatio)
+			quotaCalculateDecimal = quotaCalculateDecimal.Add(summary.ToolCallSurchargeQuota)
+			quota, clamp := common.QuotaFromDecimalChecked(quotaCalculateDecimal)
+			summary.Quota = quota
+			noteQuotaClamp(relayInfo, clamp)
+		}
+	} else if !relayInfo.PriceData.UsePrice {
 		baseTokens := dPromptTokens
 
 		var cachedTokensWithRatio decimal.Decimal
@@ -510,6 +527,17 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		other["image_ratio"] = summary.ImageRatio
 		other["image_completion_ratio"] = summary.ImageCompletionRatio
 		other["image_output_token_count"] = summary.ImageOutputTokens
+	}
+	if summary.ImageCountBilling {
+		// 把真实张数与单价写进 consume_log.other，按张计费可对账，
+		// 不再像旧链路那样只剩一个匿名的 "n" 乘数。
+		other["image_count_billing"] = true
+		other["input_image_count"] = relayInfo.PriceData.InputImageCount
+		other["output_image_count"] = relayInfo.PriceData.OutputImageCount
+		if price, ok := ratio_setting.GetImageCountPrice(summary.ModelName); ok {
+			other["image_input_price"] = price.Input
+			other["image_output_price"] = price.Output
+		}
 	}
 	appendToolSurchargeLogInfo(other, summary.ToolSurchargeItems)
 	if summary.AudioInputPrice > 0 && summary.AudioTokens > 0 {

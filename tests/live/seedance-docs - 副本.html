@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Seedance 视频生成 · API 文档 | 启算云枢</title>
+<style>
+  :root{
+    --bg:#ffffff; --bg-sub:#fafafa; --bg-code:#f7f8fa; --border:#e6e8eb;
+    --text:#16181d; --text-2:#4b5563; --text-3:#8b929e;
+    --accent:#2f6bff; --accent-bg:#eef3ff;
+    --green:#0f9d58; --green-bg:#e9f7ef;
+    --blue:#2563eb; --blue-bg:#eaf1ff;
+    --red:#d93025; --red-bg:#fdecea;
+    --amber:#b26a00; --amber-bg:#fff4e0;
+    --radius:8px;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.65;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  button{font-family:inherit}
+
+  /* topbar */
+  .topbar{position:sticky;top:0;z-index:40;height:56px;display:flex;align-items:center;gap:16px;padding:0 24px;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--border)}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:650;font-size:15px;letter-spacing:-.01em}
+  .brand-mark{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#2f6bff,#6f8cff);display:grid;place-items:center;color:#fff;font-size:13px;font-weight:700}
+  .topnav{display:flex;gap:6px;margin-left:8px}
+  .topnav a{padding:6px 10px;border-radius:6px;color:var(--text-2);font-size:13px}
+  .topnav a:hover{background:var(--bg-sub);color:var(--text)}
+  .topnav a.on{color:var(--text);font-weight:600;background:var(--bg-sub)}
+  .topbar .spacer{flex:1}
+  .topbar .version{font-size:12px;color:var(--text-3);border:1px solid var(--border);padding:3px 8px;border-radius:999px}
+
+  /* layout */
+  .layout{display:grid;grid-template-columns:280px minmax(0,1fr);max-width:1400px;margin:0 auto}
+  @media (min-width:1280px){.layout{grid-template-columns:280px minmax(0,1fr) 190px}}
+  @media (max-width:900px){.layout{grid-template-columns:1fr}.sidebar{display:none}.toc{display:none}}
+
+  /* sidebar */
+  .sidebar{position:sticky;top:56px;height:calc(100vh - 56px);overflow:auto;border-right:1px solid var(--border);padding:18px 14px 60px;background:var(--bg)}
+  .search{position:relative;margin-bottom:14px}
+  .search input{width:100%;height:34px;padding:0 10px 0 30px;border:1px solid var(--border);border-radius:7px;background:var(--bg-sub);font-size:13px;color:var(--text);outline:none}
+  .search input:focus{border-color:#c3d3ff;background:#fff;box-shadow:0 0 0 3px var(--accent-bg)}
+  .search svg{position:absolute;left:9px;top:9px;color:var(--text-3)}
+  .group{margin:16px 0 6px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}
+  .tree-item{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:6px;color:var(--text-2);font-size:13px;cursor:pointer;border-left:2px solid transparent}
+  .tree-item:hover{background:var(--bg-sub);color:var(--text)}
+  .tree-item.active{background:var(--accent-bg);color:var(--accent);font-weight:600;border-left-color:var(--accent)}
+  .tree-item .dot{width:5px;height:5px;border-radius:50%;background:#c9ced6;flex:none}
+  .tree-item.active .dot{background:var(--accent)}
+  .tree-sub{font-size:11px;color:var(--text-3);margin-left:13px}
+  .empty-tree{padding:16px 8px;color:var(--text-3);font-size:12px;display:none}
+
+  /* content */
+  .content{min-width:0;padding:36px 48px 120px}
+  @media (max-width:1100px){.content{padding:28px 24px 100px}}
+  .doc-head{margin-bottom:22px}
+  .badges{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+  .badge{font-size:12px;padding:2px 9px;border-radius:999px;background:var(--bg-sub);color:var(--text-2);border:1px solid var(--border)}
+  .badge.cat{background:var(--blue-bg);color:var(--blue);border-color:#d6e4ff}
+  h1{font-size:28px;line-height:1.3;margin:0 0 8px;letter-spacing:-.02em;font-weight:680}
+  .meta{display:flex;flex-wrap:wrap;gap:14px;font-size:12.5px;color:var(--text-3)}
+  .meta code{font-family:var(--mono);color:var(--text-2);background:var(--bg-code);padding:2px 6px;border-radius:5px;border:1px solid var(--border)}
+  .lead{color:var(--text-2);margin:14px 0 0;max-width:760px}
+
+  .ep-switch{display:flex;flex-wrap:wrap;gap:8px;margin:22px 0 8px;padding-bottom:18px;border-bottom:1px solid var(--border)}
+  .ep-btn{display:flex;align-items:center;gap:8px;padding:7px 12px;border:1px solid var(--border);border-radius:7px;background:#fff;cursor:pointer;font-size:13px;color:var(--text-2)}
+  .ep-btn:hover{border-color:#c9d3e6;background:var(--bg-sub)}
+  .ep-btn.active{border-color:var(--accent);background:var(--accent-bg);color:var(--accent);font-weight:600}
+
+  .method{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.03em;padding:2px 6px;border-radius:4px}
+  .m-post{background:var(--green-bg);color:var(--green)}
+  .m-get{background:var(--blue-bg);color:var(--blue)}
+  .m-del{background:var(--red-bg);color:var(--red)}
+
+  section{padding-top:34px}
+  h2{font-size:19px;margin:0 0 14px;letter-spacing:-.01em;font-weight:650;scroll-margin-top:80px;display:flex;align-items:center;gap:8px}
+  h2 .anchor{opacity:0;color:var(--text-3);font-size:14px;font-weight:400}
+  h2:hover .anchor{opacity:1}
+  h3{font-size:14px;margin:22px 0 10px;font-weight:650}
+  p{margin:10px 0;color:var(--text-2)}
+  .muted{color:var(--text-3);font-size:12.5px}
+
+  .callout{display:flex;gap:10px;padding:11px 14px;border-radius:var(--radius);background:var(--amber-bg);border:1px solid #f3ddb3;color:#7a4b00;font-size:13px;margin:14px 0}
+  .callout.info{background:var(--accent-bg);border-color:#d8e3ff;color:#234a9e}
+  .callout b{font-weight:650}
+
+  .kv{display:grid;grid-template-columns:120px minmax(0,1fr);gap:0;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin:14px 0}
+  .kv > div{padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px}
+  .kv > div:nth-last-child(-n+2){border-bottom:0}
+  .kv .k{background:var(--bg-sub);color:var(--text-2);font-weight:520}
+  .kv .v{display:flex;align-items:center;gap:8px;min-width:0}
+  .url{font-family:var(--mono);font-size:12.5px;word-break:break-all}
+
+  .copy{border:1px solid var(--border);background:#fff;border-radius:5px;padding:3px 7px;font-size:11.5px;color:var(--text-2);cursor:pointer;white-space:nowrap}
+  .copy:hover{background:var(--bg-sub);color:var(--text)}
+
+  table{width:100%;border-collapse:collapse;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;font-size:13px;margin:12px 0}
+  th{text-align:left;background:var(--bg-sub);color:var(--text-2);font-weight:600;font-size:12px;padding:9px 12px;border-bottom:1px solid var(--border);white-space:nowrap}
+  td{padding:9px 12px;border-bottom:1px solid #f0f1f3;vertical-align:top;color:var(--text-2)}
+  tr:last-child td{border-bottom:0}
+  td code,th code{font-family:var(--mono);font-size:12px;color:#1f2937;background:var(--bg-code);padding:1px 5px;border-radius:4px}
+  .req-yes{color:var(--red);font-weight:600;font-size:12px}
+  .req-no{color:var(--text-3);font-size:12px}
+  .price{font-family:var(--mono);font-weight:600;color:var(--text)}
+  .tier-table td:first-child{color:var(--text)}
+
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin:14px 0 0}
+  .tab{padding:8px 12px;font-size:13px;color:var(--text-2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tab:hover{color:var(--text)}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+  .code-wrap{position:relative;margin:0 0 16px}
+  .code-wrap pre{margin:0;background:var(--bg-code);border:1px solid var(--border);border-top:0;border-radius:0 0 var(--radius) var(--radius);padding:14px 16px;overflow:auto;font-family:var(--mono);font-size:12.5px;line-height:1.7;color:#1f2937}
+  .code-wrap .copy{position:absolute;right:10px;top:8px;background:#fff}
+  .code-wrap pre::-webkit-scrollbar{height:8px}
+  .code-wrap pre::-webkit-scrollbar-thumb{background:#d9dde3;border-radius:4px}
+
+  .debug{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-top:12px}
+  .debug-head{display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--bg-sub);border-bottom:1px solid var(--border);font-size:12.5px;color:var(--text-2)}
+  .debug-url{font-family:var(--mono);font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .debug-body{padding:12px}
+  .debug-row{display:flex;gap:8px;margin-bottom:10px}
+  .debug-row input{flex:1;height:34px;padding:0 10px;border:1px solid var(--border);border-radius:6px;font-family:var(--mono);font-size:12px;outline:none}
+  .debug-row input:focus{border-color:#c3d3ff;box-shadow:0 0 0 3px var(--accent-bg)}
+  .debug textarea{width:100%;min-height:170px;padding:12px;border:1px solid var(--border);border-radius:6px;font-family:var(--mono);font-size:12px;line-height:1.65;resize:vertical;outline:none;background:#fff;color:var(--text)}
+  .debug textarea:focus{border-color:#c3d3ff;box-shadow:0 0 0 3px var(--accent-bg)}
+  .debug-actions{display:flex;align-items:center;gap:10px;margin-top:10px}
+  .btn{height:34px;padding:0 14px;border-radius:6px;border:1px solid var(--border);background:#fff;font-size:13px;cursor:pointer;color:var(--text)}
+  .btn:hover{background:var(--bg-sub)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.primary:hover{filter:brightness(.95)}
+  .btn:disabled{opacity:.55;cursor:not-allowed}
+  .debug-status{font-size:12px;color:var(--text-3);font-family:var(--mono)}
+  .debug-status .ok{color:var(--green)}
+  .debug-status .bad{color:var(--red)}
+  .debug-res{margin-top:10px;display:none}
+  .debug-res pre{margin:0;background:#0f172a;color:#e5e7eb;border-radius:6px;padding:12px;font-family:var(--mono);font-size:12px;line-height:1.6;max-height:320px;overflow:auto}
+
+  /* toc */
+  .toc{position:sticky;top:56px;height:calc(100vh - 56px);overflow:auto;padding:36px 18px;border-left:1px solid var(--border)}
+  .toc-title{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);font-weight:600;margin-bottom:10px}
+  .toc a{display:block;padding:5px 0 5px 10px;font-size:12.5px;color:var(--text-3);border-left:1px solid var(--border)}
+  .toc a:hover{color:var(--text)}
+  .toc a.active{color:var(--accent);border-left-color:var(--accent);font-weight:600}
+
+  .footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--border);font-size:12px;color:var(--text-3);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="#"><span class="brand-mark">启</span>启算云枢</a>
+  <nav class="topnav">
+    <a href="#">控制台</a>
+    <a class="on" href="#">API 文档</a>
+    <a href="#">模型广场</a>
+    <a href="#">价格</a>
+  </nav>
+  <span class="spacer"></span>
+  <span class="version">v1.0 · 2026-10-30</span>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="treeSearch" type="search" placeholder="搜索模型 / 分类" />
+    </div>
+    <div id="tree"></div>
+    <div class="empty-tree" id="treeEmpty">没有匹配的模型</div>
+  </aside>
+
+  <main class="content">
+    <div class="doc-head">
+      <div class="badges">
+        <span class="badge cat" id="catBadge">视频模型</span>
+        <span class="badge" id="providerBadge">字节跳动</span>
+        <span class="badge">按 Token 计费</span>
+      </div>
+      <h1 id="docTitle">Doubao Seedance 2.0 多模态参考生视频</h1>
+      <div class="meta">
+        <span>模型 ID <code id="docModelId">doubao-seedance-2.0</code></span>
+        <span>文档更新 <span id="docUpdated">2026-10-30</span></span>
+      </div>
+      <p class="lead" id="docDesc"></p>
+    </div>
+
+    <div class="ep-switch" id="epSwitch"></div>
+
+    <section id="overview">
+      <h2>概览 <a class="anchor" href="#overview">#</a></h2>
+      <p id="ovText"></p>
+      <div class="callout info">
+        <span>ⓘ</span>
+        <div><b>异步任务范式：</b>提交任务拿到 <code>id</code> → 轮询 <code>GET /v1/videos/{task_id}</code> → 终态 <code>succeeded</code> 后通过 <code>/content</code> 下载成品。建议轮询间隔 ≥ 5 秒，最长等待 10 分钟。</div>
+      </div>
+      <ul id="notes" style="margin:10px 0 0;padding-left:20px;color:var(--text-2);font-size:13px"></ul>
+    </section>
+
+    <section id="endpoint">
+      <h2>接口地址 <a class="anchor" href="#endpoint">#</a></h2>
+      <div class="kv">
+        <div class="k">请求方法</div><div class="v"><span id="epMethod" class="method m-post">POST</span><span id="epName">创建视频生成任务</span></div>
+        <div class="k">网关地址</div><div class="v"><span class="url" id="epUrl">http://www.qsykai.com:33000/v1/video/generations</span><button class="copy" data-copy="epUrl">复制</button></div>
+        <div class="k">计费模式</div><div class="v"><span id="epBilling">按实际用量计费</span></div>
+      </div>
+      <p class="muted" id="epHint"></p>
+    </section>
+
+    <section id="pricing">
+      <h2>价格信息 <a class="anchor" href="#pricing">#</a></h2>
+      <p class="muted">单位：人民币 / 百万 Token。实际扣费按上游回报的真实 Token 用量结算。</p>
+      <table class="tier-table">
+        <thead><tr><th>计费档位</th><th>计量项</th><th>单价（CNY / 百万 Token）</th></tr></thead>
+        <tbody id="priceBody"></tbody>
+      </table>
+      <div class="callout">
+        <span>¥</span>
+        <div><b>金额换算：</b><code>金额 = quota ÷ 500000</code>。其中 <code>quota = 真实 Token × 模型倍率 × 分组倍率 × 档位倍率</code>，本模型基准倍率为 <span id="ratioText">23</span>。</div>
+      </div>
+    </section>
+
+    <section id="authentication">
+      <h2>鉴权 <a class="anchor" href="#authentication">#</a></h2>
+      <p>所有请求需在 Header 携带 API Key，缺失或无效返回 <code>401</code>。</p>
+      <div class="kv">
+        <div class="k">Header</div><div class="v"><span class="url">Authorization: Bearer sk-xxxxxxxx</span><button class="copy" data-copy="authLine">复制</button></div>
+        <div class="k">Content-Type</div><div class="v"><span class="url">application/json</span></div>
+      </div>
+      <p class="muted">Key 在控制台「令牌」页面创建；不同分组对应不同折扣倍率。</p>
+    </section>
+
+    <section id="examples">
+      <h2>调用示例 <a class="anchor" href="#examples">#</a></h2>
+      <div class="tabs" id="sampleTabs">
+        <div class="tab active" data-lang="curl">cURL</div>
+        <div class="tab" data-lang="python">Python</div>
+        <div class="tab" data-lang="typescript">TypeScript</div>
+      </div>
+      <div class="code-wrap">
+        <pre id="sampleCode"></pre>
+        <button class="copy" data-copy="sampleCode">复制</button>
+      </div>
+    </section>
+
+    <section id="debug">
+      <h2>在线调试 <a class="anchor" href="#debug">#</a></h2>
+      <p class="muted">Key 仅保存在当前页面内存，不会上传。跨域请求若被浏览器拦截，请改用上方 cURL。</p>
+      <div class="debug">
+        <div class="debug-head">
+          <span class="method m-post" id="dbgMethod">POST</span>
+          <span class="debug-url" id="dbgUrl">http://www.qsykai.com:33000/v1/video/generations</span>
+        </div>
+        <div class="debug-body">
+          <div class="debug-row">
+            <input id="dbgKey" type="password" placeholder="sk-...（仅本次会话使用）" />
+            <button class="btn" id="dbgFill">填入示例</button>
+          </div>
+          <textarea id="dbgBody" spellcheck="false"></textarea>
+          <div class="debug-actions">
+            <button class="btn primary" id="dbgSend">发送请求</button>
+            <button class="btn" id="dbgClear">清空结果</button>
+            <span class="debug-status" id="dbgStatus"></span>
+          </div>
+          <div class="debug-res" id="dbgRes"><pre id="dbgOut"></pre></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="request-params">
+      <h2>请求参数 <a class="anchor" href="#request-params">#</a></h2>
+      <div class="tabs" id="paramTabs">
+        <div class="tab active" data-loc="header">Header</div>
+        <div class="tab" data-loc="body">Body</div>
+      </div>
+      <table>
+        <thead><tr><th style="width:28%">参数</th><th style="width:12%">类型</th><th style="width:10%">必填</th><th style="width:14%">默认值</th><th>说明</th></tr></thead>
+        <tbody id="paramBody"></tbody>
+      </table>
+    </section>
+
+    <section id="response-params">
+      <h2>响应参数 <a class="anchor" href="#response-params">#</a></h2>
+      <table>
+        <thead><tr><th style="width:28%">字段</th><th style="width:14%">类型</th><th>说明</th></tr></thead>
+        <tbody id="respBody"></tbody>
+      </table>
+      <div class="code-wrap" style="margin-top:14px">
+        <pre id="respSample"></pre>
+        <button class="copy" data-copy="respSample">复制</button>
+      </div>
+    </section>
+
+    <div class="footer">
+      <span>启算云枢 · Seedance 视频生成 API</span>
+      <span>本文档由接口实现与定价表生成，若与实测不一致以实测为准</span>
+    </div>
+  </main>
+
+  <aside class="toc">
+    <div class="toc-title">本页目录</div>
+    <nav id="tocNav">
+      <a href="#overview">概览</a>
+      <a href="#endpoint">接口地址</a>
+      <a href="#pricing">价格信息</a>
+      <a href="#authentication">鉴权</a>
+      <a href="#examples">调用示例</a>
+      <a href="#debug">在线调试</a>
+      <a href="#request-params">请求参数</a>
+      <a href="#response-params">响应参数</a>
+    </nav>
+  </aside>
+</div>
+
+<script>
+/* ============================================================
+   1. 站点与共享数据（来自 dev-docs/对外接口文档.md）
+   ============================================================ */
+const BASE_URL = "http://www.qsykai.com:33000";
+
+const ENDPOINTS = [
+  {
+    code: "create", method: "POST", name: "创建视频生成任务",
+    path: "/v1/video/generations", billing: "按实际用量计费（BILLABLE）",
+    hint: "等价别名：POST /v1/videos。注意复数形式 /v1/videos/generations 未注册，会返回 404。",
+    sample: true
+  },
+  {
+    code: "get", method: "GET", name: "查询视频生成任务",
+    path: "/v1/videos/{task_id}", billing: "免费（TASK_STATUS）",
+    hint: "轮询直到 status 进入 succeeded / failed / cancelled / expired。",
+    sample: true
+  },
+  {
+    code: "list", method: "GET", name: "查询任务列表",
+    path: "/v1/contents/generations/tasks?status=&page_num=1&page_size=20", billing: "免费（FREE）",
+    hint: "查询当前令牌自己的本地任务记录，不包含上游共享账号的任务。",
+    sample: false
+  },
+  {
+    code: "delete", method: "DELETE", name: "取消或删除任务",
+    path: "/v1/contents/generations/tasks/{task_id}", billing: "免费（FREE）",
+    hint: "queued 状态可取消；succeeded / failed / expired 仅删除记录；running 状态上游不支持取消。",
+    sample: false
+  }
+];
+
+const MODELS = {
+  "doubao-seedance-2.0": {
+    name: "Doubao Seedance 2.0 多模态参考生视频",
+    provider: "字节跳动", cat: "视频模型",
+    desc: "支持文生视频、图生视频、首尾帧与全模态参考（图片 / 视频 / 音频），最高 4K。按 Token 计费，区分分辨率档位与输入是否包含视频。",
+    ratio: 23,
+    price: [
+      ["480p / 720p · 输入含视频", 28], ["480p / 720p · 输入不含视频", 46],
+      ["1080p · 输入含视频", 31], ["1080p · 输入不含视频", 51],
+      ["4K · 输入含视频", 16], ["4K · 输入不含视频", 26]
+    ],
+    ov: "Seedance 2.0 面向高质量视频生成，支持文本、图像、视频、音频混合输入。单次任务返回一个视频，可带同步音频。请求参数中 content 数组与 images 字段二选一使用，首帧 / 尾帧 / 全模态参考三种模式互斥。"
+  },
+  "doubao-seedance-2.0-fast": {
+    name: "Doubao Seedance 2.0 Fast",
+    provider: "字节跳动", cat: "视频模型",
+    desc: "Seedance 2.0 的快速版本，仅支持 480p / 720p，适合对时延敏感、批量生成的场景。",
+    ratio: 18.5,
+    price: [["480p / 720p · 输入含视频", 22], ["480p / 720p · 输入不含视频", 37]],
+    ov: "Fast 版本在保持主体一致性的前提下压缩生成耗时，分辨率上限 720p。其余请求参数与 2.0 一致。"
+  },
+  "doubao-seedance-2.0-mini": {
+    name: "Doubao Seedance 2.0 Mini",
+    provider: "字节跳动", cat: "视频模型",
+    desc: "轻量版视频生成模型，仅支持 480p / 720p，单价最低，适合草稿预览与低成本试跑。",
+    ratio: 11.5,
+    price: [["480p / 720p · 输入含视频", 14], ["480p / 720p · 输入不含视频", 23]],
+    ov: "Mini 版本适合先出小样再决定是否用 2.0 重跑。分辨率上限 720p，不支持 1080p 与 4K。"
+  },
+  "doubao-seedance-2.5": {
+    name: "Doubao Seedance 2.5 全模态参考",
+    provider: "字节跳动", cat: "视频模型",
+    desc: "支持全模态参考（图 / 视频 / 音频）、首尾帧与文生视频，最高 1080p。",
+    ratio: 42.875,
+    price: [["480p / 720p · 输入含视频", 51.45], ["480p / 720p · 输入不含视频", 85.75]],
+    ov: "Seedance 2.5 在参考一致性与镜头语言上更强，不支持 4K。按 Token 计费，实际用量以上游回报为准。"
+  }
+};
+
+const TREE = [
+  { group: "文本模型", items: [{ id: "claude-opus-5", name: "claude-opus-5" }, { id: "deepseek-v4-1-flash", name: "DeepSeek-V4.1-Flash" }] },
+  { group: "图像理解模型", items: [{ id: "deepseek-v4-1-flash-vl", name: "DeepSeek-V4.1-Flash" }] },
+  { group: "图像生成模型", items: [{ id: "doubao-seedream-5-0-lite", name: "Doubao Seedream 5.0 lite" }] },
+  { group: "视频模型", items: [
+    { id: "doubao-seedance-2.0", name: "Doubao Seedance 2.0" },
+    { id: "doubao-seedance-2.0-fast", name: "Doubao Seedance 2.0 Fast" },
+    { id: "doubao-seedance-2.0-mini", name: "Doubao Seedance 2.0 Mini" },
+    { id: "doubao-seedance-2.5", name: "Doubao Seedance 2.5" }
+  ]},
+  { group: "推理模型", items: [{ id: "claude-opus-5-r", name: "claude-opus-5" }, { id: "deepseek-v4-1-flash-r", name: "DeepSeek-V4.1-Flash" }] }
+];
+
+/* ============================================================
+   2. 参数表（来自 dev-docs/对外接口文档.md §4）
+   ============================================================ */
+const HEADER_PARAMS = [
+  ["Authorization", "string", true, "—", "API Key 鉴权，格式 Bearer {api_key}"],
+  ["Content-Type", "string", true, "application/json", "请求体类型"]
+];
+
+const BODY_PARAMS = [
+  ["model", "string", true, "—", "模型 ID。本页固定为当前文档模型；也可用模型商展示名对应的参数值。"],
+  ["prompt", "string", true, "—", "文本提示词。中文建议 ≤ 500 字。"],
+  ["content", "array", false, "—", "多模态输入数组，与 images 二选一。元素结构见下方 content[] 字段。"],
+  ["content[].type", "string", true, "—", "输入类型：text / image_url / video_url / audio_url。"],
+  ["content[].text", "string", false, "—", "type=text 时的提示词。"],
+  ["content[].image_url.url", "string", false, "—", "图片 URL，支持 http(s) 或 data:image/...;base64。"],
+  ["content[].video_url.url", "string", false, "—", "参考视频 URL，仅 2.0 系列支持。"],
+  ["content[].audio_url.url", "string", false, "—", "参考音频 URL，仅 2.0 系列支持。"],
+  ["content[].role", "string", false, "—", "用途：first_frame / last_frame / reference_image / reference_video / reference_audio。首帧、尾帧、全模态参考互斥。"],
+  ["resolution", "string", false, "720p", "输出分辨率。2.0：480p / 720p / 1080p / 4k；fast / mini：480p / 720p；2.5：480p / 720p / 1080p。"],
+  ["ratio", "string", false, "16:9", "宽高比：16:9 / 9:16 / 1:1 / 4:3 / 21:9 / adaptive。"],
+  ["duration", "integer", false, "-1", "视频时长（秒）。-1 或省略表示由模型智能选择，Seedance 默认 5 秒。"],
+  ["seed", "integer", false, "-1", "随机种子，-1 表示随机。"],
+  ["camera_fixed", "boolean", false, "false", "是否固定镜头（部分模型支持）。"],
+  ["watermark", "boolean", false, "false", "是否添加水印。"],
+  ["images", "array", false, "—", "图片 URL 数组（首帧 / 尾帧 / 参考图），按 content[].role 区分用途。"],
+  ["metadata", "object", false, "—", "扩展参数：generate_audio、callback_url、service_tier 等。"]
+];
+
+const RESPONSE_PARAMS = [
+  ["id", "string", "任务 ID，后续查询 / 下载 / 取消的唯一凭证"],
+  ["object", "string", "固定为 video"],
+  ["model", "string", "实际调用的模型"],
+  ["status", "string", "queued / running / succeeded / failed / cancelled / expired"],
+  ["created_at", "integer", "创建时间，Unix 秒"],
+  ["completed_at", "integer", "完成时间，Unix 秒，未完成时为空"],
+  ["progress", "string", "进度，如 0% / 50% / 100%"],
+  ["metadata.url", "string", "成品视频地址，终态后可下载"],
+  ["error.code", "string", "失败时的错误码"],
+  ["error.message", "string", "失败原因"]
+];
+
+/* ============================================================
+   3. 状态
+   ============================================================ */
+let state = { modelId: "doubao-seedance-2.0", endpoint: "create", lang: "curl", loc: "body" };
+
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+
+/* ============================================================
+   4. 渲染
+   ============================================================ */
+function renderTree() {
+  const q = $("#treeSearch").value.trim().toLowerCase();
+  let visible = 0;
+  $("#tree").innerHTML = TREE.map(g => {
+    const items = g.items.filter(m => !q || m.name.toLowerCase().includes(q) || m.id.toLowerCase().includes(q) || g.group.toLowerCase().includes(q));
+    if (!items.length) return "";
+    visible += items.length;
+    return `<div class="group">${esc(g.group)}</div>` + items.map(m => {
+      const active = m.id === state.modelId ? " active" : "";
+      return `<div class="tree-item${active}" data-model="${esc(m.id)}"><span class="dot"></span><span>${esc(m.name)}</span></div>`;
+    }).join("");
+  }).join("");
+  $("#treeEmpty").style.display = visible ? "none" : "block";
+}
+
+function renderHeader() {
+  const m = MODELS[state.modelId];
+  if (!m) {
+    $("#docTitle").textContent = state.modelId;
+    $("#docDesc").textContent = "该模型暂无详细文档，接入方式与同分类模型一致。";
+    $("#priceBody").innerHTML = `<tr><td colspan="3" class="muted">暂无价格配置</td></tr>`;
+    return;
+  }
+  $("#catBadge").textContent = m.cat;
+  $("#providerBadge").textContent = m.provider;
+  $("#docTitle").textContent = m.name;
+  $("#docModelId").textContent = state.modelId;
+  $("#docDesc").textContent = m.desc;
+  $("#ovText").textContent = m.ov;
+  $("#ratioText").textContent = m.ratio;
+  $("#notes").innerHTML = [
+    "网关根据请求体中的 model 字段匹配并转发到对应上游模型。",
+    "按上游回报的真实 Token 结算，提交阶段仅做预扣冻结，终态多退少补。",
+    "任务失败不扣费，预扣额度原路退回。"
+  ].map(t => `<li>${t}</li>`).join("");
+  $("#priceBody").innerHTML = m.price.map(([tier, price], i) =>
+    `<tr><td>${tier}${i === 0 ? ' <span class="badge" style="margin-left:6px">默认档</span>' : ""}</td><td>总消耗 Token</td><td class="price">${price} CNY / 百万 Token</td></tr>`
+  ).join("");
+}
+
+function renderEndpoints() {
+  $("#epSwitch").innerHTML = ENDPOINTS.map(e =>
+    `<button class="ep-btn${e.code === state.endpoint ? " active" : ""}" data-ep="${e.code}">
+       <span class="method ${e.method === "POST" ? "m-post" : e.method === "GET" ? "m-get" : "m-del"}">${e.method}</span>${esc(e.name)}
+     </button>`
+  ).join("");
+  renderEndpointDetail();
+}
+
+function renderEndpointDetail() {
+  const e = ENDPOINTS.find(x => x.code === state.endpoint);
+  const url = BASE_URL + e.path.replace("{task_id}", "task_xxxxxxxx");
+  $("#epMethod").textContent = e.method;
+  $("#epMethod").className = "method " + (e.method === "POST" ? "m-post" : e.method === "GET" ? "m-get" : "m-del");
+  $("#epName").textContent = e.name;
+  $("#epUrl").textContent = url;
+  $("#epUrl").dataset.raw = url;
+  $("#epBilling").textContent = e.billing;
+  $("#epHint").textContent = e.hint;
+  renderSample();
+  renderDebug();
+  renderParams();
+  renderResponse();
+}
+
+function bodyForModel() {
+  const mid = state.modelId;
+  if (state.endpoint === "create") {
+    return {
+      model: mid,
+      prompt: "城市夜景延时摄影，霓虹在雨后路面反射",
+      content: [{ type: "text", text: "城市夜景延时摄影，霓虹在雨后路面反射" }],
+      resolution: "720p",
+      ratio: "16:9",
+      duration: 5,
+      seed: 11,
+      camera_fixed: false,
+      watermark: false
+    };
+  }
+  return null;
+}
+
+function renderSample() {
+  const e = ENDPOINTS.find(x => x.code === state.endpoint);
+  const url = BASE_URL + e.path.replace("{task_id}", "task_xxxxxxxx");
+  const body = bodyForModel();
+  let code = "";
+  if (state.lang === "curl") {
+    code = `curl -X ${e.method} "${url}" \\\n  -H "Authorization: Bearer sk-xxxxxxxx" \\\n  -H "Content-Type: application/json"`;
+    if (body) code += ` \\\n  -d '${JSON.stringify(body, null, 2)}'`;
+  } else if (state.lang === "python") {
+    code = `import requests\n\nurl = "${url}"\nheaders = {\n    "Authorization": "Bearer sk-xxxxxxxx",\n    "Content-Type": "application/json",\n}\n`;
+    code += body
+      ? `payload = ${JSON.stringify(body, null, 4)}\n\nresp = requests.${e.method.toLowerCase()}(url, headers=headers, json=payload, timeout=120)\nprint(resp.status_code, resp.json())`
+      : `resp = requests.${e.method.toLowerCase()}(url, headers=headers, timeout=120)\nprint(resp.status_code, resp.json())`;
+  } else {
+    code = `const url = "${url}";\n\nconst resp = await fetch(url, {\n  method: "${e.method}",\n  headers: {\n    "Authorization": "Bearer sk-xxxxxxxx",\n    "Content-Type": "application/json",\n  },`;
+    if (body) code += `\n  body: JSON.stringify(${JSON.stringify(body, null, 2).replace(/\n/g, "\n  ")}),`;
+    code += `\n});\n\nconsole.log(resp.status, await resp.json());`;
+  }
+  $("#sampleCode").textContent = code;
+}
+
+function renderDebug() {
+  const e = ENDPOINTS.find(x => x.code === state.endpoint);
+  $("#dbgMethod").textContent = e.method;
+  $("#dbgMethod").className = "method " + (e.method === "POST" ? "m-post" : e.method === "GET" ? "m-get" : "m-del");
+  $("#dbgUrl").textContent = BASE_URL + e.path.replace("{task_id}", "task_xxxxxxxx");
+  const body = bodyForModel();
+  $("#dbgBody").value = body ? JSON.stringify(body, null, 2) : "";
+  $("#dbgBody").disabled = !body;
+  $("#dbgSend").disabled = !body;
+  $("#dbgRes").style.display = "none";
+  $("#dbgStatus").textContent = "";
+}
+
+function renderParams() {
+  const rows = state.loc === "body" ? BODY_PARAMS : HEADER_PARAMS;
+  $("#paramBody").innerHTML = rows.map(([n, t, req, def, d]) => `
+    <tr>
+      <td><code>${esc(n)}</code></td>
+      <td>${t}</td>
+      <td>${req ? '<span class="req-yes">必填</span>' : '<span class="req-no">可选</span>'}</td>
+      <td>${def === "—" ? "—" : `<code>${esc(def)}</code>`}</td>
+      <td>${esc(d)}</td>
+    </tr>`).join("");
+}
+
+function renderResponse() {
+  $("#respBody").innerHTML = RESPONSE_PARAMS.map(([n, t, d]) =>
+    `<tr><td><code>${n}</code></td><td>${t}</td><td>${d}</td></tr>`).join("");
+  const sample = state.endpoint === "create"
+    ? { id: "cgt-20261030103000-abc123", object: "video", model: state.modelId, status: "queued", created_at: 1793330000, progress: "0%" }
+    : { id: "cgt-20261030103000-abc123", object: "video", model: state.modelId, status: "succeeded", created_at: 1793330000, completed_at: 1793330063, progress: "100%", metadata: { url: "https://.../out.mp4" }, error: null };
+  $("#respSample").textContent = JSON.stringify(sample, null, 2);
+}
+
+/* ============================================================
+   5. 交互
+   ============================================================ */
+$("#treeSearch").addEventListener("input", renderTree);
+
+$("#tree").addEventListener("click", (ev) => {
+  const item = ev.target.closest("[data-model]");
+  if (!item) return;
+  state.modelId = item.dataset.model;
+  history.replaceState(null, "", "?model=" + encodeURIComponent(state.modelId));
+  renderTree();
+  renderHeader();
+  renderSample();
+  renderDebug();
+  renderResponse();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
+
+$("#epSwitch").addEventListener("click", (ev) => {
+  const btn = ev.target.closest("[data-ep]");
+  if (!btn) return;
+  state.endpoint = btn.dataset.ep;
+  renderEndpoints();
+});
+
+$("#sampleTabs").addEventListener("click", (ev) => {
+  const tab = ev.target.closest("[data-lang]");
+  if (!tab) return;
+  state.lang = tab.dataset.lang;
+  document.querySelectorAll("#sampleTabs .tab").forEach(t => t.classList.toggle("active", t === tab));
+  renderSample();
+});
+
+$("#paramTabs").addEventListener("click", (ev) => {
+  const tab = ev.target.closest("[data-loc]");
+  if (!tab) return;
+  state.loc = tab.dataset.loc;
+  document.querySelectorAll("#paramTabs .tab").forEach(t => t.classList.toggle("active", t === tab));
+  renderParams();
+});
+
+document.addEventListener("click", async (ev) => {
+  const btn = ev.target.closest("[data-copy]");
+  if (!btn) return;
+  const el = document.getElementById(btn.dataset.copy);
+  let text = el ? (el.dataset.raw || el.textContent) : "";
+  if (btn.dataset.copy === "authLine") text = "Authorization: Bearer sk-xxxxxxxx";
+  try {
+    await navigator.clipboard.writeText(text);
+    const old = btn.textContent;
+    btn.textContent = "已复制";
+    setTimeout(() => btn.textContent = old, 1200);
+  } catch (e) {
+    btn.textContent = "复制失败";
+  }
+});
+
+$("#dbgFill").addEventListener("click", renderDebug);
+
+$("#dbgClear").addEventListener("click", () => {
+  $("#dbgRes").style.display = "none";
+  $("#dbgStatus").textContent = "";
+});
+
+$("#dbgSend").addEventListener("click", async () => {
+  const e = ENDPOINTS.find(x => x.code === state.endpoint);
+  const key = $("#dbgKey").value.trim();
+  if (!key) { $("#dbgStatus").innerHTML = '<span class="bad">请先填入 API Key</span>'; return; }
+  let body;
+  try { body = JSON.parse($("#dbgBody").value); }
+  catch (err) { $("#dbgStatus").innerHTML = '<span class="bad">请求体不是合法 JSON</span>'; return; }
+
+  const url = BASE_URL + e.path.replace("{task_id}", "task_xxxxxxxx");
+  $("#dbgSend").disabled = true;
+  $("#dbgStatus").textContent = "请求中…";
+  const t0 = performance.now();
+  try {
+    const resp = await fetch(url, {
+      method: e.method,
+      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+      body: e.method === "POST" ? JSON.stringify(body) : undefined
+    });
+    const text = await resp.text();
+    let pretty = text;
+    try { pretty = JSON.stringify(JSON.parse(text), null, 2); } catch (_) {}
+    $("#dbgOut").textContent = pretty;
+    $("#dbgRes").style.display = "block";
+    $("#dbgStatus").innerHTML = `<span class="${resp.ok ? "ok" : "bad"}">HTTP ${resp.status}</span> · ${Math.round(performance.now() - t0)} ms`;
+  } catch (err) {
+    $("#dbgStatus").innerHTML = '<span class="bad">请求失败（多为浏览器跨域拦截，请改用 cURL）</span>';
+    $("#dbgOut").textContent = String(err);
+    $("#dbgRes").style.display = "block";
+  } finally {
+    $("#dbgSend").disabled = false;
+  }
+});
+
+/* TOC 高亮 */
+const sections = ["overview", "endpoint", "pricing", "authentication", "examples", "debug", "request-params", "response-params"];
+const links = Object.fromEntries(sections.map(id => [id, document.querySelector(`#tocNav a[href="#${id}"]`)]));
+const io = new IntersectionObserver((entries) => {
+  entries.forEach(en => {
+    if (!en.isIntersecting) return;
+    Object.values(links).forEach(a => a && a.classList.remove("active"));
+    const a = links[en.target.id];
+    if (a) a.classList.add("active");
+  });
+}, { rootMargin: "-80px 0px -70% 0px", threshold: 0 });
+sections.forEach(id => { const el = document.getElementById(id); if (el) io.observe(el); });
+
+/* 初始化 */
+const params = new URLSearchParams(location.search);
+if (params.get("model") && MODELS[params.get("model")]) state.modelId = params.get("model");
+renderTree();
+renderHeader();
+renderEndpoints();
+</script>
+</body>
+</html>

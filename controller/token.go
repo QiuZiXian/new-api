@@ -127,6 +127,27 @@ func setTokenAutoGroups(c *gin.Context, token *model.Token, groups []string) boo
 	return true
 }
 
+// validateTokenGroup 校验令牌绑定的计费分组是否在当前用户的可选范围内。
+// 留空表示跟随用户分组；auto 的分组列表由 setTokenAutoGroups 单独校验。
+// 与 middleware/auth.go 调用时的分组校验保持同一口径，避免存入无法使用的分组。
+func validateTokenGroup(c *gin.Context, token *model.Token) bool {
+	group := strings.TrimSpace(token.Group)
+	token.Group = group
+	if group == "" || group == "auto" {
+		return true
+	}
+	userGroup, err := getTokenRequestUserGroup(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return false
+	}
+	if !service.IsUserSelectableGroup(userGroup, group) {
+		common.ApiErrorI18n(c, i18n.MsgTokenGroupInvalid, map[string]any{"Group": group})
+		return false
+	}
+	return true
+}
+
 func GetAllTokens(c *gin.Context) {
 	userId := c.GetInt("id")
 	pageInfo := common.GetPageQuery(c)
@@ -310,6 +331,9 @@ func AddToken(c *gin.Context) {
 		})
 		return
 	}
+	if !validateTokenGroup(c, &token) {
+		return
+	}
 	if token.Group == "auto" {
 		if !setTokenAutoGroups(c, &token, request.AutoGroups.Groups) {
 			return
@@ -416,6 +440,10 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.ModelLimitsEnabled = token.ModelLimitsEnabled
 		cleanToken.ModelLimits = token.ModelLimits
 		cleanToken.AllowIps = token.AllowIps
+		// 仅在分组发生变化时校验，避免既有令牌因无关字段编辑被历史分组值卡住
+		if token.Group != cleanToken.Group && !validateTokenGroup(c, &token) {
+			return
+		}
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry
 		if token.Group != "auto" {

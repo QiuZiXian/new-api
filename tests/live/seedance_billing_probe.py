@@ -272,10 +272,16 @@ def finish(rec, cfg):
     tokens = rec.get("actual_tokens") or 0
     quota = rec.get("net_quota") or 0
     seconds = rec.get("video_seconds")
+    dims = rec.get("video_dims")
     basis = seconds or rec.get("duration")
-    formula = estimate_tokens(rec["resolution"], rec["ratio"], basis) if basis else 0
+    if dims and seconds:
+        # 优先用成片真实宽高复算，避免名义档位尺寸（如 480p 实际输出 864x496）带来的偏差
+        formula = int(round(seconds * dims[0] * dims[1] * FPS / TOKEN_DIVISOR))
+    else:
+        formula = estimate_tokens(rec["resolution"], rec["ratio"], basis) if basis else 0
     rec["formula_tokens"] = formula
     rec["formula_basis_seconds"] = basis
+    rec["formula_dims"] = dims
 
     if seconds:
         rec["duration_dev"] = round(seconds - rec["duration"], 3)
@@ -344,8 +350,10 @@ def run_case(client, account, case, cfg):
         rec["reason"] = "终态 %s: %s" % (state, json.dumps(task.get("error"), ensure_ascii=False))
         return rec
 
-    rec["content_ok"] = check_content(client, task_id)
-    rec["video_seconds"] = mp4_seconds(client, task_id)
+    info = fetch_mp4_info(client, task_id)
+    rec["content_ok"] = bool(info.get("seconds"))
+    rec["video_seconds"] = info.get("seconds")
+    rec["video_dims"] = info.get("dims")
 
     rows = []
     for _ in range(cfg["log_retries"]):
@@ -365,8 +373,10 @@ def reconcile(client, account, case, task_id, cfg):
     status, _, task = get_task(client, task_id)
     rec["submit_http"] = status
     rec["state"] = str(task.get("status", "")).lower()
-    rec["content_ok"] = check_content(client, task_id)
-    rec["video_seconds"] = mp4_seconds(client, task_id)
+    info = fetch_mp4_info(client, task_id)
+    rec["content_ok"] = bool(info.get("seconds"))
+    rec["video_seconds"] = info.get("seconds")
+    rec["video_dims"] = info.get("dims")
     rows = logs_for_task(fetch_logs(client), task_id, rec["model"], 0)
     absorb_logs(rec, rows, task)
     return finish(rec, cfg)
@@ -402,27 +412,40 @@ def absorb_logs(rec, rows, task):
 
 def mp4_seconds(client, task_id):
     """从 mp4 mvhd 原子读真实时长，作为时长证据。"""
+    info = fetch_mp4_info(client, task_id)
+    return info.get("seconds") if info else None
+
+
+def fetch_mp4_info(client, task_id):
+    """下载产物，读 mvhd 时长 + tkhd 宽高（真实输出尺寸，用于 token 复算）。"""
     status, _, payload = client.call(
         "GET", "/v1/videos/%s/content" % urllib.parse.quote(task_id), raw=True, timeout=180)
     if status != 200 or not isinstance(payload, (bytes, bytearray)):
-        return None
+        return {}
+    info = {}
     i = payload.find(b"mvhd")
-    if i < 0:
-        return None
-    try:
-        version = payload[i + 4]
-        off = i + 8
-        if version == 1:
-            off += 16
+    if i >= 0:
+        try:
+            version = payload[i + 4]
+            off = i + 8 + (16 if version == 1 else 8)
             timescale = int.from_bytes(payload[off:off + 4], "big")
-            duration = int.from_bytes(payload[off + 4:off + 12], "big")
-        else:
-            off += 8
-            timescale = int.from_bytes(payload[off:off + 4], "big")
-            duration = int.from_bytes(payload[off + 4:off + 8], "big")
-        return round(duration / timescale, 3) if timescale else None
-    except Exception:
-        return None
+            duration = int.from_bytes(payload[off + 4:off + (12 if version == 1 else 8)], "big")
+            if timescale:
+                info["seconds"] = round(duration / timescale, 3)
+        except Exception:
+            pass
+    t = payload.find(b"tkhd")
+    if t >= 0:
+        try:
+            version = payload[t + 4]
+            base = t + (96 if version == 1 else 80)
+            width = int.from_bytes(payload[base:base + 4], "big") / 65536
+            height = int.from_bytes(payload[base + 4:base + 8], "big") / 65536
+            if width and height:
+                info["dims"] = [int(round(width)), int(round(height))]
+        except Exception:
+            pass
+    return info
 
 
 # ---------------------------------------------------------------- 报告

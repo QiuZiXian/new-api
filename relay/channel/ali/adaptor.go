@@ -29,6 +29,16 @@ type Adaptor struct {
 const aliAnthropicMessagesModelsEnv = "ALI_ANTHROPIC_MESSAGES_MODELS"
 const defaultAliAnthropicMessagesModels = "qwen,deepseek-v4,kimi,glm,minimax-m"
 
+// DashScope 内置图片端点。第三方网关（如京东云 modelservice）常把同一套
+// Qwen-Image 协议挂在不同路径下、且不带 /api 前缀，此时用 ChannelOtherSettings
+// 的 image_api_path 覆盖；默认值集中在这里，避免路径散落在各分支里。
+const (
+	defaultAliSyncImageApiPath  = "/api/v1/services/aigc/multimodal-generation/generation"
+	defaultAliAsyncImageApiPath = "/api/v1/services/aigc/text2image/image-synthesis"
+	defaultAliOldWanEditApiPath = "/api/v1/services/aigc/image2image/image-synthesis"
+	defaultAliWanEditApiPath    = "/api/v1/services/aigc/image-generation/generation"
+)
+
 /*
 	var syncModels = []string{
 		"z-image",
@@ -63,6 +73,36 @@ var syncModels = []string{
 
 func isSyncImageModel(modelName string) bool {
 	return model_setting.IsSyncImageModel(modelName)
+}
+
+// imageApiPath 返回渠道自定义的图片 API 路径后缀，未配置或非法时返回 ""，
+// 由 GetRequestURL 回落到 DashScope 内置路径。校验限制为纯相对路径，防止
+// 管理员配置里夹带 scheme / query / ".." 造成路径注入。
+func imageApiPath(info *relaycommon.RelayInfo) string {
+	var p string
+	if info != nil && info.HasChannelMeta() {
+		p = strings.TrimSpace(info.ChannelOtherSettings.ImageApiPath)
+	}
+	if p == "" || len(p) > 256 {
+		return ""
+	}
+	for _, r := range p {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		case r == '-', r == '.', r == '_', r == '~', r == '/':
+		default:
+			return ""
+		}
+	}
+	for _, seg := range strings.Split(p, "/") {
+		if seg == ".." {
+			return ""
+		}
+	}
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	return p
 }
 
 func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
@@ -110,18 +150,22 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		case constant.RelayModeResponses:
 			fullRequestURL = fmt.Sprintf("%s/api/v2/apps/protocols/compatible-mode/v1/responses", info.ChannelBaseUrl)
 		case constant.RelayModeImagesGenerations:
-			if isSyncImageModel(info.UpstreamModelName) {
-				fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/multimodal-generation/generation", info.ChannelBaseUrl)
+			if customPath := imageApiPath(info); customPath != "" {
+				fullRequestURL = fmt.Sprintf("%s%s", info.ChannelBaseUrl, customPath)
+			} else if isSyncImageModel(info.UpstreamModelName) {
+				fullRequestURL = fmt.Sprintf("%s%s", info.ChannelBaseUrl, defaultAliSyncImageApiPath)
 			} else {
-				fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/text2image/image-synthesis", info.ChannelBaseUrl)
+				fullRequestURL = fmt.Sprintf("%s%s", info.ChannelBaseUrl, defaultAliAsyncImageApiPath)
 			}
 		case constant.RelayModeImagesEdits:
-			if isOldWanModel(info.UpstreamModelName) {
-				fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/image2image/image-synthesis", info.ChannelBaseUrl)
+			if customPath := imageApiPath(info); customPath != "" {
+				fullRequestURL = fmt.Sprintf("%s%s", info.ChannelBaseUrl, customPath)
+			} else if isOldWanModel(info.UpstreamModelName) {
+				fullRequestURL = fmt.Sprintf("%s%s", info.ChannelBaseUrl, defaultAliOldWanEditApiPath)
 			} else if isWanModel(info.UpstreamModelName) {
-				fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/image-generation/generation", info.ChannelBaseUrl)
+				fullRequestURL = fmt.Sprintf("%s%s", info.ChannelBaseUrl, defaultAliWanEditApiPath)
 			} else {
-				fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/multimodal-generation/generation", info.ChannelBaseUrl)
+				fullRequestURL = fmt.Sprintf("%s%s", info.ChannelBaseUrl, defaultAliSyncImageApiPath)
 			}
 		case constant.RelayModeCompletions:
 			fullRequestURL = fmt.Sprintf("%s/compatible-mode/v1/completions", info.ChannelBaseUrl)

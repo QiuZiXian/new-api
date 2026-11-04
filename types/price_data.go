@@ -5,6 +5,7 @@ import (
 	"math"
 	"sort"
 
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/shopspring/decimal"
 )
 
@@ -35,6 +36,15 @@ type PriceData struct {
 	// UseVideoSecond 标记本次按「每秒单价 × 视频时长」计费（视频按秒定价模式），
 	// 与 UsePrice 互斥：按秒时不走按次固定价，也不走按量倍率。
 	UseVideoSecond bool
+	// UseImageCount 标记本次按「输入张数 × 输入单价 + 输出张数 × 输出单价」计费。
+	// 与 UsePrice / UseVideoSecond 互斥，且只用于同步 /v1/images/* 链路。
+	// 张数不能用 OtherRatios 表达：那里所有乘数连乘，无法表达两个独立单价的加和。
+	UseImageCount bool
+	// InputImageCount / OutputImageCount 是请求预估或上游回报的真实图片张数：
+	// 预扣阶段写入请求侧估计值，DoResponse 阶段由适配器用上游 usage 覆盖，
+	// 结算按覆盖后的真实值算，差额由 SettleBilling 补扣或退还。
+	InputImageCount  int
+	OutputImageCount int
 	// EstimatedTokens 是适配器按官方公式预估的本次请求 token 用量。
 	// 目前用于按 token 计费的视频任务：上游 token 公式为
 	// (输入视频时长 + 输出视频时长) × 输出宽 × 输出高 × 输出帧率 / 1024。
@@ -44,6 +54,24 @@ type PriceData struct {
 	Quota             int // 按次计费的最终额度（MJ / Task）
 	QuotaToPreConsume int // 按量计费的预消耗额度
 	GroupRatioInfo    GroupRatioInfo
+}
+
+// SetImageCounts 写入请求预估或上游回报的输入/输出图片张数。
+// 张数是用户与上游共同可控的计费乘数，必须在这里统一钳到 [0, MaxImageN]，
+// 避免巨大值或回绕的负数把配额算成负扣费。
+func (p *PriceData) SetImageCounts(input, output int) {
+	p.InputImageCount = clampImageCount(input)
+	p.OutputImageCount = clampImageCount(output)
+}
+
+func clampImageCount(n int) int {
+	if n <= 0 {
+		return 0
+	}
+	if n > dto.MaxImageN {
+		return dto.MaxImageN
+	}
+	return n
 }
 
 func (p *PriceData) AddOtherRatio(key string, ratio float64) {

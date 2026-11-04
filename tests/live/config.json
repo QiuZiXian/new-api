@@ -59,6 +59,15 @@
       "ratio": "16:9",
       "duration": 10,
       "has_video": false
+    },
+    {
+      "id": "C7",
+      "_目的": "2.0 最低费用档：480p/5s，预期 48,600 tokens、¥2.2356",
+      "model": "doubao-seedance-2.0",
+      "resolution": "480p",
+      "ratio": "16:9",
+      "duration": 5,
+      "has_video": false
     }
   ],
 

@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -74,6 +75,13 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	modelPrice, usePrice := ratio_setting.GetModelPrice(info.OriginModelName, false)
 
 	groupRatioInfo := HandleGroupRatio(c, info)
+
+	// 按张计费优先于其它形态：模型一旦配了输入/输出单张价，就不再按 token、
+	// 按次或表达式计费。同步 /v1/images/* 链路在这里预扣，DoResponse 用上游
+	// 回报的真实张数覆盖后由 PostTextConsumeQuota 差额结算。
+	if imagePrice, ok := ratio_setting.GetImageCountPrice(info.OriginModelName); ok {
+		return modelPriceHelperImageCount(c, info, meta, groupRatioInfo, imagePrice)
+	}
 
 	// Check if this model uses tiered_expr billing
 	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeTieredExpr {
@@ -181,6 +189,45 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 
 	if common.DebugEnabled {
 		logger.LogDebug(c, "model_price_helper result: %s", priceData.ToSetting())
+	}
+	info.PriceData = priceData
+	return priceData, nil
+}
+
+// modelPriceHelperImageCount 是同步图片请求的按张计费预扣。
+// 预扣阶段还拿不到上游 usage，输入张数按 0、输出张数按请求的 n 估算；
+// 适配器拿到上游 usage 后会用 SetImageCounts 覆盖真实值，结算时补差。
+func modelPriceHelperImageCount(c *gin.Context, info *relaycommon.RelayInfo, meta *types.TokenCountMeta, groupRatioInfo hosttypes.GroupRatioInfo, price ratio_setting.ImageCountPrice) (hosttypes.PriceData, error) {
+	outputCount := 1
+	if meta != nil {
+		if n, ok := meta.BillingRatios["n"]; ok && n >= 1 && n <= float64(dto.MaxImageN) {
+			outputCount = int(n)
+		}
+	}
+
+	priceData := hosttypes.PriceData{
+		UseImageCount:  true,
+		ModelPrice:     price.Output, // 供日志与 /api/pricing 沿用「单价」语义
+		GroupRatioInfo: groupRatioInfo,
+	}
+	priceData.SetImageCounts(0, outputCount)
+	// 流式图片链路用 OtherRatios["n"] 判断「客户端中断时不允许下调计费张数」，
+	// 这里保留该乘数作为请求侧基准；按张结算分支会忽略它，不会重复扣费。
+	priceData.AddOtherRatio("n", float64(outputCount))
+
+	cost := ratio_setting.ImageCountCost(price, 0, outputCount)
+	quota, err := common.QuotaFromFloatStrict(cost * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
+	if err != nil {
+		return hosttypes.PriceData{}, err
+	}
+	if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume && (groupRatioInfo.GroupRatio == 0 || cost == 0) {
+		quota = 0
+		priceData.FreeModel = true
+	}
+	priceData.QuotaToPreConsume = quota
+
+	if common.DebugEnabled {
+		logger.LogDebug(c, "image_count_price_helper result: %s", priceData.ToSetting())
 	}
 	info.PriceData = priceData
 	return priceData, nil

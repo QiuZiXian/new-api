@@ -91,6 +91,13 @@ type ChannelOtherSettings struct {
 	// split create and query into two different paths, e.g. create
 	// `/v1/task/submit` with query `/v1/task`.
 	TaskQueryApiPath string `json:"task_query_api_path,omitempty"`
+	// ImageApiPath overrides the path suffix (from the channel Base URL) that the
+	// ali image adaptor uses for /v1/images/generations and /v1/images/edits.
+	// Leave empty to use the built-in `/api/v1/services/aigc/...` paths
+	// (DashScope). Set e.g. `/v1/services/aigc/multimodal-generation/generation`
+	// for gateways that re-host the same Qwen-Image protocol without the /api
+	// prefix. Only a plain relative path is accepted; see normalizeImageApiPath.
+	ImageApiPath string `json:"image_api_path,omitempty"`
 	// AssetGroupApiPath overrides the path suffix (from the channel Base URL) that
 	// the asset-group adaptor uses. Leave empty to use the built-in
 	// `/api/v1/asset-groups`. Set e.g. `/api/v1/contents/management/assets-groups`

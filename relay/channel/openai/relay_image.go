@@ -23,7 +23,16 @@ import (
 )
 
 func updateOpenAIImageCount(info *relaycommon.RelayInfo, count int64) {
-	if info == nil || !info.PriceData.UsePrice || count <= 0 || count > int64(dto.MaxImageN) {
+	if info == nil || count <= 0 || count > int64(dto.MaxImageN) {
+		return
+	}
+	if info.PriceData.UseImageCount {
+		// 按张计费模型不设 UsePrice，但同样要用上游真实张数覆盖预扣的估计值。
+		info.PriceData.SetImageCounts(info.PriceData.InputImageCount, int(count))
+		info.PriceData.AddOtherRatio("n", float64(count))
+		return
+	}
+	if !info.PriceData.UsePrice {
 		return
 	}
 	info.PriceData.AddOtherRatio("n", float64(count))
