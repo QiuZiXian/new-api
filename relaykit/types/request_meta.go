@@ -26,8 +26,11 @@ type TokenCountMeta struct {
 	Files         []*FileMeta `json:"files,omitempty"`          // List of files, each with type and content
 	MaxTokens     int         `json:"max_tokens,omitempty"`     // Maximum tokens allowed in the request
 
-	ImagePriceRatio float64            `json:"image_ratio,omitempty"`    // Ratio for image size, if applicable
-	BillingRatios   map[string]float64 `json:"billing_ratios,omitempty"` // Validated request multipliers used by pre-consume billing
+	ImagePriceRatio float64 `json:"image_ratio,omitempty"` // Ratio for image size, if applicable
+	// ImageSize 是图片请求的原始尺寸串（如 "2048x2048"），按张计费的预扣用它
+	// 判定分辨率档位（1K/2K）；结算阶段以响应里的真实宽高为准。
+	ImageSize     string             `json:"image_size,omitempty"`
+	BillingRatios map[string]float64 `json:"billing_ratios,omitempty"` // Validated request multipliers used by pre-consume billing
 	//IsStreaming   bool        `json:"is_streaming,omitempty"`   // Indicates if the request is streaming
 }
 

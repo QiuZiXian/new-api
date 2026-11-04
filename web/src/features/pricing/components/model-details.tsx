@@ -60,7 +60,7 @@ import {
 import { getLobeIcon } from "@/lib/lobe-icon";
 import { cn } from "@/lib/utils";
 
-import { DEFAULT_TOKEN_UNIT } from "../constants";
+import { DEFAULT_TOKEN_UNIT, QUOTA_TYPE_VALUES } from "../constants";
 import { usePricingData } from "../hooks/use-pricing-data";
 import {
   getDynamicPriceEntries,
@@ -715,6 +715,90 @@ function PriceSection(props: {
   }
 
   if (!isTokenBased) {
+    const imageCountPrice = props.model.image_count_price;
+    if (
+      props.model.quota_type === QUOTA_TYPE_VALUES.IMAGE_COUNT &&
+      imageCountPrice
+    ) {
+      const formatPrice = (value?: number) =>
+        typeof value === "number" && value > 0
+          ? formatFixedPrice(
+              { ...props.model, model_price: value },
+              baseGroupKey,
+              props.showRechargePrice,
+              props.priceRate,
+              props.usdExchangeRate,
+              baseGroupRatioMap
+            )
+          : "-";
+      const tierRows = [
+        {
+          key: "1K",
+          input: imageCountPrice.input_1k,
+          output: imageCountPrice.output_1k,
+        },
+        {
+          key: "2K",
+          input: imageCountPrice.input_2k,
+          output: imageCountPrice.output_2k,
+        },
+      ];
+      // 有任一档位价就按档位展示，否则退回未分档的单一单价。
+      const hasTiers = tierRows.some(
+        (row) => (row.input ?? 0) > 0 || (row.output ?? 0) > 0
+      );
+      const rows = hasTiers
+        ? tierRows
+        : [
+            {
+              key: t("Default tier"),
+              input: imageCountPrice.input,
+              output: imageCountPrice.output,
+            },
+          ];
+      return (
+        <section>
+          <SectionTitle>{t("Base Price")}</SectionTitle>
+          <div className="space-y-2">
+            <div className="grid grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1fr)] items-baseline gap-2">
+              <span />
+              <span className="text-muted-foreground text-right text-xs">
+                {t("Input price per image")}
+              </span>
+              <span className="text-muted-foreground text-right text-xs">
+                {t("Output price per image")}
+              </span>
+            </div>
+            {rows.map((row) => (
+              <div
+                key={row.key}
+                className="grid grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1fr)] items-baseline gap-2"
+              >
+                <span className="text-muted-foreground text-sm">{row.key}</span>
+                <span className="text-foreground text-right font-mono text-sm font-semibold tabular-nums">
+                  {formatPrice(row.input)}
+                </span>
+                <span className="text-foreground text-right font-mono text-sm font-semibold tabular-nums">
+                  {formatPrice(row.output)}
+                </span>
+              </div>
+            ))}
+            <div className="text-muted-foreground/60 flex items-center justify-between text-xs">
+              <span>
+                {t("1K is up to 2,250,000 pixels; above that is 2K.")}
+              </span>
+              <span>/ {t("image")}</span>
+            </div>
+            {imageCountPrice.free_first_output && (
+              <div className="text-muted-foreground text-xs">
+                {t("First output image free")}
+              </div>
+            )}
+          </div>
+        </section>
+      );
+    }
+
     return (
       <section>
         <SectionTitle>{t("Base Price")}</SectionTitle>

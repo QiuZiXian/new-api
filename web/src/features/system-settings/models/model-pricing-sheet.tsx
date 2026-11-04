@@ -34,6 +34,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
   Field,
+  FieldContent,
   FieldDescription,
   FieldGroup,
   FieldLabel,
@@ -60,12 +61,14 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 
 import {
   EMPTY_LANE_ENABLED,
   EMPTY_LANE_PRICES,
+  fromImageCountPrice,
   fromSecondTierRows,
   buildPreviewRows,
   createInitialLaneState,
@@ -77,9 +80,11 @@ import {
   numericDraftRegex,
   ratioFieldByLane,
   resolvePricingMode,
+  toImageCountPrice,
   toNumberOrNull,
   toSecondTierRows,
   VIDEO_SECOND_DEFAULT_TIER,
+  type ImageCountPriceDraft,
   type LaneKey,
   type ModelPricingFormValues,
   type ModelRatioData,
@@ -167,6 +172,9 @@ export const ModelPricingEditorPanel = forwardRef<
   const [secondTiers, setSecondTiers] = useState<VideoSecondTierRow[]>(() =>
     toSecondTierRows(undefined)
   )
+  const [imageCountPrice, setImageCountPrice] = useState<
+    ReturnType<typeof toImageCountPrice>
+  >(() => toImageCountPrice(undefined))
   const isEditMode = !!editData
 
   const form = useForm<ModelPricingFormValues>({
@@ -226,6 +234,7 @@ export const ModelPricingEditorPanel = forwardRef<
     setLanePrices(nextLaneState.prices)
     setLaneEnabled(nextLaneState.enabled)
     setSecondTiers(nextLaneState.secondTiers)
+    setImageCountPrice(nextLaneState.imageCountPrice)
     setEditorReloadToken((token) => token + 1)
   }, [editData, form])
 
@@ -419,6 +428,18 @@ export const ModelPricingEditorPanel = forwardRef<
     })
   }
 
+  const handleImageCountPriceChange = (
+    key: keyof Omit<ImageCountPriceDraft, 'freeFirstOutput'>,
+    value: string
+  ) => {
+    if (!numericDraftRegex.test(value)) return
+    setImageCountPrice((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const handleFreeFirstOutputChange = (checked: boolean) => {
+    setImageCountPrice((prev) => ({ ...prev, freeFirstOutput: checked }))
+  }
+
   const watchedValues = form.watch()
   const previewRows = useMemo(
     () =>
@@ -431,6 +452,7 @@ export const ModelPricingEditorPanel = forwardRef<
         lanePrices,
         laneEnabled,
         secondTiers,
+        imageCountPrice,
         t
       ),
     [
@@ -441,6 +463,7 @@ export const ModelPricingEditorPanel = forwardRef<
       promptPrice,
       requestRuleExpr,
       secondTiers,
+      imageCountPrice,
       t,
       watchedValues,
     ]
@@ -510,8 +533,23 @@ export const ModelPricingEditorPanel = forwardRef<
       }
     }
 
+    if (pricingMode === 'per-image' && !fromImageCountPrice(imageCountPrice)) {
+      nextWarnings.push(
+        t('Per-image billing needs at least one price before saving.')
+      )
+    }
+
     return nextWarnings
-  }, [editData, laneEnabled, lanePrices, pricingMode, promptPrice, secondTiers, t])
+  }, [
+    editData,
+    imageCountPrice,
+    laneEnabled,
+    lanePrices,
+    pricingMode,
+    promptPrice,
+    secondTiers,
+    t,
+  ])
 
   const validatePricingValues = useCallback(() => {
     if (
@@ -561,8 +599,24 @@ export const ModelPricingEditorPanel = forwardRef<
       }
     }
 
+    if (pricingMode === 'per-image' && !fromImageCountPrice(imageCountPrice)) {
+      form.setError('name', {
+        message: t('Per-image billing needs at least one price before saving.'),
+      })
+      return false
+    }
+
     return true
-  }, [form, laneEnabled, lanePrices, pricingMode, promptPrice, secondTiers, t])
+  }, [
+    form,
+    imageCountPrice,
+    laneEnabled,
+    lanePrices,
+    pricingMode,
+    promptPrice,
+    secondTiers,
+    t,
+  ])
 
   const buildSubmitData = useCallback(
     (values: ModelPricingFormValues) => {
@@ -584,6 +638,10 @@ export const ModelPricingEditorPanel = forwardRef<
         data.videoSecondPrice = fromSecondTierRows(secondTiers)
       }
 
+      if (pricingMode === 'per-image') {
+        data.imageCountPrice = fromImageCountPrice(imageCountPrice)
+      }
+
       if (pricingMode === 'tiered_expr') {
         data.billingExpr = billingExpr
         data.requestRuleExpr = requestRuleExpr
@@ -591,7 +649,7 @@ export const ModelPricingEditorPanel = forwardRef<
 
       return data
     },
-    [billingExpr, pricingMode, requestRuleExpr, secondTiers]
+    [billingExpr, imageCountPrice, pricingMode, requestRuleExpr, secondTiers]
   )
 
   useImperativeHandle(
@@ -675,7 +733,7 @@ export const ModelPricingEditorPanel = forwardRef<
                   onValueChange={handleModeChange}
                   className='gap-4'
                 >
-                  <TabsList className='grid w-full grid-cols-4'>
+                  <TabsList className='grid w-full grid-cols-5'>
                     <TabsTrigger value='per-token'>
                       {t('Per-token')}
                     </TabsTrigger>
@@ -684,6 +742,9 @@ export const ModelPricingEditorPanel = forwardRef<
                     </TabsTrigger>
                     <TabsTrigger value='per-second'>
                       {t('Per-second')}
+                    </TabsTrigger>
+                    <TabsTrigger value='per-image'>
+                      {t('Per-image')}
                     </TabsTrigger>
                     <TabsTrigger value='tiered_expr'>
                       {t('Expression')}
@@ -771,6 +832,121 @@ export const ModelPricingEditorPanel = forwardRef<
                           </FormItem>
                         )}
                       />
+                    </FieldGroup>
+                  </TabsContent>
+
+                  <TabsContent value='per-image' className='pt-0'>
+                    <FieldGroup className='gap-5'>
+                      <Field>
+                        <FieldLabel>{t('Image per-image price')}</FieldLabel>
+                        <FieldDescription>
+                          {t(
+                            'USD price per image. Input counts reference images, output counts successfully generated images. The two are added together, not multiplied.'
+                          )}
+                        </FieldDescription>
+                        <FieldDescription>
+                          {t(
+                            'Tiers follow the output resolution area: 1K is up to 2,250,000 pixels, anything above is 2K. Leave a tier empty to fall back to the default price.'
+                          )}
+                        </FieldDescription>
+                      </Field>
+
+                      <div className='flex flex-col gap-2'>
+                        <div className='grid grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)] items-end gap-2'>
+                          <span className='text-muted-foreground text-xs'>
+                            {t('Resolution tier')}
+                          </span>
+                          <span className='text-muted-foreground text-xs'>
+                            {t('Input price per image')}
+                          </span>
+                          <span className='text-muted-foreground text-xs'>
+                            {t('Output price per image')}
+                          </span>
+                        </div>
+                        {(
+                          [
+                            {
+                              key: 'default',
+                              label: t('Default tier'),
+                              hint: '0.02',
+                              inputKey: 'input',
+                              outputKey: 'output',
+                            },
+                            {
+                              key: '1k',
+                              label: '1K',
+                              hint: '0.02',
+                              inputKey: 'input1k',
+                              outputKey: 'output1k',
+                            },
+                            {
+                              key: '2k',
+                              label: '2K',
+                              hint: '0.18',
+                              inputKey: 'input2k',
+                              outputKey: 'output2k',
+                            },
+                          ] as const
+                        ).map((row) => (
+                          <div
+                            key={row.key}
+                            className='grid grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)] items-center gap-2'
+                          >
+                            <span className='text-sm'>{row.label}</span>
+                            <InputGroup>
+                              <InputGroupAddon>$</InputGroupAddon>
+                              <InputGroupInput
+                                inputMode='decimal'
+                                placeholder={row.hint}
+                                value={imageCountPrice[row.inputKey]}
+                                onChange={(event) =>
+                                  handleImageCountPriceChange(
+                                    row.inputKey,
+                                    event.target.value
+                                  )
+                                }
+                              />
+                            </InputGroup>
+                            <InputGroup>
+                              <InputGroupAddon>$</InputGroupAddon>
+                              <InputGroupInput
+                                inputMode='decimal'
+                                placeholder={row.hint}
+                                value={imageCountPrice[row.outputKey]}
+                                onChange={(event) =>
+                                  handleImageCountPriceChange(
+                                    row.outputKey,
+                                    event.target.value
+                                  )
+                                }
+                              />
+                            </InputGroup>
+                          </div>
+                        ))}
+                        <p className='text-muted-foreground text-xs'>
+                          {t(
+                            'Each cell is a price per image. Empty tier cells reuse the default price.'
+                          )}
+                        </p>
+                      </div>
+
+                      <Field orientation='horizontal'>
+                        <FieldContent>
+                          <FieldLabel htmlFor='image-free-first-output'>
+                            {t('First output image free')}
+                          </FieldLabel>
+                          <FieldDescription>
+                            {t(
+                              'When enabled, the first generated image of every request is not billed.'
+                            )}
+                          </FieldDescription>
+                        </FieldContent>
+                        <Switch
+                          id='image-free-first-output'
+                          checked={imageCountPrice.freeFirstOutput}
+                          onCheckedChange={handleFreeFirstOutputChange}
+                        />
+                      </Field>
                     </FieldGroup>
                   </TabsContent>
 

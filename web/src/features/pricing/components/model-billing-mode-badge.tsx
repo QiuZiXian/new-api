@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next'
 
 import { StatusBadge, type StatusVariant } from '@/components/status-badge'
 
+import { QUOTA_TYPE_VALUES } from '../constants'
 import { isDynamicPricingModel } from '../lib/dynamic-price'
 import { isTokenBasedModel } from '../lib/model-helpers'
 import type { PricingModel } from '../types'
@@ -40,6 +41,12 @@ export function ModelBillingModeBadge(props: ModelBillingModeBadgeProps) {
   } else if (isTokenBasedModel(props.model)) {
     label = t('Token-based')
     variant = 'info'
+  } else if (props.model.quota_type === QUOTA_TYPE_VALUES.IMAGE_COUNT) {
+    label = t('Per Image')
+    variant = 'purple'
+  } else if (props.model.quota_type === QUOTA_TYPE_VALUES.PER_SECOND) {
+    label = t('Per Second')
+    variant = 'purple'
   }
 
   return (

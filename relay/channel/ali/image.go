@@ -16,10 +16,30 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 )
+
+// resolveImageTiers 按上游 usage 判定输入/输出分辨率档位。
+// 输出侧优先用真实宽高算面积（与官方口径一致），其次用 output_image_type
+// 的档位后缀；两者都缺失时保留 fallbackOutput（请求 size 的估算值）。
+// 输入侧上游只给 input_image_type，没有宽高，因此只能读标签。
+func resolveImageTiers(usage AliUsage, fallbackInput, fallbackOutput string) (string, string) {
+	inputTier := ratio_setting.NormalizeImageTier(usage.InputImageType)
+	if inputTier == "" {
+		inputTier = fallbackInput
+	}
+	outputTier := ratio_setting.ImageTierByArea(usage.OutputWidth, usage.OutputHeight)
+	if outputTier == "" {
+		outputTier = ratio_setting.NormalizeImageTier(usage.OutputImageType)
+	}
+	if outputTier == "" {
+		outputTier = fallbackOutput
+	}
+	return inputTier, outputTier
+}
 
 func oaiImage2AliImageRequest(info *relaycommon.RelayInfo, request dto.ImageRequest, isSync bool) (*AliImageRequest, error) {
 	var imageRequest AliImageRequest
@@ -73,6 +93,11 @@ func oaiImage2AliImageRequest(info *relaycommon.RelayInfo, request dto.ImageRequ
 		info.PriceData.AddOtherRatio("n", float64(billingN))
 	}
 	info.PriceData.SetImageCounts(info.PriceData.InputImageCount, billingN)
+	// 用 parameters.size 细化输出档位；自定义 API 路径下 parameters 为空，
+	// 此时必须保留 price.go 已经按客户端 size 估出的档位，不能覆盖成空值。
+	if tier := ratio_setting.ImageTierBySize(imageRequest.Parameters.Size); tier != "" {
+		info.PriceData.SetImageTiers(info.PriceData.InputImageTier, tier)
+	}
 
 	// 同步图片模型和异步图片模型请求格式不一样
 	if isSync {
@@ -363,6 +388,10 @@ func aliImageHandler(a *Adaptor, c *gin.Context, resp *http.Response, info *rela
 		outputCount = info.PriceData.OutputImageCount
 	}
 	info.PriceData.SetImageCounts(inputCount, outputCount)
+	// 档位以响应为准：优先用输出宽高算面积（官方口径 ≤2,250,000 为 1K），
+	// 其次读 output_image_type / input_image_type 的档位后缀，最后保留请求侧估算。
+	inputTier, outputTier := resolveImageTiers(usage, info.PriceData.InputImageTier, info.PriceData.OutputImageTier)
+	info.PriceData.SetImageTiers(inputTier, outputTier)
 	if info.PriceData.OutputImageCount > 0 {
 		info.PriceData.AddOtherRatio("n", float64(info.PriceData.OutputImageCount))
 	}

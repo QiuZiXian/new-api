@@ -274,6 +274,7 @@ export const channelFormSchema = z
     visual_validate_api_path: z.string().optional(), // Doubao Video visual-validate channel specific
     asset_group_api_path: z.string().optional(), // Doubao Video asset-group channel specific
     asset_api_path: z.string().optional(), // Doubao Video asset channel specific
+    image_api_path: z.string().optional(), // Ali image channel specific
     // Field passthrough controls (stored in settings JSON)
     allow_service_tier: z.boolean().optional(), // OpenAI/Anthropic
     disable_store: z.boolean().optional(), // OpenAI only
@@ -451,6 +452,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   visual_validate_api_path: '',
   asset_group_api_path: '',
   asset_api_path: '',
+  image_api_path: '',
   // Field passthrough controls
   allow_service_tier: false,
   disable_store: false,
@@ -519,6 +521,7 @@ export function transformChannelToFormDefaults(
   let visualValidateApiPath = ''
   let assetGroupApiPath = ''
   let assetApiPath = ''
+  let imageApiPath = ''
   let isEnterpriseAccount = false
   let awsKeyType: 'ak_sk' | 'api_key' = 'ak_sk'
   let allowServiceTier = false
@@ -544,6 +547,7 @@ export function transformChannelToFormDefaults(
       visualValidateApiPath = parsed.visual_validate_api_path || ''
       assetGroupApiPath = parsed.asset_group_api_path || ''
       assetApiPath = parsed.asset_api_path || ''
+      imageApiPath = parsed.image_api_path || ''
       isEnterpriseAccount = parsed.openrouter_enterprise === true
       awsKeyType = parsed.aws_key_type || 'ak_sk'
       allowServiceTier = parsed.allow_service_tier === true
@@ -609,6 +613,7 @@ export function transformChannelToFormDefaults(
     visual_validate_api_path: visualValidateApiPath,
     asset_group_api_path: assetGroupApiPath,
     asset_api_path: assetApiPath,
+    image_api_path: imageApiPath,
     aws_key_type: awsKeyType,
     allow_service_tier: allowServiceTier,
     disable_store: disableStore,
@@ -709,6 +714,14 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     delete settingsObj.visual_validate_api_path
     delete settingsObj.asset_group_api_path
     delete settingsObj.asset_api_path
+  }
+
+  // Add image_api_path for Ali channels (type 17): third-party gateways such as
+  // JD Cloud modelservice re-host the Qwen-Image protocol without the /api prefix.
+  if (formData.type === 17 && formData.image_api_path?.trim()) {
+    settingsObj.image_api_path = formData.image_api_path.trim()
+  } else {
+    delete settingsObj.image_api_path
   }
 
   // Add enterprise account setting for OpenRouter (type 20)

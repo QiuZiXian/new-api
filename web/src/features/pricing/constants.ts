@@ -49,6 +49,7 @@ export const QUOTA_TYPES = {
   ALL: 'all',
   TOKEN: 'token',
   REQUEST: 'request',
+  IMAGE: 'image',
 } as const
 
 export type QuotaTypeOption = (typeof QUOTA_TYPES)[keyof typeof QUOTA_TYPES]
@@ -61,6 +62,7 @@ export function getQuotaTypeLabels(
     [QUOTA_TYPES.ALL]: t('All Models'),
     [QUOTA_TYPES.TOKEN]: t('Token-based'),
     [QUOTA_TYPES.REQUEST]: t('Per Request'),
+    [QUOTA_TYPES.IMAGE]: t('Per Image'),
   }
 }
 
@@ -122,6 +124,8 @@ export const EXCLUDED_GROUPS = ['', 'auto']
 export const QUOTA_TYPE_VALUES = {
   TOKEN: 0,
   REQUEST: 1,
+  PER_SECOND: 2,
+  IMAGE_COUNT: 3,
 } as const
 
 /** Token unit divisors */

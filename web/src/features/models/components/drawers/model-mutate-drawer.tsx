@@ -124,6 +124,15 @@ const extendedModelFormSchema = z.object({
   imageRatio: z.string().optional(),
   imageCompletionRatio: z.string().optional(),
   videoSecondPrice: z.string().optional(),
+  // 按张计费：输入参考图与输出生成图各三档（默认 / 1K / 2K）。
+  // 档位按输出分辨率面积判定，≤2,250,000 像素为 1K。
+  imageInputPrice: z.string().optional(),
+  imageInput1k: z.string().optional(),
+  imageInput2k: z.string().optional(),
+  imageOutputPrice: z.string().optional(),
+  imageOutput1k: z.string().optional(),
+  imageOutput2k: z.string().optional(),
+  imageFreeFirstOutput: z.boolean().optional(),
   audioRatio: z.string().optional(),
   audioCompletionRatio: z.string().optional(),
   // 模型广场展示补充字段，只影响详情页渲染，不参与计费
@@ -137,7 +146,7 @@ const extendedModelFormSchema = z.object({
 
 type ExtendedModelFormValues = z.infer<typeof extendedModelFormSchema>;
 
-type PricingMode = "per-token" | "per-request" | "per-second";
+type PricingMode = "per-token" | "per-request" | "per-second" | "per-image";
 type PricingSubMode = "ratio" | "price";
 
 type PricingFields = Pick<
@@ -150,6 +159,13 @@ type PricingFields = Pick<
   | "imageCompletionRatio"
   | "audioRatio"
   | "audioCompletionRatio"
+  | "imageInputPrice"
+  | "imageInput1k"
+  | "imageInput2k"
+  | "imageOutputPrice"
+  | "imageOutput1k"
+  | "imageOutput2k"
+  | "imageFreeFirstOutput"
 >;
 
 // Form state describing the pricing currently configured for one model name.
@@ -173,7 +189,103 @@ const EMPTY_PRICING_FIELDS: PricingFields = {
   imageCompletionRatio: "",
   audioRatio: "",
   audioCompletionRatio: "",
+  imageInputPrice: "",
+  imageInput1k: "",
+  imageInput2k: "",
+  imageOutputPrice: "",
+  imageOutput1k: "",
+  imageOutput2k: "",
+  imageFreeFirstOutput: false,
 };
+
+// 按张三档的字段名，UI 与提交逻辑共用，避免两处各写一遍 key。
+const IMAGE_COUNT_PRICE_ROWS = [
+  {
+    tier: "default",
+    label: "Default tier",
+    inputField: "imageInputPrice",
+    outputField: "imageOutputPrice",
+  },
+  {
+    tier: "1k",
+    label: "1K",
+    inputField: "imageInput1k",
+    outputField: "imageOutput1k",
+  },
+  {
+    tier: "2k",
+    label: "2K",
+    inputField: "imageInput2k",
+    outputField: "imageOutput2k",
+  },
+] as const;
+
+// 表单档位 → 持久化 key（后端 ImageCountPrice 的 JSON tag）。
+const IMAGE_COUNT_PRICE_KEYS = {
+  imageInputPrice: "input",
+  imageInput1k: "input_1k",
+  imageInput2k: "input_2k",
+  imageOutputPrice: "output",
+  imageOutput1k: "output_1k",
+  imageOutput2k: "output_2k",
+} as const;
+
+// readImageCountFields 把 option 里的按张配置还原成表单字段。
+// 一个正价都没有时返回 null，表示该模型未启用按张计费。
+function readImageCountFields(
+  entry?: Record<string, unknown>,
+): PricingFields | null {
+  if (!entry) return null;
+  const readPrice = (key: string) => {
+    const value = entry[key];
+    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+      return "";
+    }
+    return String(value);
+  };
+  const fields: PricingFields = {
+    ...EMPTY_PRICING_FIELDS,
+    imageInputPrice: readPrice("input"),
+    imageInput1k: readPrice("input_1k"),
+    imageInput2k: readPrice("input_2k"),
+    imageOutputPrice: readPrice("output"),
+    imageOutput1k: readPrice("output_1k"),
+    imageOutput2k: readPrice("output_2k"),
+    imageFreeFirstOutput:
+      entry.free_first_output === true || entry.free_first_output === "true",
+  };
+  const positive = [
+    fields.imageInputPrice,
+    fields.imageInput1k,
+    fields.imageInput2k,
+    fields.imageOutputPrice,
+    fields.imageOutput1k,
+    fields.imageOutput2k,
+  ].some((value) => value !== "");
+  return positive ? fields : null;
+}
+
+// buildImageCountEntry 把表单里的三档单价收敛成持久化对象。
+// 留空表示该档回退默认价；一个正价都没有时返回 null（未启用按张计费）。
+function buildImageCountEntry(
+  values: ExtendedModelFormValues,
+): Record<string, number | boolean> | null {
+  const entry: Record<string, number | boolean> = {};
+  (
+    Object.keys(IMAGE_COUNT_PRICE_KEYS) as Array<
+      keyof typeof IMAGE_COUNT_PRICE_KEYS
+    >
+  ).forEach((field) => {
+    const raw = values[field];
+    if (!raw) return;
+    const parsed = Number.parseFloat(raw);
+    if (!Number.isFinite(parsed) || parsed <= 0) return;
+    entry[IMAGE_COUNT_PRICE_KEYS[field]] = parsed;
+  });
+  if (Object.keys(entry).length === 0) return null;
+  if (values.imageFreeFirstOutput) entry.free_first_output = true;
+  return entry;
+}
 
 const EMPTY_PRICING_CONFIG: PricingConfig = {
   mode: "per-token",
@@ -229,6 +341,22 @@ function readPricingConfig(
     settings.AudioCompletionRatio,
     modelName,
   );
+
+  // 按张计费在同步链路里优先于固定价与 token 倍率（ModelPriceHelper 先查
+  // ImageCountPrice），所以配了按张价的模型必须按 per-image 回显并逐档编辑，
+  // 否则会显示成 per-token 并在保存时抹掉分档配置。
+  const imageCountMap = safeJsonParse<Record<string, Record<string, unknown>>>(
+    settings.ImageCountPrice,
+    { fallback: {}, silent: true },
+  );
+  const imageFields = readImageCountFields(imageCountMap[modelName]);
+  if (imageFields) {
+    return {
+      ...EMPTY_PRICING_CONFIG,
+      mode: "per-image",
+      fields: imageFields,
+    };
+  }
 
   // A fixed per-request price wins outright at billing time (see
   // GetModelRatioOrPrice), so a name that has one is shown, and saved back, as
@@ -378,6 +506,7 @@ export function ModelMutateDrawer({
       ImageRatio: "",
       ImageCompletionRatio: "",
       VideoSecondPrice: "",
+      ImageCountPrice: "",
       AudioRatio: "",
       AudioCompletionRatio: "",
       ExposeRatioEnabled: false,
@@ -602,6 +731,13 @@ export function ModelMutateDrawer({
           videoSecondPrice,
           audioRatio,
           audioCompletionRatio,
+          imageInputPrice,
+          imageInput1k,
+          imageInput2k,
+          imageOutputPrice,
+          imageOutput1k,
+          imageOutput2k,
+          imageFreeFirstOutput,
           ...modelData
         } = submitData;
 
@@ -620,7 +756,11 @@ export function ModelMutateDrawer({
         if (response.success) {
           // Handle ratio configuration updates in system settings
           const finalModelName = values.model_name;
+          const imageCountEntry = buildImageCountEntry(values);
+          const hasImageCountConfig =
+            pricingMode === "per-image" && imageCountEntry !== null;
           const hasRatioConfig =
+            hasImageCountConfig ||
             (pricingMode === "per-request" &&
               values.price &&
               values.price !== "") ||
@@ -669,6 +809,9 @@ export function ModelMutateDrawer({
             const videoSecondMap = safeJsonParse<
               Record<string, Record<string, number>>
             >(modelSettings.VideoSecondPrice, { fallback: {}, silent: true });
+            const imageCountMap = safeJsonParse<
+              Record<string, Record<string, number | boolean>>
+            >(modelSettings.ImageCountPrice, { fallback: {}, silent: true });
             const audioMap = safeJsonParse<Record<string, number>>(
               modelSettings.AudioRatio,
               { fallback: {}, silent: true },
@@ -691,6 +834,7 @@ export function ModelMutateDrawer({
               delete imageMap[oldModelName];
               delete imageCompletionMap[oldModelName];
               delete videoSecondMap[oldModelName];
+              delete imageCountMap[oldModelName];
               delete audioMap[oldModelName];
               delete audioCompletionMap[oldModelName];
             }
@@ -712,6 +856,7 @@ export function ModelMutateDrawer({
               delete imageMap[finalModelName];
               delete imageCompletionMap[finalModelName];
               delete videoSecondMap[finalModelName];
+              delete imageCountMap[finalModelName];
               delete audioMap[finalModelName];
               delete audioCompletionMap[finalModelName];
             }
@@ -733,6 +878,8 @@ export function ModelMutateDrawer({
                   ...preservedSecondTiers,
                   default: Number.parseFloat(values.videoSecondPrice),
                 };
+              } else if (pricingMode === "per-image" && imageCountEntry) {
+                imageCountMap[finalModelName] = imageCountEntry;
               } else if (pricingMode === "per-token") {
                 if (values.ratio && values.ratio !== "") {
                   ratioMap[finalModelName] = Number.parseFloat(values.ratio);
@@ -843,6 +990,19 @@ export function ModelMutateDrawer({
               updates.push({
                 key: "VideoSecondPrice",
                 value: newVideoSecondPrice,
+              });
+            }
+
+            const newImageCountPrice = normalizeJsonString(
+              JSON.stringify(imageCountMap),
+            );
+            if (
+              newImageCountPrice !==
+              normalizeJsonString(modelSettings.ImageCountPrice)
+            ) {
+              updates.push({
+                key: "ImageCountPrice",
+                value: newImageCountPrice,
               });
             }
 
@@ -1344,6 +1504,12 @@ export function ModelMutateDrawer({
                       {t("Per-second (video duration)")}
                     </Label>
                   </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="per-image" id="per-image" />
+                    <Label htmlFor="per-image" className="font-normal">
+                      {t("Per-image (resolution tiered)")}
+                    </Label>
+                  </div>
                 </RadioGroup>
               </div>
 
@@ -1406,6 +1572,100 @@ export function ModelMutateDrawer({
                     </FormItem>
                   )}
                 />
+              )}
+              {pricingMode === "per-image" && (
+                <div className="space-y-4">
+                  <div className="space-y-3">
+                    <div className="text-muted-foreground grid grid-cols-[72px_minmax(0,1fr)_minmax(0,1fr)] items-center gap-2 text-xs">
+                      <span />
+                      <span>{t("Input price per image")}</span>
+                      <span>{t("Output price per image")}</span>
+                    </div>
+                    {IMAGE_COUNT_PRICE_ROWS.map((row) => (
+                      <div
+                        key={row.tier}
+                        className="grid grid-cols-[72px_minmax(0,1fr)_minmax(0,1fr)] items-start gap-2"
+                      >
+                        <Label className="pt-2 text-sm font-normal">
+                          {t(row.label)}
+                        </Label>
+                        <FormField
+                          control={form.control}
+                          name={row.inputField}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormControl>
+                                <Input
+                                  type="text"
+                                  placeholder="0.02"
+                                  {...field}
+                                  value={field.value ?? ""}
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    if (validateNumber(value)) {
+                                      field.onChange(value);
+                                    }
+                                  }}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name={row.outputField}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormControl>
+                                <Input
+                                  type="text"
+                                  placeholder="0.18"
+                                  {...field}
+                                  value={field.value ?? ""}
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    if (validateNumber(value)) {
+                                      field.onChange(value);
+                                    }
+                                  }}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-muted-foreground text-xs">
+                    {t(
+                      "Tiers follow the output resolution area: 1K is up to 2,250,000 pixels, anything above is 2K. Leave a tier empty to fall back to the default price.",
+                    )}
+                  </p>
+                  <FormField
+                    control={form.control}
+                    name="imageFreeFirstOutput"
+                    render={({ field }) => (
+                      <FormItem className={sideDrawerSwitchItemClassName()}>
+                        <div className="space-y-1">
+                          <FormLabel>{t("First output image free")}</FormLabel>
+                          <FormDescription>
+                            {t(
+                              "When enabled, the first generated image of every request is not billed.",
+                            )}
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={Boolean(field.value)}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
               )}
               {pricingMode === "per-token" && (
                 <>

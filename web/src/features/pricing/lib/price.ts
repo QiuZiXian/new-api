@@ -150,7 +150,8 @@ export function formatPrice(
   usdExchangeRate = 1,
   selectedGroup?: string
 ): string {
-  if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST) {
+  // 只有按 token 计费的模型才有 token 单价；按次/按秒/按张走固定价分支。
+  if (model.quota_type !== QUOTA_TYPE_VALUES.TOKEN) {
     return '-'
   }
 
@@ -185,7 +186,7 @@ export function formatGroupPrice(
   usdExchangeRate = 1,
   groupRatio: Record<string, number>
 ): string {
-  if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST) {
+  if (model.quota_type !== QUOTA_TYPE_VALUES.TOKEN) {
     return '-'
   }
 
@@ -218,7 +219,8 @@ export function formatFixedPrice(
   usdExchangeRate = 1,
   groupRatio: Record<string, number>
 ): string {
-  if (model.quota_type !== QUOTA_TYPE_VALUES.REQUEST) {
+  // 固定价形态：按次(1) / 按秒(2) / 按张(3) 都存 model_price。
+  if (model.quota_type === QUOTA_TYPE_VALUES.TOKEN) {
     return '-'
   }
 
@@ -249,7 +251,7 @@ export function formatRequestPrice(
   usdExchangeRate = 1,
   selectedGroup?: string
 ): string {
-  if (model.quota_type !== QUOTA_TYPE_VALUES.REQUEST) {
+  if (model.quota_type === QUOTA_TYPE_VALUES.TOKEN) {
     return '-'
   }
 

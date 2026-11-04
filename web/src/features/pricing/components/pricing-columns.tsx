@@ -28,7 +28,7 @@ import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
 import { getLobeIcon } from '@/lib/lobe-icon'
 
-import { DEFAULT_TOKEN_UNIT } from '../constants'
+import { DEFAULT_TOKEN_UNIT, QUOTA_TYPE_VALUES } from '../constants'
 import {
   getDynamicDisplayGroupRatio,
   getDynamicPricingSummary,
@@ -224,11 +224,17 @@ export function usePricingColumns(
           )
         )
 
+        const unitLabels: Record<number, string> = {
+          [QUOTA_TYPE_VALUES.IMAGE_COUNT]: t('image'),
+          [QUOTA_TYPE_VALUES.PER_SECOND]: t('second'),
+        }
+        const unitLabel = unitLabels[model.quota_type] ?? t('request')
+
         return (
           <div className='max-w-full min-w-0'>
             <span className='font-mono text-sm tabular-nums'>{price}</span>
             <div className='text-muted-foreground/50 text-[10px]'>
-              / {t('request')}
+              / {unitLabel}
             </div>
           </div>
         )

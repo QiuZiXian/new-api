@@ -114,6 +114,7 @@ const createModelSchema = (t: Translate) =>
     ImageRatio: createJsonStringField(t),
     ImageCompletionRatio: createJsonStringField(t),
     VideoSecondPrice: createJsonStringField(t),
+    ImageCountPrice: createJsonStringField(t),
     AudioRatio: createJsonStringField(t),
     AudioCompletionRatio: createJsonStringField(t),
     ExposeRatioEnabled: z.boolean(),
@@ -194,6 +195,7 @@ export function RatioSettingsCard({
       modelDefaults.ImageCompletionRatio
     ),
     VideoSecondPrice: normalizeJsonString(modelDefaults.VideoSecondPrice),
+    ImageCountPrice: normalizeJsonString(modelDefaults.ImageCountPrice),
     AudioRatio: normalizeJsonString(modelDefaults.AudioRatio),
     AudioCompletionRatio: normalizeJsonString(
       modelDefaults.AudioCompletionRatio
@@ -236,6 +238,7 @@ export function RatioSettingsCard({
         modelDefaults.ImageCompletionRatio
       ),
       VideoSecondPrice: formatJsonForTextarea(modelDefaults.VideoSecondPrice),
+      ImageCountPrice: formatJsonForTextarea(modelDefaults.ImageCountPrice),
       AudioRatio: formatJsonForTextarea(modelDefaults.AudioRatio),
       AudioCompletionRatio: formatJsonForTextarea(
         modelDefaults.AudioCompletionRatio
@@ -273,6 +276,7 @@ export function RatioSettingsCard({
         modelDefaults.ImageCompletionRatio
       ),
       VideoSecondPrice: normalizeJsonString(modelDefaults.VideoSecondPrice),
+    ImageCountPrice: normalizeJsonString(modelDefaults.ImageCountPrice),
       AudioRatio: normalizeJsonString(modelDefaults.AudioRatio),
       AudioCompletionRatio: normalizeJsonString(
         modelDefaults.AudioCompletionRatio
@@ -295,6 +299,7 @@ export function RatioSettingsCard({
         modelDefaults.ImageCompletionRatio
       ),
       VideoSecondPrice: formatJsonForTextarea(modelDefaults.VideoSecondPrice),
+      ImageCountPrice: formatJsonForTextarea(modelDefaults.ImageCountPrice),
       AudioRatio: formatJsonForTextarea(modelDefaults.AudioRatio),
       AudioCompletionRatio: formatJsonForTextarea(
         modelDefaults.AudioCompletionRatio
@@ -344,6 +349,7 @@ export function RatioSettingsCard({
           values.ImageCompletionRatio
         ),
         VideoSecondPrice: normalizeJsonString(values.VideoSecondPrice),
+        ImageCountPrice: normalizeJsonString(values.ImageCountPrice),
         AudioRatio: normalizeJsonString(values.AudioRatio),
         AudioCompletionRatio: normalizeJsonString(values.AudioCompletionRatio),
         ExposeRatioEnabled: values.ExposeRatioEnabled,

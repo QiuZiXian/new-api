@@ -40,6 +40,19 @@ export type PricingModel = {
   model_ratio: number
   completion_ratio: number
   model_price?: number
+  /**
+   * 按张计费单价：input/output 是未分档兜底价，*_1k / *_2k 是分辨率档位覆盖价。
+   * 档位按输出分辨率面积判定：≤2,250,000 像素为 1K，超过为 2K。
+   */
+  image_count_price?: {
+    input?: number
+    output?: number
+    input_1k?: number
+    input_2k?: number
+    output_1k?: number
+    output_2k?: number
+    free_first_output?: boolean
+  }
   cache_ratio?: number | null
   create_cache_ratio?: number | null
   image_ratio?: number | null
@@ -139,4 +152,5 @@ export type PriceType =
   | 'image'
   | 'audio_input'
   | 'audio_output'
-export type QuotaType = 0 | 1 // 0: token-based, 1: per-request
+/** 0=token 倍率, 1=按次固定价, 2=按秒, 3=按张（输入/输出分别计价）。 */
+export type QuotaType = 0 | 1 | 2 | 3 // 0: token-based, 1: per-request

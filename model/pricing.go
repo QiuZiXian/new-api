@@ -405,9 +405,10 @@ func updatePricing() {
 			pricing.ModelPrice = secondPrice
 			pricing.QuotaType = 2
 		} else if imagePrice, ok := ratio_setting.GetImageCountPrice(model); ok {
-			// quota_type=3：按张计费。ModelPrice 落输出单张价（供 image_output_count
-			// 展示行复用），输入单张价单独下发在 ImageCountPrice。
-			pricing.ModelPrice = imagePrice.Output
+			// quota_type=3：按张计费。ModelPrice 落输出版最高档单价（供
+			// image_output_count 展示行与列表排序复用），分档明细通过
+			// ImageCountPrice 单独下发。
+			pricing.ModelPrice = imagePrice.MaxOutputPrice()
 			pricing.ImageCountPrice = &imagePrice
 			pricing.QuotaType = 3
 		} else if findPrice {

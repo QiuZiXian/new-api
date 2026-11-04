@@ -199,23 +199,28 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 // 适配器拿到上游 usage 后会用 SetImageCounts 覆盖真实值，结算时补差。
 func modelPriceHelperImageCount(c *gin.Context, info *relaycommon.RelayInfo, meta *types.TokenCountMeta, groupRatioInfo hosttypes.GroupRatioInfo, price ratio_setting.ImageCountPrice) (hosttypes.PriceData, error) {
 	outputCount := 1
+	outputTier := ""
 	if meta != nil {
 		if n, ok := meta.BillingRatios["n"]; ok && n >= 1 && n <= float64(dto.MaxImageN) {
 			outputCount = int(n)
 		}
+		// 预扣阶段只有输出档位能从请求 size 估出来（"2048x2048"）；
+		// 输入图分辨率要等上游 usage，这里留空走未分档兜底价。
+		outputTier = ratio_setting.ImageTierBySize(meta.ImageSize)
 	}
 
 	priceData := hosttypes.PriceData{
 		UseImageCount:  true,
-		ModelPrice:     price.Output, // 供日志与 /api/pricing 沿用「单价」语义
+		ModelPrice:     price.MaxOutputPrice(), // 供日志与 /api/pricing 沿用「单价」语义
 		GroupRatioInfo: groupRatioInfo,
 	}
 	priceData.SetImageCounts(0, outputCount)
+	priceData.SetImageTiers("", outputTier)
 	// 流式图片链路用 OtherRatios["n"] 判断「客户端中断时不允许下调计费张数」，
 	// 这里保留该乘数作为请求侧基准；按张结算分支会忽略它，不会重复扣费。
 	priceData.AddOtherRatio("n", float64(outputCount))
 
-	cost := ratio_setting.ImageCountCost(price, 0, outputCount)
+	cost := ratio_setting.ImageCountCost(price, 0, outputCount, "", outputTier)
 	quota, err := common.QuotaFromFloatStrict(cost * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
 	if err != nil {
 		return hosttypes.PriceData{}, err

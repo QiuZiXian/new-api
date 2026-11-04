@@ -53,6 +53,7 @@ const defaultModelSettings: ModelSettings = {
   ImageRatio: '',
   ImageCompletionRatio: '',
   VideoSecondPrice: '',
+  ImageCountPrice: '',
   AudioRatio: '',
   AudioCompletionRatio: '',
   ExposeRatioEnabled: false,

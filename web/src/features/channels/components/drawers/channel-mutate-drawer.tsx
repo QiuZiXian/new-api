@@ -289,6 +289,7 @@ const SENSITIVE_FORM_FIELDS = [
   'visual_validate_api_path',
   'asset_group_api_path',
   'asset_api_path',
+  'image_api_path',
   'force_format',
   'thinking_to_content',
   'proxy',
@@ -4180,6 +4181,32 @@ export function ChannelMutateDrawer({
                                 )}
                               />
                             </div>
+
+                            {currentType === 17 && (
+                              <FormField
+                                control={form.control}
+                                name='image_api_path'
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>
+                                      {t('Ali Image API Path')}
+                                    </FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        placeholder='/api/v1/services/aigc/multimodal-generation/generation'
+                                        {...field}
+                                      />
+                                    </FormControl>
+                                    <FormDescription>
+                                      {t(
+                                        'Path suffix from the channel Base URL for image generations/edits. Leave empty for the default DashScope /api/v1/services/aigc/... paths. Example for JD Cloud: /v1/services/aigc/multimodal-generation/generation'
+                                      )}
+                                    </FormDescription>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            )}
 
                             {currentType === 54 && (
                               <FormField

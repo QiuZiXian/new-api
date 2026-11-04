@@ -47,6 +47,7 @@ const defaultBillingSettings: BillingSettings = {
   ImageRatio: '',
   ImageCompletionRatio: '',
   VideoSecondPrice: '',
+  ImageCountPrice: '',
   AudioRatio: '',
   AudioCompletionRatio: '',
   ExposeRatioEnabled: false,

@@ -19,7 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 import { splitBillingExprAndRequestRules } from '@/features/pricing/lib/billing-expr'
 
 import { safeJsonParse } from '../utils/json-parser'
-import type { PricingMode } from './model-pricing-core'
+import {
+  IMAGE_COUNT_PRICE_KEYS,
+  type PricingMode,
+} from './model-pricing-core'
 import { formatPricingNumber } from './pricing-format'
 
 export type ModelPricingSnapshotInput = {
@@ -31,6 +34,7 @@ export type ModelPricingSnapshotInput = {
   imageRatio: string
   imageCompletionRatio: string
   videoSecondPrice: string
+  imageCountPrice: string
   audioRatio: string
   audioCompletionRatio: string
   billingMode: string
@@ -47,6 +51,7 @@ export type ModelPricingSnapshot = {
   imageRatio?: string
   imageCompletionRatio?: string
   videoSecondPrice?: Record<string, string>
+  imageCountPrice?: Record<string, string>
   audioRatio?: string
   audioCompletionRatio?: string
   billingMode?: string
@@ -70,7 +75,8 @@ export const isBasePricingUnset = (snapshot?: ModelPricingSnapshot) =>
   !snapshot ||
   (snapshot.billingMode !== 'tiered_expr' &&
     !hasPricingValue(snapshot.price) &&
-    !hasPricingValue(snapshot.ratio))
+    !hasPricingValue(snapshot.ratio) &&
+    !snapshot.imageCountPrice)
 
 const toNumberOrNull = (value?: string) => {
   if (!hasPricingValue(value)) return null
@@ -88,6 +94,7 @@ const ratioToPrice = (ratio?: string, denominator?: string) => {
 export const getModeLabel = (mode?: string) => {
   if (mode === 'per-request') return 'Per-request'
   if (mode === 'per-second') return 'Per-second'
+  if (mode === 'per-image') return 'Per-image'
   if (mode === 'tiered_expr') return 'Expression'
   return 'Per-token'
 }
@@ -97,6 +104,7 @@ export const getModeVariant = (
 ): 'warning' | 'info' | 'success' => {
   if (mode === 'per-request') return 'warning'
   if (mode === 'per-second') return 'warning'
+  if (mode === 'per-image') return 'warning'
   if (mode === 'tiered_expr') return 'info'
   return 'success'
 }
@@ -132,6 +140,21 @@ export const getPriceSummary = (
         : `$${defaultPrice} / ${t('second')}`
     }
     return t('Unset price')
+  }
+  if (row.billingMode === 'per-image') {
+    const counts = row.imageCountPrice ?? {}
+    const outputPrices = ['output', 'output_1k', 'output_2k']
+      .map((key) => Number(counts[key] ?? ''))
+      .filter((value) => Number.isFinite(value) && value > 0)
+    if (outputPrices.length === 0) return t('Unset price')
+    const tierCount = ['output_1k', 'output_2k'].filter((key) =>
+      hasPricingValue(counts[key])
+    ).length
+    const tiers = tierCount > 0 ? ` · ${tierCount} ${t('tiers')}` : ''
+    const inputPrice = hasPricingValue(counts.input)
+      ? ` · ${t('Input')} $${counts.input}`
+      : ''
+    return `${t('Output')} $${Math.max(...outputPrices)} / ${t('image')}${tiers}${inputPrice}`
   }
 
   const inputPrice = ratioToPrice(row.ratio)
@@ -171,6 +194,17 @@ export const getPriceDetail = (
       ? `${t('Per-second price')} · ${names.join(', ')}`
       : t('Single per-second price')
   }
+  if (row.billingMode === 'per-image') {
+    const counts = row.imageCountPrice ?? {}
+    const details = ['1K', '2K']
+      .filter((tier) => hasPricingValue(counts[`output_${tier.toLowerCase()}`]))
+      .join(', ')
+    const freeFirst =
+      counts.free_first_output === 'true' ? ` · ${t('First image free')}` : ''
+    return details
+      ? `${t('Per-image price')} · ${details}${freeFirst}`
+      : `${t('Single per-image price')}${freeFirst}`
+  }
 
   const inputPrice = ratioToPrice(row.ratio)
   if (!inputPrice) return t('No base input price')
@@ -198,6 +232,7 @@ export const buildModelSnapshots = ({
   imageRatio,
   imageCompletionRatio,
   videoSecondPrice,
+  imageCountPrice,
   audioRatio,
   audioCompletionRatio,
   billingMode,
@@ -235,6 +270,9 @@ export const buildModelSnapshots = ({
     videoSecondPrice,
     { fallback: {}, context: 'video per-second prices' }
   )
+  const imageCountMap = safeJsonParse<
+    Record<string, Record<string, number | boolean>>
+  >(imageCountPrice, { fallback: {}, context: 'image per-image prices' })
   const audioMap = safeJsonParse<Record<string, number>>(audioRatio, {
     fallback: {},
     context: 'audio ratios',
@@ -261,6 +299,7 @@ export const buildModelSnapshots = ({
     ...Object.keys(imageMap),
     ...Object.keys(imageCompletionMap),
     ...Object.keys(videoSecondMap),
+    ...Object.keys(imageCountMap),
     ...Object.keys(audioMap),
     ...Object.keys(audioCompletionMap),
     ...Object.keys(billingModeMap),
@@ -282,6 +321,22 @@ export const buildModelSnapshots = ({
       }
     })
     const hasVideoSecond = Object.keys(secondTiers).length > 0
+    const imageCounts: Record<string, string> = {}
+    Object.entries(imageCountMap[name] ?? {}).forEach(([key, value]) => {
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        imageCounts[key] = String(value)
+        return
+      }
+      // free_first_output 是布尔开关，其余键都是单价；
+      // 统一成字符串存入快照，避免签名比较时 1 与 true 混用。
+      if (typeof value === 'boolean') {
+        imageCounts[key] = String(value)
+      }
+    })
+    // 只有至少一个正价才算启用按张计费（后端的可用性判定同样要求正价）。
+    const hasImageCount = IMAGE_COUNT_PRICE_KEYS.some(
+      (key) => Number(imageCounts[key] ?? 0) > 0
+    )
     const audio = audioMap[name]?.toString() || ''
     const audioCompletion = audioCompletionMap[name]?.toString() || ''
 
@@ -303,18 +358,22 @@ export const buildModelSnapshots = ({
         imageRatio: image,
         imageCompletionRatio: imageCompletion,
         videoSecondPrice: hasVideoSecond ? secondTiers : undefined,
+        imageCountPrice: hasImageCount ? imageCounts : undefined,
         audioRatio: audio,
         audioCompletionRatio: audioCompletion,
         hasConflict: false,
       }
     }
 
-    // 固定价最优先；其次是按秒；都没有才按 token 倍率。
+    // 顺序与后端 /api/pricing 的 quota_type 反推保持一致：
+    // 按秒(2) > 按张(3) > 按次固定价(1) > 按 token(0)。
     let billingMode: PricingMode = 'per-token'
-    if (price !== '') {
-      billingMode = 'per-request'
-    } else if (hasVideoSecond) {
+    if (hasVideoSecond) {
       billingMode = 'per-second'
+    } else if (hasImageCount) {
+      billingMode = 'per-image'
+    } else if (price !== '') {
+      billingMode = 'per-request'
     }
 
     return {
@@ -327,11 +386,12 @@ export const buildModelSnapshots = ({
       imageRatio: image,
       imageCompletionRatio: imageCompletion,
       videoSecondPrice: hasVideoSecond ? secondTiers : undefined,
+      imageCountPrice: hasImageCount ? imageCounts : undefined,
       audioRatio: audio,
       audioCompletionRatio: audioCompletion,
       billingMode,
       hasConflict:
-        (price !== '' || hasVideoSecond) &&
+        (price !== '' || hasVideoSecond || hasImageCount) &&
         (ratio !== '' ||
           completion !== '' ||
           cache !== '' ||
@@ -356,6 +416,9 @@ export const getSnapshotSignature = (snapshot?: ModelPricingSnapshot) => {
     imageCompletionRatio: snapshot.imageCompletionRatio || '',
     videoSecondPrice: snapshot.videoSecondPrice
       ? JSON.stringify(snapshot.videoSecondPrice)
+      : '',
+    imageCountPrice: snapshot.imageCountPrice
+      ? JSON.stringify(snapshot.imageCountPrice)
       : '',
     audioRatio: snapshot.audioRatio || '',
     audioCompletionRatio: snapshot.audioCompletionRatio || '',

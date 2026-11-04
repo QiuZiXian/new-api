@@ -68,4 +68,12 @@ func TestAliCustomImagePathSendsEmptyParameters(t *testing.T) {
 	assert.Empty(t, converted.Parameters.Size)
 	require.NotNil(t, converted.Input)
 	assert.Equal(t, 1, info.PriceData.OutputImageCount, "预估张数仍要保留给计费")
+
+	// 自定义路径下 parameters 是空的，不能因此把 price.go 按客户端 size
+	// 估出的输出档位覆盖成空值。
+	info2 := newImageRelayInfo(testJDCloudPath)
+	info2.PriceData.SetImageTiers("", "2k")
+	_, err = oaiImage2AliImageRequest(info2, request, true)
+	require.NoError(t, err)
+	assert.Equal(t, "2k", info2.PriceData.OutputImageTier)
 }

@@ -317,7 +317,15 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		// 按次固定价模型的乘数，再乘一次会重复计费。
 		if price, ok := ratio_setting.GetImageCountPrice(summary.ModelName); ok {
 			summary.ImageCountBilling = true
-			cost := ratio_setting.ImageCountCost(price, relayInfo.PriceData.InputImageCount, relayInfo.PriceData.OutputImageCount)
+			// 档位由适配器从上游 usage 的真实宽高/标签写回；缺失时计价回退到
+			// 未分档单价，不会把费用算成 0。
+			cost := ratio_setting.ImageCountCost(
+				price,
+				relayInfo.PriceData.InputImageCount,
+				relayInfo.PriceData.OutputImageCount,
+				relayInfo.PriceData.InputImageTier,
+				relayInfo.PriceData.OutputImageTier,
+			)
 			quotaCalculateDecimal := decimal.NewFromFloat(cost).Mul(dQuotaPerUnit).Mul(dGroupRatio)
 			quotaCalculateDecimal = quotaCalculateDecimal.Add(summary.ToolCallSurchargeQuota)
 			quota, clamp := common.QuotaFromDecimalChecked(quotaCalculateDecimal)
@@ -534,9 +542,24 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		other["image_count_billing"] = true
 		other["input_image_count"] = relayInfo.PriceData.InputImageCount
 		other["output_image_count"] = relayInfo.PriceData.OutputImageCount
+		if tier := relayInfo.PriceData.InputImageTier; tier != "" {
+			other["input_image_tier"] = tier
+		}
+		if tier := relayInfo.PriceData.OutputImageTier; tier != "" {
+			other["output_image_tier"] = tier
+		}
 		if price, ok := ratio_setting.GetImageCountPrice(summary.ModelName); ok {
-			other["image_input_price"] = price.Input
-			other["image_output_price"] = price.Output
+			// 记录实际生效的档位单价，便于和上游账单逐笔对账。
+			other["image_input_price"] = price.InputPriceFor(relayInfo.PriceData.InputImageTier)
+			other["image_output_price"] = price.OutputPriceFor(relayInfo.PriceData.OutputImageTier)
+			if price.FreeFirstOutput {
+				billableOutput := relayInfo.PriceData.OutputImageCount
+				if billableOutput > 0 {
+					billableOutput--
+				}
+				other["image_free_first_output"] = true
+				other["billable_output_image_count"] = billableOutput
+			}
 		}
 	}
 	appendToolSurchargeLogInfo(other, summary.ToolSurchargeItems)

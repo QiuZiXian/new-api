@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/shopspring/decimal"
@@ -45,6 +46,12 @@ type PriceData struct {
 	// 结算按覆盖后的真实值算，差额由 SettleBilling 补扣或退还。
 	InputImageCount  int
 	OutputImageCount int
+	// InputImageTier / OutputImageTier 是分辨率档位（"1k" / "2k"），决定按张
+	// 计费取哪一档单价。预扣阶段只有输出档位能按请求 size 估算，输入档位留空
+	// 走未分档兜底价；结算阶段由适配器用上游 usage 的真实尺寸/标签覆盖。
+	// 空串表示未知档位，计价时回退到未分档单价。
+	InputImageTier  string
+	OutputImageTier string
 	// EstimatedTokens 是适配器按官方公式预估的本次请求 token 用量。
 	// 目前用于按 token 计费的视频任务：上游 token 公式为
 	// (输入视频时长 + 输出视频时长) × 输出宽 × 输出高 × 输出帧率 / 1024。
@@ -62,6 +69,23 @@ type PriceData struct {
 func (p *PriceData) SetImageCounts(input, output int) {
 	p.InputImageCount = clampImageCount(input)
 	p.OutputImageCount = clampImageCount(output)
+}
+
+// SetImageTiers 写入输入/输出图片的分辨率档位（"1k" / "2k"）。
+// 只接受已知档位，其余值按「未知档位」处理，避免脏字符串影响计价分支。
+func (p *PriceData) SetImageTiers(input, output string) {
+	p.InputImageTier = normalizeImageTier(input)
+	p.OutputImageTier = normalizeImageTier(output)
+}
+
+func normalizeImageTier(tier string) string {
+	switch strings.ToLower(strings.TrimSpace(tier)) {
+	case "1k":
+		return "1k"
+	case "2k":
+		return "2k"
+	}
+	return ""
 }
 
 func clampImageCount(n int) int {

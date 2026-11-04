@@ -56,6 +56,7 @@ type ModelFormValues = {
   ImageRatio: string
   ImageCompletionRatio: string
   VideoSecondPrice: string
+  ImageCountPrice: string
   AudioRatio: string
   AudioCompletionRatio: string
   ExposeRatioEnabled: boolean
@@ -82,6 +83,7 @@ type ModelJsonFieldName =
   | 'ImageRatio'
   | 'ImageCompletionRatio'
   | 'VideoSecondPrice'
+  | 'ImageCountPrice'
   | 'AudioRatio'
   | 'AudioCompletionRatio'
 
@@ -134,6 +136,12 @@ const modelJsonFields: Array<{
     labelKey: 'Video per-second price',
     descriptionKey:
       'JSON map of model → { resolution tier: USD price per second }. Enables per-second billing for video models, e.g. {"doubao-seedance-2.0":{"default":0.99,"720p":0.99,"1080p":1.51}}. The default tier is used when the request omits a resolution.',
+  },
+  {
+    name: 'ImageCountPrice',
+    labelKey: 'Image per-image price',
+    descriptionKey:
+      'JSON map of model → { input, output } USD price per image. Input counts reference images; output counts successfully generated images. Both are added together (not multiplied), e.g. {"qwen-image-3.0-pro":{"input":0.02,"output":0.18}}.',
   },
   {
     name: 'AudioRatio',
@@ -289,6 +297,7 @@ export const ModelRatioForm = memo(function ModelRatioForm({
               savedImageRatio={savedValues.ImageRatio}
               savedImageCompletionRatio={savedValues.ImageCompletionRatio}
               savedVideoSecondPrice={savedValues.VideoSecondPrice}
+              savedImageCountPrice={savedValues.ImageCountPrice}
               savedAudioRatio={savedValues.AudioRatio}
               savedAudioCompletionRatio={savedValues.AudioCompletionRatio}
               savedBillingMode={savedValues.BillingMode}
@@ -301,6 +310,7 @@ export const ModelRatioForm = memo(function ModelRatioForm({
               imageRatio={form.watch('ImageRatio')}
               imageCompletionRatio={form.watch('ImageCompletionRatio')}
               videoSecondPrice={form.watch('VideoSecondPrice')}
+              imageCountPrice={form.watch('ImageCountPrice')}
               audioRatio={form.watch('AudioRatio')}
               audioCompletionRatio={form.watch('AudioCompletionRatio')}
               billingMode={form.watch('BillingMode')}

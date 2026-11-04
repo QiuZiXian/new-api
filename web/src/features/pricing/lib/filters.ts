@@ -78,10 +78,12 @@ export function filterByQuotaType(
   quotaType: string
 ): PricingModel[] {
   if (quotaType === QUOTA_TYPES.ALL) return models
-  const targetType =
-    quotaType === QUOTA_TYPES.TOKEN
-      ? QUOTA_TYPE_VALUES.TOKEN
-      : QUOTA_TYPE_VALUES.REQUEST
+  const targetTypeMap: Record<string, number> = {
+    [QUOTA_TYPES.TOKEN]: QUOTA_TYPE_VALUES.TOKEN,
+    [QUOTA_TYPES.IMAGE]: QUOTA_TYPE_VALUES.IMAGE_COUNT,
+    [QUOTA_TYPES.REQUEST]: QUOTA_TYPE_VALUES.REQUEST,
+  }
+  const targetType = targetTypeMap[quotaType] ?? QUOTA_TYPE_VALUES.REQUEST
   return models.filter((m) => m.quota_type === targetType)
 }
 
@@ -102,7 +104,9 @@ export function filterByEndpointType(
  * Get model price for sorting
  */
 function getModelPrice(model: PricingModel): number {
-  return model.quota_type === 0 ? model.model_ratio : model.model_price || 0
+  return model.quota_type === QUOTA_TYPE_VALUES.TOKEN
+    ? model.model_ratio
+    : model.model_price || 0
 }
 
 /**
