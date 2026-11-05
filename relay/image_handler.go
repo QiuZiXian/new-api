@@ -117,11 +117,12 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		return newAPIError
 	}
 
-	// 张数与预扣用同一套口径：顶层 n 优先，缺失时回退 parameters.n
-	// （阿里原生格式/请求体透传把张数放在 parameters 里）。
-	imageN := uint(1)
+	// 日志里的张数、尺寸以响应侧真实值为准：
+	// 请求侧只能拿到客户端声明的 n（顶层或 parameters.n），
+	// 既拿不到「上游实际出了几张」，透传时也读不到顶层 size。
+	requestCount := uint(1)
 	if n, ok := request.GetTokenCountMeta().BillingRatios["n"]; ok && n > 0 {
-		imageN = uint(n)
+		requestCount = uint(n)
 	}
 
 	if usage.(*dto.Usage).TotalTokens == 0 {
@@ -131,23 +132,46 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		usage.(*dto.Usage).PromptTokens = 1
 	}
 
-	quality := request.Quality
-	if quality == "" {
-		quality = "standard"
-	}
+	logContent := buildImageLogContent(
+		resolveImageLogSize(request.Size, info.ImageResultSize),
+		request.Quality,
+		resolveImageLogCount(requestCount, info.PriceData.OutputImageCount),
+	)
 
+	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), logContent)
+	return nil
+}
+
+// resolveImageLogCount 取日志展示的张数：上游真实张数优先，回退客户端声明值。
+// 两者不一致正是「上游多出图」或「客户端 n 被忽略」时需要被看到的信号。
+func resolveImageLogCount(requestCount uint, realCount int) uint {
+	if realCount > 0 {
+		return uint(realCount)
+	}
+	return requestCount
+}
+
+// resolveImageLogSize 取日志展示的尺寸：上游实际出图尺寸优先，回退请求参数。
+// 透传模式下请求是上游原生格式，顶层 size 恒为空，只有响应宽高可信。
+func resolveImageLogSize(requestSize, resultSize string) string {
+	if resultSize != "" {
+		return resultSize
+	}
+	return requestSize
+}
+
+// buildImageLogContent 组装图片请求的消费日志摘要：大小、品质、生成数量。
+// 品质只在客户端显式指定时记录，避免把「默认 standard」伪装成上游真实参数。
+func buildImageLogContent(size, quality string, imageN uint) []string {
 	var logContent []string
-
-	if len(request.Size) > 0 {
-		logContent = append(logContent, fmt.Sprintf("大小 %s", request.Size))
+	if size != "" {
+		logContent = append(logContent, fmt.Sprintf("大小 %s", size))
 	}
-	if len(quality) > 0 {
+	if quality = strings.TrimSpace(quality); quality != "" {
 		logContent = append(logContent, fmt.Sprintf("品质 %s", quality))
 	}
 	if imageN > 0 {
 		logContent = append(logContent, fmt.Sprintf("生成数量 %d", imageN))
 	}
-
-	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), logContent)
-	return nil
+	return logContent
 }

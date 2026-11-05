@@ -111,31 +111,37 @@ type AliOutput struct {
 
 func (o *AliOutput) ChoicesToOpenAIImageDate(c *gin.Context, responseFormat string) []dto.ImageData {
 	var imageData []dto.ImageData
-	if len(o.Choices) > 0 {
-		for _, choice := range o.Choices {
-			var data dto.ImageData
-			for _, content := range choice.Message.Content {
-				if content.Image != "" {
-					if strings.HasPrefix(content.Image, "http") {
-						var b64Json string
-						if responseFormat == "b64_json" {
-							_, b64, err := service.GetImageFromUrl(content.Image)
-							if err != nil {
-								logger.LogError(c, "get_image_data_failed: "+err.Error())
-								continue
-							}
-							b64Json = b64
-						}
-						data.Url = content.Image
-						data.B64Json = b64Json
-					} else {
-						data.B64Json = content.Image
-					}
-				} else if content.Text != "" {
-					data.RevisedPrompt = content.Text
-				}
+	for _, choice := range o.Choices {
+		// n > 1 时上游会把多张图塞进同一条 message 的 content 数组里，
+		// 必须逐张产出结果；早期实现每个 choice 只建一个 ImageData，
+		// 循环中被后一张覆盖，导致请求 2 张只回 1 张。
+		revisedPrompt := ""
+		for _, content := range choice.Message.Content {
+			if content.Image == "" && content.Text != "" {
+				revisedPrompt = content.Text
+				break
 			}
-			imageData = append(imageData, data)
+		}
+
+		for _, content := range choice.Message.Content {
+			if content.Image == "" {
+				continue
+			}
+			item := dto.ImageData{RevisedPrompt: revisedPrompt}
+			if strings.HasPrefix(content.Image, "http") {
+				item.Url = content.Image
+				if responseFormat == "b64_json" {
+					_, b64, err := service.GetImageFromUrl(content.Image)
+					if err != nil {
+						logger.LogError(c, "get_image_data_failed: "+err.Error())
+						continue
+					}
+					item.B64Json = b64
+				}
+			} else {
+				item.B64Json = content.Image
+			}
+			imageData = append(imageData, item)
 		}
 	}
 

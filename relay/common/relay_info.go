@@ -166,6 +166,10 @@ type RelayInfo struct {
 	// 条数与单条长度都在 SetImageResultURLs 里做了上限，避免撑爆日志。
 	ImageResultURLs []string
 
+	// ImageResultSize 是上游返回的实际输出尺寸（如 "1792x2400"），供消费日志展示。
+	// 透传模式下请求体是上游原生格式，顶层 size 读不到，只有响应里的宽高可信。
+	ImageResultSize string
+
 	// QuotaClamp is set (non-nil) when a quota conversion saturated at the
 	// supported single-request bound (or NaN fallback) while computing this request's charge.
 	// It is surfaced onto the consume/task log's admin_info for auditing.

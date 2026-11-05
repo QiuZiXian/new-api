@@ -406,6 +406,10 @@ func aliImageHandler(a *Adaptor, c *gin.Context, resp *http.Response, info *rela
 	if info.PriceData.OutputImageCount > 0 {
 		info.PriceData.AddOtherRatio("n", float64(info.PriceData.OutputImageCount))
 	}
+	// 上游实际出图尺寸：透传模式下请求体没有顶层 size，日志只能以此为准。
+	if usage.OutputWidth > 0 && usage.OutputHeight > 0 {
+		info.ImageResultSize = fmt.Sprintf("%dx%d", usage.OutputWidth, usage.OutputHeight)
+	}
 	jsonResponse, err := common.Marshal(imageResponses)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeBadResponseBody), nil

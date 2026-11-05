@@ -537,30 +537,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		other["image_output_token_count"] = summary.ImageOutputTokens
 	}
 	if summary.ImageCountBilling {
-		// 把真实张数与单价写进 consume_log.other，按张计费可对账，
-		// 不再像旧链路那样只剩一个匿名的 "n" 乘数。
-		other["image_count_billing"] = true
-		other["input_image_count"] = relayInfo.PriceData.InputImageCount
-		other["output_image_count"] = relayInfo.PriceData.OutputImageCount
-		if tier := relayInfo.PriceData.InputImageTier; tier != "" {
-			other["input_image_tier"] = tier
-		}
-		if tier := relayInfo.PriceData.OutputImageTier; tier != "" {
-			other["output_image_tier"] = tier
-		}
-		if price, ok := ratio_setting.GetImageCountPrice(summary.ModelName); ok {
-			// 记录实际生效的档位单价，便于和上游账单逐笔对账。
-			other["image_input_price"] = price.InputPriceFor(relayInfo.PriceData.InputImageTier)
-			other["image_output_price"] = price.OutputPriceFor(relayInfo.PriceData.OutputImageTier)
-			if price.FreeFirstOutput {
-				billableOutput := relayInfo.PriceData.OutputImageCount
-				if billableOutput > 0 {
-					billableOutput--
-				}
-				other["image_free_first_output"] = true
-				other["billable_output_image_count"] = billableOutput
-			}
-		}
+		appendImageCountLogInfo(other, relayInfo, summary.ModelName)
 	}
 	// 记录上游返回的图片链接。同步图片请求被网关读超时切断时，客户端拿不到
 	// 响应，但这次计费已经发生，只有这里能追溯到底生成了哪几张图。
@@ -622,4 +599,43 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	gopool.Go(func() {
 		perfmetrics.RecordRelaySample(relayInfo, true, int64(summary.CompletionTokens))
 	})
+}
+
+// appendImageCountLogInfo 把按张计费的张数、档位与实际生效单价写进消费日志。
+// modelName 必须与结算时用的计价键一致（OriginModelName），否则日志单价会和实扣金额对不上。
+func appendImageCountLogInfo(other map[string]interface{}, relayInfo *relaycommon.RelayInfo, modelName string) {
+	// 不再像旧链路那样只剩一个匿名的 "n" 乘数。
+	other["image_count_billing"] = true
+	other["input_image_count"] = relayInfo.PriceData.InputImageCount
+	other["output_image_count"] = relayInfo.PriceData.OutputImageCount
+	// 该侧一张图都没有时不写档位：上游纯文生图也会返回
+	// input_image_type=qima_input_2k，照抄进日志会出现「0 张输入 + 2K 档位」。
+	if tier := relayInfo.PriceData.InputImageTier; tier != "" && relayInfo.PriceData.InputImageCount > 0 {
+		other["input_image_tier"] = tier
+	}
+	if tier := relayInfo.PriceData.OutputImageTier; tier != "" && relayInfo.PriceData.OutputImageCount > 0 {
+		other["output_image_tier"] = tier
+	}
+
+	price, ok := ratio_setting.GetImageCountPrice(modelName)
+	if !ok {
+		return
+	}
+	// 记录实际生效的档位单价，便于和上游账单逐笔对账。
+	// 该侧 0 张时不写：没有消耗就没有「生效单价」，写进去会让人误以为扣过钱。
+	if relayInfo.PriceData.InputImageCount > 0 {
+		other["image_input_price"] = price.InputPriceFor(relayInfo.PriceData.InputImageTier)
+	}
+	if relayInfo.PriceData.OutputImageCount > 0 {
+		other["image_output_price"] = price.OutputPriceFor(relayInfo.PriceData.OutputImageTier)
+	}
+	if !price.FreeFirstOutput {
+		return
+	}
+	billableOutput := relayInfo.PriceData.OutputImageCount
+	if billableOutput > 0 {
+		billableOutput--
+	}
+	other["image_free_first_output"] = true
+	other["billable_output_image_count"] = billableOutput
 }
