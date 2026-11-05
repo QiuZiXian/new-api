@@ -69,6 +69,16 @@ func oaiImage2AliImageRequest(info *relaycommon.RelayInfo, request dto.ImageRequ
 				return nil, fmt.Errorf("invalid input field: %w", err)
 			}
 		}
+		// OpenAI 兼容入口习惯把反向提示词放在顶层，阿里同步接口要求
+		// 放在 parameters.negative_prompt。已显式写在 parameters 里时以它为准。
+		if imageRequest.Parameters.NegativePrompt == "" {
+			if val, ok := request.Extra["negative_prompt"]; ok {
+				var negativePrompt string
+				if err := common.Unmarshal(val, &negativePrompt); err == nil && negativePrompt != "" {
+					imageRequest.Parameters.NegativePrompt = negativePrompt
+				}
+			}
+		}
 	}
 
 	if strings.Contains(request.Model, "z-image") {

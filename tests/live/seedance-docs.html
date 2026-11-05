@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Seedance 视频生成 · API 文档 | 启算云枢</title>
+<title>API 文档 | 启算云枢</title>
 <style>
   :root{
     --bg:#ffffff; --bg-sub:#fafafa; --bg-code:#f7f8fa; --border:#e6e8eb;
@@ -178,7 +178,7 @@
       <div class="badges">
         <span class="badge cat" id="catBadge">视频模型</span>
         <span class="badge" id="providerBadge"></span>
-        <span class="badge">按 Token 计费</span>
+        <span class="badge" id="billingBadge">按 Token 计费</span>
       </div>
       <h1 id="docTitle">Doubao Seedance 2.0 多模态参考生视频</h1>
       <div class="meta">
@@ -193,9 +193,9 @@
     <section id="overview">
       <h2>概览 <a class="anchor" href="#overview">#</a></h2>
       <p id="ovText"></p>
-      <div class="callout info">
+      <div class="callout info" id="ovCallout">
         <span>ⓘ</span>
-        <div><b>异步任务范式：</b>提交任务拿到 <code>id</code> → 轮询 <code>GET /v1/videos/{task_id}</code> → 终态 <code>succeeded</code> 后通过 <code>/content</code> 下载成品。建议轮询间隔 ≥ 5 秒，最长等待 10 分钟。</div>
+        <div id="ovCalloutText"><b>异步任务范式：</b>提交任务拿到 <code>id</code> → 轮询 <code>GET /v1/videos/{task_id}</code> → 终态 <code>succeeded</code> 后通过 <code>/content</code> 下载成品。建议轮询间隔 ≥ 5 秒，最长等待 10 分钟。</div>
       </div>
       <ul id="notes" style="margin:10px 0 0;padding-left:20px;color:var(--text-2);font-size:13px"></ul>
     </section>
@@ -212,9 +212,9 @@
 
     <section id="pricing">
       <h2>价格信息 <a class="anchor" href="#pricing">#</a></h2>
-      <p class="muted">单位：人民币 / 百万 Token。以下为当前接口的销售单价，最终费用以实际调用用量和消费记录为准。</p>
+      <p class="muted" id="priceNote">单位：人民币 / 百万 Token。以下为当前接口的销售单价，最终费用以实际调用用量和消费记录为准。</p>
       <table class="tier-table">
-        <thead><tr><th>计费档位</th><th>计量项</th><th>单价（CNY / 百万 Token）</th></tr></thead>
+        <thead><tr id="priceHead"><th>计费档位</th><th>计量项</th><th>单价（CNY / 百万 Token）</th></tr></thead>
         <tbody id="priceBody"></tbody>
       </table>
     </section>
@@ -291,7 +291,7 @@
     </section>
 
     <div class="footer">
-      <span>启算云枢 · Seedance 视频生成 API</span>
+      <span id="docFooter">启算云枢 · Seedance 视频生成 API</span>
       <span>本文档由接口实现与定价表生成，若与实测不一致以实测为准</span>
     </div>
   </main>
@@ -385,13 +385,131 @@ const MODELS = {
     ratio: 42.875,
     price: [["480p / 720p · 输入含视频", 51.45], ["480p / 720p · 输入不含视频", 85.75]],
     ov: "Seedance 2.5 在参考一致性与镜头语言上更强，不支持 4K。按 Token 计费，实际用量以上游回报为准。"
+  },
+  "qwen-image-3.0-pro": {
+    name: "Qwen Image 3.0 Pro 图像生成与编辑",
+    provider: "阿里云 · 通义千问", cat: "图像生成模型",
+    billingBadge: "按张计费",
+    desc: "通义千问图像生成 Pro 版，支持文生图（T2I）与图生图 / 图像编辑（I2I），单次最多输出 6 张，输出 PNG，按生成张数计费。",
+    ratio: 0,
+    ov: "同步接口：一次请求直接返回图片地址，无需创建任务或轮询。文生图在 content 中只需一个 text；图生图先放 1–3 个 image，再放且仅放一个 text。输出支持 512*512 至 2048*2048，不传 size 时由模型推荐。返回的图片 URL 有效期 24 小时，请及时下载转存。1K / 2K 档位按输出面积判定，影响计费档位。",
+    callout: "<b>同步返回：</b>本接口不返回 task_id，请求完成即拿到图片地址。图片 URL 有效期为 <b>24 小时</b>，请及时转存；<code>metadata.usage</code> 中的张数与档位是计费依据。",
+    notes: [
+      "messages 数组只能有一个对象；单个 message 内放多个 text 会返回 400。",
+      "图生图时 content 中 text 必须有且只有一个，image 支持 1–3 张。",
+      "size 与 n 必须写在 parameters 内；顶层 OpenAI 风格的 size / n 对本模型不生效。",
+      "parameters 中 <code>negative_prompt</code> 与 <code>prompt_extend_mode</code> 当前不会被转发到上游，传入会被忽略。",
+      "按张计费：输出图 0.18 元/张，输入参考图 0.02 元/张，失败不计费。"
+    ],
+    endpoints: [
+      {
+        code: "create", method: "POST", name: "生成图片",
+        path: "/v1/images/generations", billing: "按张计费（BILLABLE）",
+        hint: "同步接口，响应体中 data[] 即图片地址；n 控制输出张数（1–6）。",
+        sample: true
+      }
+    ],
+    sampleBody: {
+      model: "qwen-image-3.0-pro",
+      input: {
+        messages: [
+          { role: "user", content: [{ text: "一只戴帽子的猫" }] }
+        ]
+      },
+      parameters: { size: "1024*1024", n: 2 }
+    },
+    respSample: {
+      data: [
+        { url: "https://dashscope-xxxx.oss-accelerate.aliyuncs.com/.../output_0.png?Expires=1793935598", b64_json: "", revised_prompt: "" },
+        { url: "https://dashscope-xxxx.oss-accelerate.aliyuncs.com/.../output_1.png?Expires=1793935598", b64_json: "", revised_prompt: "" }
+      ],
+      created: 1793849131,
+      metadata: {
+        request_id: "6f8ffaeb-dba0-91f3-bb56-b7ec24c5ab9d",
+        rewrite_status: "success",
+        output: {
+          choices: [
+            {
+              finish_reason: "stop",
+              message: {
+                role: "assistant",
+                content: [
+                  { type: "image", image: "https://.../output_0.png" },
+                  { type: "image", image: "https://.../output_1.png" }
+                ]
+              }
+            }
+          ]
+        },
+        usage: {
+          output_width: 2400,
+          output_height: 1792,
+          input_image_count: 0,
+          input_image_type: "qima_input_2k",
+          output_image_count: 2,
+          output_image_type: "qima_output_2k"
+        }
+      }
+    },
+    pricing: {
+      note: "单位：人民币 / 张。按成功生成的张数计费，失败不计费；输入参考图按张单独计价，1K 与 2K 档位同价。",
+      head: ["计费项", "计量项", "单价（CNY / 张）"],
+      rows: [
+        ['输出图片 <span class="badge" style="margin-left:6px">主计费</span>', "output_image_count", '<span class="price">0.18 CNY / 张</span>'],
+        ["输出图片（2K）", "output_image_count", '<span class="price">0.18 CNY / 张</span>'],
+        ["输入参考图", "input_image_count", '<span class="price">0.02 CNY / 张</span>'],
+        ["文生图示例（n=2）", "2 张输出", '<span class="price">0.36 CNY</span>'],
+        ["图生图示例（1 图入 / 1 图出）", "1 入 + 1 出", '<span class="price">0.20 CNY</span>']
+      ]
+    },
+    params: {
+      header: [
+        ["Authorization", "string", true, "—", "API Key 鉴权，格式 Bearer {api_key}"],
+        ["Content-Type", "string", true, "application/json", "请求体类型"]
+      ],
+      body: [
+        ["model", "string", true, "—", "模型 ID，固定为 qwen-image-3.0-pro。"],
+        ["input", "object", true, "—", "输入容器，当前只包含 messages。"],
+        ["input.messages", "array", true, "—", "消息数组，只能有一个元素，多个会返回 400。"],
+        ["input.messages[].role", "string", true, "user", "固定为 user。"],
+        ["input.messages[].content", "array", true, "—", "内容数组：文生图放 1 个 text；图生图放 1–3 个 image + 1 个 text。"],
+        ["content[].text", "string", false, "—", "提示词。文生图必填；图生图必须有且只有一个。"],
+        ["content[].image", "string", false, "—", "参考图，支持 http(s) URL 或 data:image/png;base64,...；建议 384–2048 像素、不超过 10MB，支持 JPG/PNG/BMP/TIFF/WEBP/GIF。"],
+        ["parameters", "object", false, "{}", "生成参数容器，以下子字段都放在这里。"],
+        ["parameters.size", "string", false, "模型推荐", "输出分辨率，格式 \"宽*高\"，如 1024*1024 / 2048*2048；范围 512*512 至 2048*2048，宽高比 1:8–8:1。面积 ≤ 2,250,000 记 1K 档，否则 2K 档。"],
+        ["parameters.n", "integer", false, "1", "输出图片数量，范围 1–6。"],
+        ["parameters.prompt_extend", "boolean", false, "true", "提示词智能改写开关。"],
+        ["parameters.seed", "integer", false, "—", "随机种子，范围 0–2147483647，用于结果复现。"],
+        ["parameters.watermark", "boolean", false, "false", "是否在图片上添加水印。"]
+      ],
+      response: [
+        ["data", "array", "生成结果数组，n 张图对应 n 个元素"],
+        ["data[].url", "string", "图片地址（PNG），有效期 24 小时，需及时保存"],
+        ["data[].b64_json", "string", "base64 形式的图片；默认返回空字符串"],
+        ["data[].revised_prompt", "string", "改写后的提示词；未改写时为空"],
+        ["created", "integer", "生成时间，Unix 秒"],
+        ["metadata.request_id", "string", "请求标识，排查问题用"],
+        ["metadata.rewrite_status", "string", "提示词改写状态，如 success"],
+        ["metadata.output.choices[].finish_reason", "string", "结束原因，正常为 stop"],
+        ["metadata.output.choices[].message.content[].image", "string", "图片地址，与 data[].url 一致"],
+        ["metadata.usage.output_width", "integer", "输出宽度（像素）"],
+        ["metadata.usage.output_height", "integer", "输出高度（像素）"],
+        ["metadata.usage.output_image_count", "integer", "实际生成张数（计费依据）"],
+        ["metadata.usage.input_image_count", "integer", "输入参考图张数（计费依据），文生图为 0"],
+        ["metadata.usage.output_image_type", "string", "输出档位：qima_output_1k / qima_output_2k"],
+        ["metadata.usage.input_image_type", "string", "输入档位：qima_input_1k / qima_input_2k"]
+      ]
+    }
   }
 };
 
 const TREE = [
   { group: "文本模型", items: [{ id: "claude-opus-5", name: "claude-opus-5" }, { id: "deepseek-v4-1-flash", name: "DeepSeek-V4.1-Flash" }] },
   { group: "图像理解模型", items: [{ id: "deepseek-v4-1-flash-vl", name: "DeepSeek-V4.1-Flash" }] },
-  { group: "图像生成模型", items: [{ id: "doubao-seedream-5-0-lite", name: "Doubao Seedream 5.0 lite" }] },
+  { group: "图像生成模型", items: [
+    { id: "qwen-image-3.0-pro", name: "Qwen Image 3.0 Pro" },
+    { id: "doubao-seedream-5-0-lite", name: "Doubao Seedream 5.0 lite" }
+  ]},
   { group: "视频模型", items: [
     { id: "doubao-seedance-2.0", name: "Doubao Seedance 2.0" },
     { id: "doubao-seedance-2.0-fast", name: "Doubao Seedance 2.0 Fast" },
@@ -450,6 +568,73 @@ let state = { modelId: "doubao-seedance-2.0", endpoint: "create", lang: "curl", 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
 
+/* ------------------------------------------------------------
+   按模型解析文档数据：模型自带接口 / 参数 / 示例时优先使用，
+   没有则回落到视频模型的全局定义（保持既有模型行为不变）。
+   ------------------------------------------------------------ */
+const DEFAULT_CALLOUT = '<b>异步任务范式：</b>提交任务拿到 <code>id</code> → 轮询 <code>GET /v1/videos/{task_id}</code> → 终态 <code>succeeded</code> 后通过 <code>/content</code> 下载成品。建议轮询间隔 ≥ 5 秒，最长等待 10 分钟。';
+const DEFAULT_NOTES = [
+  "网关根据请求体中的 model 字段匹配并转发到对应上游模型。",
+  "按上游回报的真实 Token 结算，提交阶段仅做预扣冻结，终态多退少补。",
+  "任务失败不扣费，预扣额度原路退回。"
+];
+
+function curModel() { return MODELS[state.modelId] || null; }
+function curEndpoints() {
+  const m = curModel();
+  return (m && m.endpoints && m.endpoints.length) ? m.endpoints : ENDPOINTS;
+}
+function curEndpoint() {
+  const list = curEndpoints();
+  return list.find(x => x.code === state.endpoint) || list[0];
+}
+function curParams(loc) {
+  const m = curModel();
+  const p = (m && m.params) || {};
+  if (loc === "body") return p.body || BODY_PARAMS;
+  return p.header || HEADER_PARAMS;
+}
+function curRespParams() {
+  const m = curModel();
+  const p = (m && m.params) || {};
+  return p.response || RESPONSE_PARAMS;
+}
+function curSampleBody() {
+  const m = curModel();
+  if (m && m.sampleBody) return m.sampleBody;
+  if (state.endpoint !== "create") return null;
+  return {
+    model: state.modelId,
+    prompt: "城市夜景延时摄影，霓虹在雨后路面反射",
+    content: [{ type: "text", text: "城市夜景延时摄影，霓虹在雨后路面反射" }],
+    resolution: "720p",
+    ratio: "16:9",
+    duration: 5,
+    seed: 11,
+    camera_fixed: false,
+    watermark: false
+  };
+}
+function curRespSample() {
+  const m = curModel();
+  if (m && m.respSample) return m.respSample;
+  return state.endpoint === "create"
+    ? { id: "cgt-20261030103000-abc123", object: "video", model: state.modelId, status: "queued", created_at: 1793330000, progress: "0%" }
+    : { id: "cgt-20261030103000-abc123", object: "video", model: state.modelId, status: "succeeded", created_at: 1793330000, completed_at: 1793330063, progress: "100%", metadata: { url: "https://.../out.mp4" }, error: null };
+}
+function pricingOf(m) {
+  if (m && m.pricing) return m.pricing;
+  return {
+    note: "单位：人民币 / 百万 Token。以下为当前接口的销售单价，最终费用以实际调用用量和消费记录为准。",
+    head: ["计费档位", "计量项", "单价（CNY / 百万 Token）"],
+    rows: (m ? m.price : []).map(([tier, price], i) => [
+      tier + (i === 0 ? ' <span class="badge" style="margin-left:6px">默认档</span>' : ""),
+      "总消耗 Token",
+      `<span class="price">${price} CNY / 百万 Token</span>`
+    ])
+  };
+}
+
 /* ============================================================
    4. 渲染
    ============================================================ */
@@ -478,23 +663,25 @@ function renderHeader() {
   }
   $("#catBadge").textContent = m.cat;
   $("#providerBadge").textContent = m.provider;
+  $("#billingBadge").textContent = m.billingBadge || "按 Token 计费";
   $("#docTitle").textContent = m.name;
   $("#docModelId").textContent = state.modelId;
   $("#docDesc").textContent = m.desc;
   $("#ovText").textContent = m.ov;
-  $("#notes").innerHTML = [
-    "网关根据请求体中的 model 字段匹配并转发到对应上游模型。",
-    "按上游回报的真实 Token 结算，提交阶段仅做预扣冻结，终态多退少补。",
-    "任务失败不扣费，预扣额度原路退回。"
-  ].map(t => `<li>${t}</li>`).join("");
-  $("#priceBody").innerHTML = m.price.map(([tier, price], i) =>
-    `<tr><td>${tier}${i === 0 ? ' <span class="badge" style="margin-left:6px">默认档</span>' : ""}</td><td>总消耗 Token</td><td class="price">${price} CNY / 百万 Token</td></tr>`
-  ).join("");
+  $("#ovCalloutText").innerHTML = m.callout || DEFAULT_CALLOUT;
+  $("#notes").innerHTML = (m.notes || DEFAULT_NOTES).map(t => `<li>${t}</li>`).join("");
+  $("#docFooter").textContent = "启算云枢 · " + m.name;
+  document.title = m.name + " · API 文档 | 启算云枢";
+
+  const p = pricingOf(m);
+  $("#priceNote").textContent = p.note;
+  $("#priceHead").innerHTML = p.head.map(h => `<th>${h}</th>`).join("");
+  $("#priceBody").innerHTML = p.rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join("")}</tr>`).join("");
 }
 
 function renderEndpoints() {
-  $("#epSwitch").innerHTML = ENDPOINTS.map(e =>
-    `<button class="ep-btn${e.code === state.endpoint ? " active" : ""}" data-ep="${e.code}">
+  $("#epSwitch").innerHTML = curEndpoints().map(e =>
+    `<button class="ep-btn${e.code === curEndpoint().code ? " active" : ""}" data-ep="${e.code}">
        <span class="method ${e.method === "POST" ? "m-post" : e.method === "GET" ? "m-get" : "m-del"}">${e.method}</span>${esc(e.name)}
      </button>`
   ).join("");
@@ -502,7 +689,7 @@ function renderEndpoints() {
 }
 
 function renderEndpointDetail() {
-  const e = ENDPOINTS.find(x => x.code === state.endpoint);
+  const e = curEndpoint();
   const url = BASE_URL + e.path.replace("{task_id}", "task_xxxxxxxx");
   $("#epMethod").textContent = e.method;
   $("#epMethod").className = "method " + (e.method === "POST" ? "m-post" : e.method === "GET" ? "m-get" : "m-del");
@@ -517,28 +704,10 @@ function renderEndpointDetail() {
   renderResponse();
 }
 
-function bodyForModel() {
-  const mid = state.modelId;
-  if (state.endpoint === "create") {
-    return {
-      model: mid,
-      prompt: "城市夜景延时摄影，霓虹在雨后路面反射",
-      content: [{ type: "text", text: "城市夜景延时摄影，霓虹在雨后路面反射" }],
-      resolution: "720p",
-      ratio: "16:9",
-      duration: 5,
-      seed: 11,
-      camera_fixed: false,
-      watermark: false
-    };
-  }
-  return null;
-}
-
 function renderSample() {
-  const e = ENDPOINTS.find(x => x.code === state.endpoint);
+  const e = curEndpoint();
   const url = BASE_URL + e.path.replace("{task_id}", "task_xxxxxxxx");
-  const body = bodyForModel();
+  const body = curSampleBody();
   let code = "";
   if (state.lang === "curl") {
     code = `curl -X ${e.method} "${url}" \\\n  -H "Authorization: Bearer sk-xxxxxxxx" \\\n  -H "Content-Type: application/json"`;
@@ -557,11 +726,11 @@ function renderSample() {
 }
 
 function renderDebug() {
-  const e = ENDPOINTS.find(x => x.code === state.endpoint);
+  const e = curEndpoint();
   $("#dbgMethod").textContent = e.method;
   $("#dbgMethod").className = "method " + (e.method === "POST" ? "m-post" : e.method === "GET" ? "m-get" : "m-del");
   $("#dbgUrl").textContent = BASE_URL + e.path.replace("{task_id}", "task_xxxxxxxx");
-  const body = bodyForModel();
+  const body = curSampleBody();
   $("#dbgBody").value = body ? JSON.stringify(body, null, 2) : "";
   $("#dbgBody").disabled = !body;
   $("#dbgSend").disabled = !body;
@@ -570,7 +739,7 @@ function renderDebug() {
 }
 
 function renderParams() {
-  const rows = state.loc === "body" ? BODY_PARAMS : HEADER_PARAMS;
+  const rows = curParams(state.loc);
   $("#paramBody").innerHTML = rows.map(([n, t, req, def, d]) => `
     <tr>
       <td><code>${esc(n)}</code></td>
@@ -582,12 +751,9 @@ function renderParams() {
 }
 
 function renderResponse() {
-  $("#respBody").innerHTML = RESPONSE_PARAMS.map(([n, t, d]) =>
+  $("#respBody").innerHTML = curRespParams().map(([n, t, d]) =>
     `<tr><td><code>${n}</code></td><td>${t}</td><td>${d}</td></tr>`).join("");
-  const sample = state.endpoint === "create"
-    ? { id: "cgt-20261030103000-abc123", object: "video", model: state.modelId, status: "queued", created_at: 1793330000, progress: "0%" }
-    : { id: "cgt-20261030103000-abc123", object: "video", model: state.modelId, status: "succeeded", created_at: 1793330000, completed_at: 1793330063, progress: "100%", metadata: { url: "https://.../out.mp4" }, error: null };
-  $("#respSample").textContent = JSON.stringify(sample, null, 2);
+  $("#respSample").textContent = JSON.stringify(curRespSample(), null, 2);
 }
 
 /* ============================================================
@@ -599,12 +765,11 @@ $("#tree").addEventListener("click", (ev) => {
   const item = ev.target.closest("[data-model]");
   if (!item) return;
   state.modelId = item.dataset.model;
+  state.endpoint = curEndpoints()[0].code;
   history.replaceState(null, "", "?model=" + encodeURIComponent(state.modelId));
   renderTree();
   renderHeader();
-  renderSample();
-  renderDebug();
-  renderResponse();
+  renderEndpoints();
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
 
@@ -703,6 +868,7 @@ sections.forEach(id => { const el = document.getElementById(id); if (el) io.obse
 /* 初始化 */
 const params = new URLSearchParams(location.search);
 if (params.get("model") && MODELS[params.get("model")]) state.modelId = params.get("model");
+state.endpoint = curEndpoints()[0].code;
 renderTree();
 renderHeader();
 renderEndpoints();

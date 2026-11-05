@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Seedance 视频生成 · API 文档 | 启算云枢</title>
+<title>API 文档 | 启算云枢</title>
 <style>
   :root{
     --bg:#ffffff; --bg-sub:#fafafa; --bg-code:#f7f8fa; --border:#e6e8eb;
@@ -178,7 +178,7 @@
       <div class="badges">
         <span class="badge cat" id="catBadge">视频模型</span>
         <span class="badge" id="providerBadge"></span>
-        <span class="badge">按 Token 计费</span>
+        <span class="badge" id="billingBadge">按 Token 计费</span>
       </div>
       <h1 id="docTitle">Doubao Seedance 2.0 多模态参考生视频</h1>
       <div class="meta">
@@ -193,9 +193,9 @@
     <section id="overview">
       <h2>概览 <a class="anchor" href="#overview">#</a></h2>
       <p id="ovText"></p>
-      <div class="callout info">
+      <div class="callout info" id="ovCallout">
         <span>ⓘ</span>
-        <div><b>异步任务范式：</b>提交任务拿到 <code>id</code> → 轮询 <code>GET /v1/videos/{task_id}</code> → 终态 <code>succeeded</code> 后通过 <code>/content</code> 下载成品。建议轮询间隔 ≥ 5 秒，最长等待 10 分钟。</div>
+        <div id="ovCalloutText"><b>异步任务范式：</b>提交任务拿到 <code>id</code> → 轮询 <code>GET /v1/videos/{task_id}</code> → 终态 <code>succeeded</code> 后通过 <code>/content</code> 下载成品。建议轮询间隔 ≥ 5 秒，最长等待 10 分钟。</div>
       </div>
       <ul id="notes" style="margin:10px 0 0;padding-left:20px;color:var(--text-2);font-size:13px"></ul>
     </section>
@@ -212,9 +212,9 @@
 
     <section id="pricing">
       <h2>价格信息 <a class="anchor" href="#pricing">#</a></h2>
-      <p class="muted">单位：人民币 / 百万 Token。以下为当前接口的销售单价，最终费用以实际调用用量和消费记录为准。</p>
+      <p class="muted" id="priceNote">单位：人民币 / 百万 Token。以下为当前接口的销售单价，最终费用以实际调用用量和消费记录为准。</p>
       <table class="tier-table">
-        <thead><tr><th>计费档位</th><th>计量项</th><th>单价（CNY / 百万 Token）</th></tr></thead>
+        <thead><tr id="priceHead"><th>计费档位</th><th>计量项</th><th>单价（CNY / 百万 Token）</th></tr></thead>
         <tbody id="priceBody"></tbody>
       </table>
     </section>
@@ -291,7 +291,7 @@
     </section>
 
     <div class="footer">
-      <span>启算云枢 · Seedance 视频生成 API</span>
+      <span id="docFooter">启算云枢 · Seedance 视频生成 API</span>
       <span>本文档由接口实现与定价表生成，若与实测不一致以实测为准</span>
     </div>
   </main>
@@ -338,6 +338,73 @@ let state = { modelId: "doubao-seedance-2.0", endpoint: "create", lang: "curl", 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
 
+/* ------------------------------------------------------------
+   按模型解析文档数据：模型自带接口 / 参数 / 示例时优先使用，
+   没有则回落到视频模型的全局定义（保持既有模型行为不变）。
+   ------------------------------------------------------------ */
+const DEFAULT_CALLOUT = '<b>异步任务范式：</b>提交任务拿到 <code>id</code> → 轮询 <code>GET /v1/videos/{task_id}</code> → 终态 <code>succeeded</code> 后通过 <code>/content</code> 下载成品。建议轮询间隔 ≥ 5 秒，最长等待 10 分钟。';
+const DEFAULT_NOTES = [
+  "网关根据请求体中的 model 字段匹配并转发到对应上游模型。",
+  "按上游回报的真实 Token 结算，提交阶段仅做预扣冻结，终态多退少补。",
+  "任务失败不扣费，预扣额度原路退回。"
+];
+
+function curModel() { return MODELS[state.modelId] || null; }
+function curEndpoints() {
+  const m = curModel();
+  return (m && m.endpoints && m.endpoints.length) ? m.endpoints : ENDPOINTS;
+}
+function curEndpoint() {
+  const list = curEndpoints();
+  return list.find(x => x.code === state.endpoint) || list[0];
+}
+function curParams(loc) {
+  const m = curModel();
+  const p = (m && m.params) || {};
+  if (loc === "body") return p.body || BODY_PARAMS;
+  return p.header || HEADER_PARAMS;
+}
+function curRespParams() {
+  const m = curModel();
+  const p = (m && m.params) || {};
+  return p.response || RESPONSE_PARAMS;
+}
+function curSampleBody() {
+  const m = curModel();
+  if (m && m.sampleBody) return m.sampleBody;
+  if (state.endpoint !== "create") return null;
+  return {
+    model: state.modelId,
+    prompt: "城市夜景延时摄影，霓虹在雨后路面反射",
+    content: [{ type: "text", text: "城市夜景延时摄影，霓虹在雨后路面反射" }],
+    resolution: "720p",
+    ratio: "16:9",
+    duration: 5,
+    seed: 11,
+    camera_fixed: false,
+    watermark: false
+  };
+}
+function curRespSample() {
+  const m = curModel();
+  if (m && m.respSample) return m.respSample;
+  return state.endpoint === "create"
+    ? { id: "cgt-20261030103000-abc123", object: "video", model: state.modelId, status: "queued", created_at: 1793330000, progress: "0%" }
+    : { id: "cgt-20261030103000-abc123", object: "video", model: state.modelId, status: "succeeded", created_at: 1793330000, completed_at: 1793330063, progress: "100%", metadata: { url: "https://.../out.mp4" }, error: null };
+}
+function pricingOf(m) {
+  if (m && m.pricing) return m.pricing;
+  return {
+    note: "单位：人民币 / 百万 Token。以下为当前接口的销售单价，最终费用以实际调用用量和消费记录为准。",
+    head: ["计费档位", "计量项", "单价（CNY / 百万 Token）"],
+    rows: (m ? m.price : []).map(([tier, price], i) => [
+      tier + (i === 0 ? ' <span class="badge" style="margin-left:6px">默认档</span>' : ""),
+      "总消耗 Token",
+      `<span class="price">${price} CNY / 百万 Token</span>`
+    ])
+  };
+}
+
 /* ============================================================
    4. 渲染
    ============================================================ */
@@ -366,23 +433,25 @@ function renderHeader() {
   }
   $("#catBadge").textContent = m.cat;
   $("#providerBadge").textContent = m.provider;
+  $("#billingBadge").textContent = m.billingBadge || "按 Token 计费";
   $("#docTitle").textContent = m.name;
   $("#docModelId").textContent = state.modelId;
   $("#docDesc").textContent = m.desc;
   $("#ovText").textContent = m.ov;
-  $("#notes").innerHTML = [
-    "网关根据请求体中的 model 字段匹配并转发到对应上游模型。",
-    "按上游回报的真实 Token 结算，提交阶段仅做预扣冻结，终态多退少补。",
-    "任务失败不扣费，预扣额度原路退回。"
-  ].map(t => `<li>${t}</li>`).join("");
-  $("#priceBody").innerHTML = m.price.map(([tier, price], i) =>
-    `<tr><td>${tier}${i === 0 ? ' <span class="badge" style="margin-left:6px">默认档</span>' : ""}</td><td>总消耗 Token</td><td class="price">${price} CNY / 百万 Token</td></tr>`
-  ).join("");
+  $("#ovCalloutText").innerHTML = m.callout || DEFAULT_CALLOUT;
+  $("#notes").innerHTML = (m.notes || DEFAULT_NOTES).map(t => `<li>${t}</li>`).join("");
+  $("#docFooter").textContent = "启算云枢 · " + m.name;
+  document.title = m.name + " · API 文档 | 启算云枢";
+
+  const p = pricingOf(m);
+  $("#priceNote").textContent = p.note;
+  $("#priceHead").innerHTML = p.head.map(h => `<th>${h}</th>`).join("");
+  $("#priceBody").innerHTML = p.rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join("")}</tr>`).join("");
 }
 
 function renderEndpoints() {
-  $("#epSwitch").innerHTML = ENDPOINTS.map(e =>
-    `<button class="ep-btn${e.code === state.endpoint ? " active" : ""}" data-ep="${e.code}">
+  $("#epSwitch").innerHTML = curEndpoints().map(e =>
+    `<button class="ep-btn${e.code === curEndpoint().code ? " active" : ""}" data-ep="${e.code}">
        <span class="method ${e.method === "POST" ? "m-post" : e.method === "GET" ? "m-get" : "m-del"}">${e.method}</span>${esc(e.name)}
      </button>`
   ).join("");
@@ -390,7 +459,7 @@ function renderEndpoints() {
 }
 
 function renderEndpointDetail() {
-  const e = ENDPOINTS.find(x => x.code === state.endpoint);
+  const e = curEndpoint();
   const url = BASE_URL + e.path.replace("{task_id}", "task_xxxxxxxx");
   $("#epMethod").textContent = e.method;
   $("#epMethod").className = "method " + (e.method === "POST" ? "m-post" : e.method === "GET" ? "m-get" : "m-del");
@@ -405,28 +474,10 @@ function renderEndpointDetail() {
   renderResponse();
 }
 
-function bodyForModel() {
-  const mid = state.modelId;
-  if (state.endpoint === "create") {
-    return {
-      model: mid,
-      prompt: "城市夜景延时摄影，霓虹在雨后路面反射",
-      content: [{ type: "text", text: "城市夜景延时摄影，霓虹在雨后路面反射" }],
-      resolution: "720p",
-      ratio: "16:9",
-      duration: 5,
-      seed: 11,
-      camera_fixed: false,
-      watermark: false
-    };
-  }
-  return null;
-}
-
 function renderSample() {
-  const e = ENDPOINTS.find(x => x.code === state.endpoint);
+  const e = curEndpoint();
   const url = BASE_URL + e.path.replace("{task_id}", "task_xxxxxxxx");
-  const body = bodyForModel();
+  const body = curSampleBody();
   let code = "";
   if (state.lang === "curl") {
     code = `curl -X ${e.method} "${url}" \\\n  -H "Authorization: Bearer sk-xxxxxxxx" \\\n  -H "Content-Type: application/json"`;
@@ -445,11 +496,11 @@ function renderSample() {
 }
 
 function renderDebug() {
-  const e = ENDPOINTS.find(x => x.code === state.endpoint);
+  const e = curEndpoint();
   $("#dbgMethod").textContent = e.method;
   $("#dbgMethod").className = "method " + (e.method === "POST" ? "m-post" : e.method === "GET" ? "m-get" : "m-del");
   $("#dbgUrl").textContent = BASE_URL + e.path.replace("{task_id}", "task_xxxxxxxx");
-  const body = bodyForModel();
+  const body = curSampleBody();
   $("#dbgBody").value = body ? JSON.stringify(body, null, 2) : "";
   $("#dbgBody").disabled = !body;
   $("#dbgSend").disabled = !body;
@@ -458,7 +509,7 @@ function renderDebug() {
 }
 
 function renderParams() {
-  const rows = state.loc === "body" ? BODY_PARAMS : HEADER_PARAMS;
+  const rows = curParams(state.loc);
   $("#paramBody").innerHTML = rows.map(([n, t, req, def, d]) => `
     <tr>
       <td><code>${esc(n)}</code></td>
@@ -470,12 +521,9 @@ function renderParams() {
 }
 
 function renderResponse() {
-  $("#respBody").innerHTML = RESPONSE_PARAMS.map(([n, t, d]) =>
+  $("#respBody").innerHTML = curRespParams().map(([n, t, d]) =>
     `<tr><td><code>${n}</code></td><td>${t}</td><td>${d}</td></tr>`).join("");
-  const sample = state.endpoint === "create"
-    ? { id: "cgt-20261030103000-abc123", object: "video", model: state.modelId, status: "queued", created_at: 1793330000, progress: "0%" }
-    : { id: "cgt-20261030103000-abc123", object: "video", model: state.modelId, status: "succeeded", created_at: 1793330000, completed_at: 1793330063, progress: "100%", metadata: { url: "https://.../out.mp4" }, error: null };
-  $("#respSample").textContent = JSON.stringify(sample, null, 2);
+  $("#respSample").textContent = JSON.stringify(curRespSample(), null, 2);
 }
 
 /* ============================================================
@@ -487,12 +535,11 @@ $("#tree").addEventListener("click", (ev) => {
   const item = ev.target.closest("[data-model]");
   if (!item) return;
   state.modelId = item.dataset.model;
+  state.endpoint = curEndpoints()[0].code;
   history.replaceState(null, "", "?model=" + encodeURIComponent(state.modelId));
   renderTree();
   renderHeader();
-  renderSample();
-  renderDebug();
-  renderResponse();
+  renderEndpoints();
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
 
@@ -591,6 +638,7 @@ sections.forEach(id => { const el = document.getElementById(id); if (el) io.obse
 /* 初始化 */
 const params = new URLSearchParams(location.search);
 if (params.get("model") && MODELS[params.get("model")]) state.modelId = params.get("model");
+state.endpoint = curEndpoints()[0].code;
 renderTree();
 renderHeader();
 renderEndpoints();

@@ -507,3 +507,48 @@ curl -s http://www.qsykai.com:33000/api/pricing | head -c 300
 - 文档页：`http://www.qsykai.com:33000/doc.html`
 - 短链：`http://www.qsykai.com:33000/docs`
 - 数据文件：`http://www.qsykai.com:33000/doc-data.js`（仅本站 Referer 可访问）
+- 指定模型：`http://www.qsykai.com:33000/doc.html?model=qwen-image-3.0-pro`
+
+---
+
+## 十四、文档页数据模型（新增模型必读）
+
+页面数据都放在 `seedance-docs.html` 的 `MODELS` 里。**没配的字段会自动回落到视频模型的全局定义**（`ENDPOINTS` / `HEADER_PARAMS` / `BODY_PARAMS` / `RESPONSE_PARAMS`），所以老的 Seedance 模型不需要改一行。
+
+| 字段 | 作用 | 缺省行为 |
+|---|---|---|
+| `endpoints` | 该模型的接口列表（`code/method/name/path/billing/hint`） | 回落到视频的 4 个接口 |
+| `params.header` / `.body` / `.response` | 请求头、Body、响应参数表 | 回落到全局表 |
+| `sampleBody` | 调用示例与在线调试的预填请求体 | 回落到视频 create 示例 |
+| `respSample` | 响应示例 | 回落到视频任务示例 |
+| `pricing` | `{note, head, rows}`，支持按张计价的多列表格 | 由 `price[][]` 生成「CNY / 百万 Token」 |
+| `billingBadge` | 顶部计费徽标 | 按 Token 计费 |
+| `callout` / `notes` | 概览提示框与要点列表 | 异步任务范式 |
+
+### 新增一个模型的三步
+
+1. `MODELS` 加条目（照 `qwen-image-3.0-pro` 抄结构）；
+2. `TREE` 对应分组加节点，`id` 与 `MODELS` 的 key 一致；
+3. `python build_doc.py` → 覆盖部署 → `nginx -s reload`。
+
+### 已接入的图像模型
+
+`qwen-image-3.0-pro`：`POST /v1/images/generations`，同步返回，按张计费（输出 0.18、输入 0.02，1K/2K 同价）。价格取自线上 `/api/pricing` 的 `image_count_price` 字段，不是手写。
+
+### 已知限制（写文档时必须避开）
+
+平台侧 `parameters` 只透传 `AliImageParameters` 里的字段：`size / n / watermark / prompt_extend / seed / steps / scale / thinking_mode / enable_sequential / bbox_list / color_palette`。
+
+上游手册里的 `negative_prompt`、`prompt_extend_mode` **不在该结构体内，传进 `parameters` 会被静默丢弃**（反序列化时丢弃，不会报错，也不会有日志）。文档已按平台实际能力编写，并在概览中明示。若业务上需要这两个参数，要先扩 `relay/channel/ali/dto.go` 的 `AliImageParameters`。
+
+另外，该渠道走自定义 API 路径时，**顶层 OpenAI 风格的 `size` / `n` 不会自动映射**到 `parameters`，所以文档要求一律写在 `parameters` 内。
+
+### 回归校验
+
+```bash
+cd tests/live
+python build_doc.py
+node _render_check.js dist/doc.html dist/doc-data.js
+```
+
+`_render_check.js` 用最小 DOM 桩在 node 里跑页面脚本，校验「切到图像模型 / 切回视频模型」两套渲染结果（标题、计费徽标、接口地址、价格表头、参数表、示例、响应示例共 19 项）。本机无头浏览器不可用时，用它可以替代肉眼检查。

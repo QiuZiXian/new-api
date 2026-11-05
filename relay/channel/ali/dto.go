@@ -1,8 +1,11 @@
 package ali
 
 import (
+	"encoding/json"
+	"reflect"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
@@ -186,17 +189,83 @@ type AliImageRequest struct {
 }
 
 type AliImageParameters struct {
-	Size             string `json:"size,omitempty"`
-	N                int    `json:"n,omitempty"`
-	Steps            string `json:"steps,omitempty"`
-	Scale            string `json:"scale,omitempty"`
-	Watermark        *bool  `json:"watermark,omitempty"`
-	PromptExtend     *bool  `json:"prompt_extend,omitempty"`
-	ThinkingMode     *bool  `json:"thinking_mode,omitempty"`
+	Size         string `json:"size,omitempty"`
+	N            int    `json:"n,omitempty"`
+	Steps        string `json:"steps,omitempty"`
+	Scale        string `json:"scale,omitempty"`
+	Watermark    *bool  `json:"watermark,omitempty"`
+	PromptExtend *bool  `json:"prompt_extend,omitempty"`
+	ThinkingMode *bool  `json:"thinking_mode,omitempty"`
+	// PromptExtendMode 提示词改写模式：direct（默认）/ agent（APE，仅 T2I）。
+	PromptExtendMode string `json:"prompt_extend_mode,omitempty"`
+	// NegativePrompt 反向提示词。
+	NegativePrompt   string `json:"negative_prompt,omitempty"`
 	EnableSequential *bool  `json:"enable_sequential,omitempty"`
 	BboxList         any    `json:"bbox_list,omitempty"`
 	ColorPalette     any    `json:"color_palette,omitempty"`
 	Seed             *int   `json:"seed,omitempty"`
+
+	// Extra 保存上面未声明的 parameters 字段，序列化时平铺回 parameters。
+	// 上游参数会持续增加，只靠白名单结构体的话新参数会被静默丢弃
+	// （不报错、无日志），调用方会误以为已经生效。
+	Extra map[string]json.RawMessage `json:"-"`
+}
+
+// aliImageParameterKnownKeys 由结构体 tag 推导，新增字段无需同步维护。
+var aliImageParameterKnownKeys = func() map[string]struct{} {
+	keys := make(map[string]struct{})
+	t := reflect.TypeOf(AliImageParameters{})
+	for i := 0; i < t.NumField(); i++ {
+		name, _, _ := strings.Cut(t.Field(i).Tag.Get("json"), ",")
+		if name == "" || name == "-" {
+			continue
+		}
+		keys[name] = struct{}{}
+	}
+	return keys
+}()
+
+func (p *AliImageParameters) UnmarshalJSON(data []byte) error {
+	type plain AliImageParameters
+	var decoded plain
+	if err := common.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	var raw map[string]json.RawMessage
+	if err := common.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	decoded.Extra = nil
+	for key := range aliImageParameterKnownKeys {
+		delete(raw, key)
+	}
+	if len(raw) > 0 {
+		decoded.Extra = raw
+	}
+	*p = AliImageParameters(decoded)
+	return nil
+}
+
+func (p AliImageParameters) MarshalJSON() ([]byte, error) {
+	type plain AliImageParameters
+	base, err := common.Marshal(plain(p))
+	if err != nil {
+		return nil, err
+	}
+	if len(p.Extra) == 0 {
+		return base, nil
+	}
+	var merged map[string]json.RawMessage
+	if err := common.Unmarshal(base, &merged); err != nil {
+		return nil, err
+	}
+	// 具名字段优先：Extra 只补结构体没有声明的 key，不会覆盖已知字段。
+	for key, value := range p.Extra {
+		if _, exists := merged[key]; !exists {
+			merged[key] = value
+		}
+	}
+	return common.Marshal(merged)
 }
 
 func (p *AliImageParameters) PromptExtendValue() bool {
