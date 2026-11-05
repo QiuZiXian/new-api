@@ -49,6 +49,7 @@ import {
   UserCog,
   Info,
   LogIn,
+  Image as ImageIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -226,14 +227,47 @@ function BillingBreakdown(props: {
   const isPerCall = isPerCallBilling(other.model_price)
   const isClaude = other.claude === true
   const isTieredExpr = other.billing_mode === 'tiered_expr'
+  // 按张计费优先于「按次」判断：它同样有 model_price（输出单张价），
+  // 但计量维度是张数 × 档位单价。
+  const isImageCount = other.image_count_billing === true
   const tieredSummary = getTieredBillingSummary(other)
 
   const rows: Array<{ label: string; value: string }> = []
   const priceOpts = { digitsLarge: 4, digitsSmall: 6, abbreviate: false }
   const fmtPrice = (usd: number) => formatBillingCurrencyFromUSD(usd, priceOpts)
   const baseInputUSD = other.model_ratio != null ? other.model_ratio * 2.0 : 0
+  const tierLabel = (tier?: string) => (tier ? ` (${tier.toUpperCase()})` : '')
 
-  if (isTieredExpr) {
+  if (isImageCount) {
+    rows.push({ label: t('Billing Mode'), value: t('Per Image') })
+    if (other.image_input_price != null) {
+      rows.push({
+        label: t('Input price per image'),
+        value: `${fmtPrice(other.image_input_price)}/${t('image')}${tierLabel(other.input_image_tier)}`,
+      })
+    }
+    if (other.image_output_price != null) {
+      rows.push({
+        label: t('Output price per image'),
+        value: `${fmtPrice(other.image_output_price)}/${t('image')}${tierLabel(other.output_image_tier)}`,
+      })
+    }
+    rows.push({
+      label: t('Input Images'),
+      value: String(other.input_image_count ?? 0),
+    })
+    const outputImages = other.output_image_count ?? 0
+    rows.push({
+      label: t('Output Images'),
+      value:
+        other.image_free_first_output === true
+          ? `${outputImages} (${t('billed')}: ${other.billable_output_image_count ?? 0})`
+          : String(outputImages),
+    })
+    if (other.image_free_first_output === true) {
+      rows.push({ label: t('First output image free'), value: t('Enabled') })
+    }
+  } else if (isTieredExpr) {
     rows.push({
       label: t('Billing Mode'),
       value: t('Dynamic Pricing'),
@@ -400,6 +434,40 @@ function BillingBreakdown(props: {
       {rows.map((row) => (
         <DetailRow key={row.label} label={row.label} value={row.value} mono />
       ))}
+    </DetailSection>
+  )
+}
+
+function ImageResults(props: { urls: string[] }) {
+  const { t } = useTranslation()
+  if (props.urls.length === 0) return null
+
+  return (
+    <DetailSection
+      label={t('Generated Images')}
+      icon={<ImageIcon className='size-3' />}
+      iconTone='info'
+    >
+      {props.urls.map((url, index) => (
+        <div key={url} className='flex min-w-0 gap-2'>
+          <span className='text-muted-foreground shrink-0 text-xs'>
+            {index + 1}.
+          </span>
+          <a
+            href={url}
+            target='_blank'
+            rel='noreferrer noopener'
+            className='text-primary min-w-0 text-xs break-all underline underline-offset-2 hover:opacity-80'
+          >
+            {url}
+          </a>
+        </div>
+      ))}
+      <p className='text-muted-foreground text-[11px]'>
+        {t(
+          'Signed links usually expire in 24 hours. Download the images if you need to keep them.'
+        )}
+      </p>
     </DetailSection>
   )
 }
@@ -1069,6 +1137,11 @@ export function DetailsDialog(props: DetailsDialogProps) {
             other={other}
             isAdmin={props.isAdmin}
           />
+        )}
+
+        {/* 上游返回的图片链接：网关超时/客户端中断时也能追溯生成结果 */}
+        {other && Array.isArray(other.image_urls) && (
+          <ImageResults urls={other.image_urls.filter(Boolean)} />
         )}
 
         {/* Tiered pricing breakdown (when billing_mode is tiered_expr) */}

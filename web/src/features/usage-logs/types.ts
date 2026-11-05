@@ -213,6 +213,18 @@ export interface LogOtherData {
   image_generation_call?: boolean
   image_generation_call_price?: number
   image_generation_call_count?: number
+  // 按张计费（quota_type=3）：输入参考图与输出生成图分别计价并按分辨率分档。
+  image_count_billing?: boolean
+  input_image_count?: number
+  output_image_count?: number
+  input_image_tier?: string
+  output_image_tier?: string
+  image_input_price?: number
+  image_output_price?: number
+  image_free_first_output?: boolean
+  billable_output_image_count?: number
+  // 上游返回的图片链接（后端最多保留 8 条；签名 URL 通常 24 小时过期）。
+  image_urls?: string[]
   is_system_prompt_overwritten?: boolean
   po?: string[]
   billing_source?: string
