@@ -368,6 +368,17 @@ func aliImageHandler(a *Adaptor, c *gin.Context, resp *http.Response, info *rela
 	}
 
 	imageResponses := responseAli2OpenAIImage(c, aliResponse, originRespBody, info, responseFormat)
+	// 记录图片链接：同步请求可能被网关读超时切断，客户端拿不到响应，
+	// 这条记录是「图确实生成了、链接是什么」的唯一凭据。
+	if imageResponses != nil {
+		urls := make([]string, 0, len(imageResponses.Data))
+		for _, item := range imageResponses.Data {
+			if item.Url != "" {
+				urls = append(urls, item.Url)
+			}
+		}
+		info.SetImageResultURLs(urls)
+	}
 	usage := aliResponse.Usage
 
 	// 真实张数优先级：output_image_count（只含成功生成的图）> image_count

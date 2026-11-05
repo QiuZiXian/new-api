@@ -38,6 +38,22 @@ func updateOpenAIImageCount(info *relaycommon.RelayInfo, count int64) {
 	info.PriceData.AddOtherRatio("n", float64(count))
 }
 
+// collectOpenAIImageURLs 从 OpenAI 兼容响应里提取 data[].url。
+// b64_json 响应没有链接，这里自然返回空切片。
+func collectOpenAIImageURLs(body []byte) []string {
+	data := gjson.GetBytes(body, "data")
+	if !data.IsArray() {
+		return nil
+	}
+	urls := make([]string, 0, len(data.Array()))
+	for _, item := range data.Array() {
+		if url := item.Get("url").String(); url != "" {
+			urls = append(urls, url)
+		}
+	}
+	return urls
+}
+
 // OpenaiImageHandler handles non-streaming OpenAI image responses
 // (generations/edits), returning the parsed usage for billing.
 func OpenaiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
@@ -59,6 +75,8 @@ func OpenaiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	}
 
 	updateOpenAIImageCount(info, gjson.GetBytes(responseBody, "data.#").Int())
+	// 留下图片链接，便于网关超时/客户端中断后仍能追溯生成结果。
+	info.SetImageResultURLs(collectOpenAIImageURLs(responseBody))
 
 	// 写入新的 response body
 	service.IOCopyBytesGracefully(c, resp, responseBody)

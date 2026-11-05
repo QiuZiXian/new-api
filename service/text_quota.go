@@ -562,6 +562,11 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 			}
 		}
 	}
+	// 记录上游返回的图片链接。同步图片请求被网关读超时切断时，客户端拿不到
+	// 响应，但这次计费已经发生，只有这里能追溯到底生成了哪几张图。
+	if len(relayInfo.ImageResultURLs) > 0 {
+		other["image_urls"] = relayInfo.ImageResultURLs
+	}
 	appendToolSurchargeLogInfo(other, summary.ToolSurchargeItems)
 	if summary.AudioInputPrice > 0 && summary.AudioTokens > 0 {
 		other["audio_input_seperate_price"] = true

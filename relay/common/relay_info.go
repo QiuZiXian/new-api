@@ -160,6 +160,12 @@ type RelayInfo struct {
 
 	PriceData hosttypes.PriceData
 
+	// ImageResultURLs 保存本次图片请求上游返回的图片链接，供消费日志留痕。
+	// 同步图片请求可能被网关（nginx 等）按读超时切断——客户端拿不到响应，
+	// 后端却已经扣费，此时只有这条记录能证明图确实生成了、链接是什么。
+	// 条数与单条长度都在 SetImageResultURLs 里做了上限，避免撑爆日志。
+	ImageResultURLs []string
+
 	// QuotaClamp is set (non-nil) when a quota conversion saturated at the
 	// supported single-request bound (or NaN fallback) while computing this request's charge.
 	// It is surfaced onto the consume/task log's admin_info for auditing.
@@ -1132,4 +1138,37 @@ func RemoveGeminiDisabledFields(jsonData []byte) ([]byte, error) {
 		return jsonData, nil
 	}
 	return jsonDataAfter, nil
+}
+
+const (
+	// maxLoggedImageURLs 限制消费日志里保留的图片链接条数。
+	maxLoggedImageURLs = 8
+	// maxLoggedImageURLLength 限制单条链接长度：签名 URL 常见 400-800 字符，
+	// 这里给足余量，同时防止异常超长值撑大日志。
+	maxLoggedImageURLLength = 2048
+)
+
+// SetImageResultURLs 记录上游返回的图片链接。
+// 空链接会被丢弃，超出条数上限的部分截断，供消费日志 other.image_urls 使用。
+func (info *RelayInfo) SetImageResultURLs(urls []string) {
+	if info == nil {
+		return
+	}
+	collected := make([]string, 0, len(urls))
+	for _, url := range urls {
+		url = strings.TrimSpace(url)
+		if url == "" {
+			continue
+		}
+		if len(url) > maxLoggedImageURLLength {
+			url = url[:maxLoggedImageURLLength]
+		}
+		collected = append(collected, url)
+		if len(collected) >= maxLoggedImageURLs {
+			break
+		}
+	}
+	if len(collected) > 0 {
+		info.ImageResultURLs = collected
+	}
 }
