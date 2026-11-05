@@ -117,9 +117,11 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		return newAPIError
 	}
 
+	// 张数与预扣用同一套口径：顶层 n 优先，缺失时回退 parameters.n
+	// （阿里原生格式/请求体透传把张数放在 parameters 里）。
 	imageN := uint(1)
-	if request.N != nil {
-		imageN = *request.N
+	if n, ok := request.GetTokenCountMeta().BillingRatios["n"]; ok && n > 0 {
+		imageN = uint(n)
 	}
 
 	if usage.(*dto.Usage).TotalTokens == 0 {

@@ -157,6 +157,11 @@ func (i *ImageRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	imageN := uint(1)
 	if i.N != nil && *i.N > 0 {
 		imageN = *i.N
+	} else if extraN, ok := i.parametersImageN(); ok {
+		// 阿里原生格式（以及渠道请求体透传）把张数放在 parameters 里，
+		// 顶层没有 n。这里回退读 parameters.n，保证预扣张数准确；
+		// parameters / n 缺失或非法时 ok=false，沿用默认值 1，不报错。
+		imageN = extraN
 	}
 
 	// Keep n separate from ImagePriceRatio so size/quality and count remain
@@ -170,6 +175,35 @@ func (i *ImageRequest) GetTokenCountMeta() *types.TokenCountMeta {
 		ImageSize:     i.Size,
 		BillingRatios: map[string]float64{"n": float64(imageN)},
 	}
+}
+
+// parametersImageN 从 Extra["parameters"].n 读取输出张数。
+//
+// 阿里原生请求格式把张数放在 parameters 里（如 {"parameters":{"n":2}}），
+// 走渠道请求体透传时顶层没有 n；不读这里的话预扣会按 1 张估算。
+//
+// 兼容约定：parameters 不存在、n 不存在、不是对象、不是正整数、超过
+// MaxImageN，一律返回 false，由调用方沿用默认值 1，不产生任何错误。
+func (i *ImageRequest) parametersImageN() (uint, bool) {
+	raw, ok := i.Extra["parameters"]
+	if !ok || len(raw) == 0 {
+		return 0, false
+	}
+	var params struct {
+		N json.RawMessage `json:"n"`
+	}
+	if err := kitutil.Unmarshal(raw, &params); err != nil || len(params.N) == 0 {
+		return 0, false
+	}
+	var n float64
+	if err := kitutil.Unmarshal(params.N, &n); err != nil {
+		return 0, false
+	}
+	// 字符串 / null / 小数 / 负数 / 超上限都忽略，避免变成异常计费乘数。
+	if n <= 0 || n > float64(MaxImageN) || n != float64(uint(n)) {
+		return 0, false
+	}
+	return uint(n), true
 }
 
 func (i *ImageRequest) IsStream(c *http.Request) bool {

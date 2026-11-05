@@ -130,6 +130,18 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
+	if info == nil {
+		return
+	}
+	// IsSyncImageModel 决定 aliImageHandler 直接解析响应还是走任务轮询。
+	// 必须在这里按上游模型算出来：请求体透传（pass_through_body_enabled）会
+	// 跳过 ConvertImageRequest，而那里原本是唯一赋值点，导致同步图片模型在
+	// 透传模式下被当成异步任务，拿不到 task_id 就返回空的「status code: 200」错误。
+	a.IsSyncImageModel = isSyncImageModel(info.UpstreamModelName)
+	if info.RelayMode == constant.RelayModeImagesEdits && isWanModel(info.UpstreamModelName) {
+		// wan 系列图生图走异步端点，即使在同步名单里也不能同步解析。
+		a.IsSyncImageModel = false
+	}
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
