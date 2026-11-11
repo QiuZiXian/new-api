@@ -31,7 +31,7 @@ import { cn } from '@/lib/utils'
 
 import { Button } from '@/components/ui/button'
 import { DEFAULT_TOKEN_UNIT } from '../constants'
-import { getCardArtworkUrl, isVideoModel } from '../lib/artwork'
+import { getCardArtworkUrl, getProviderLogoUrl, isVideoModel } from '../lib/artwork'
 import {
   getDynamicDisplayGroupRatio,
   getDynamicPricingSummary,
@@ -40,6 +40,7 @@ import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
 import { formatPrice, formatRequestPrice } from '../lib/price'
 import type { ModelCapability, PricingModel, TokenUnit } from '../types'
+import { ProviderLogo } from './provider-logo'
 
 export interface ModelCardProps {
   model: PricingModel
@@ -150,6 +151,9 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const discountLabel = props.model.discount_label?.trim() ?? ''
   const isVideo = isVideoModel(props.model)
   const artworkUrl = getCardArtworkUrl(props.model)
+  const providerLogoUrl = modelIcon
+    ? undefined
+    : getProviderLogoUrl(props.model.vendor_name)
 
   const dynamicSummary = isDynamicPricing
     ? getDynamicPricingSummary(props.model, {
@@ -267,7 +271,12 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       <div className='flex min-w-0 flex-1 flex-col'>
         <div className='flex items-center gap-1.5'>
           <span className='border-border/60 bg-background flex size-5 shrink-0 items-center justify-center rounded border text-[10px] font-bold'>
-            {modelIcon || initial}
+            {modelIcon ||
+              (providerLogoUrl ? (
+                <ProviderLogo name={props.model.vendor_name} size={16} />
+              ) : (
+                initial
+              ))}
           </span>
           <span className='text-muted-foreground truncate text-xs font-medium'>
             {props.model.vendor_name || t('Unknown vendor')}

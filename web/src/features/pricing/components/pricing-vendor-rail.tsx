@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils'
 
 import { FILTER_ALL } from '../constants'
 import type { PricingModel, PricingVendor } from '../types'
+import { ProviderLogo } from './provider-logo'
 
 interface PricingVendorRailProps {
   vendors: PricingVendor[]
@@ -104,8 +105,12 @@ export function PricingVendorRail(props: PricingVendorRailProps) {
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               )}
             >
-              <span className='flex size-4 shrink-0 items-center justify-center'>
-                {vendor.icon ? getLobeIcon(vendor.icon, 16) : null}
+              <span className='flex size-4 shrink-0 items-center justify-center overflow-hidden'>
+                {vendor.icon ? (
+                  getLobeIcon(vendor.icon, 16)
+                ) : (
+                  <ProviderLogo name={vendor.name} size={16} />
+                )}
               </span>
               <span className='min-w-0 flex-1 truncate'>{vendor.name}</span>
               <span className='text-muted-foreground shrink-0 text-xs tabular-nums'>

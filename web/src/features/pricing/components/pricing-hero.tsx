@@ -21,7 +21,10 @@ import { useTranslation } from 'react-i18next'
 
 import { Skeleton } from '@/components/ui/skeleton'
 
-import { HERO_ARTWORK_URL } from '../lib/artwork'
+import {
+  HERO_CHIP_ARTWORK_URL,
+  HERO_LANDSCAPE_ARTWORK_URL,
+} from '../lib/artwork'
 
 interface PricingHeroProps {
   total: number
@@ -31,24 +34,9 @@ interface PricingHeroProps {
 }
 
 const QUICK_LINKS = [
-  {
-    key: 'Chat & Reasoning',
-    keyword: '',
-    icon: MessageSquareText,
-    description: 'Chat, reasoning and coding models',
-  },
-  {
-    key: 'Image Creation',
-    keyword: 'image',
-    icon: Image,
-    description: 'Image generation and editing',
-  },
-  {
-    key: 'Video Generation',
-    keyword: 'video',
-    icon: Video,
-    description: 'Text to video, one API call',
-  },
+  { key: 'Chat & Reasoning', keyword: '', icon: MessageSquareText },
+  { key: 'Image Creation', keyword: 'image', icon: Image },
+  { key: 'Video Generation', keyword: 'video', icon: Video },
 ] as const
 
 export function PricingHero(props: PricingHeroProps) {
@@ -60,18 +48,6 @@ export function PricingHero(props: PricingHeroProps) {
           directly below the nav bar instead of sliding underneath it. */}
       <div aria-hidden className='h-16 md:h-20' />
 
-      <div
-        aria-hidden
-        className='pointer-events-none absolute inset-y-0 right-0 -z-10 hidden w-1/2 lg:block'
-      >
-        <img
-          src={HERO_ARTWORK_URL}
-          alt=''
-          referrerPolicy='no-referrer'
-          className='h-full w-full object-cover object-center opacity-30'
-        />
-        <div className='absolute inset-0 bg-[linear-gradient(90deg,#f4f8ff_0%,rgba(244,248,255,0.55)_45%,transparent_100%)] dark:bg-[linear-gradient(90deg,#0b1224_0%,rgba(11,18,36,0.55)_45%,transparent_100%)]' />
-      </div>
       <div className='pointer-events-none absolute -top-24 right-1/4 -z-10 size-72 rounded-full bg-blue-300/25 blur-3xl dark:bg-blue-500/10' />
 
       {/* Fixed desktop height matches the previous banner (header space +
@@ -121,40 +97,35 @@ export function PricingHero(props: PricingHeroProps) {
           </p>
         </div>
 
-        <div className='hidden gap-2.5 lg:grid lg:grid-cols-3'>
-          {QUICK_LINKS.map((link) => {
-            const Icon = link.icon
-            return (
-              <button
-                key={link.key}
-                type='button'
-                onClick={() => props.onSearchChange?.(link.keyword)}
-                className='group border-border/60 bg-background/80 hover:border-blue-400/60 hover:bg-background flex min-h-[72px] flex-col items-start gap-1 rounded-xl border p-2.5 text-left shadow-[0_4px_16px_-12px_rgba(15,23,42,0.5)] backdrop-blur-sm transition-all hover:-translate-y-0.5 dark:border-white/10 dark:bg-white/5'
-              >
-                <span className='flex items-center gap-1.5 text-xs font-semibold'>
-                  <span className='flex size-5 items-center justify-center rounded-md bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300'>
-                    <Icon className='size-3' />
-                  </span>
+        <div className='relative hidden h-[190px] overflow-hidden rounded-2xl border border-white/70 shadow-[0_16px_36px_-20px_rgba(37,99,235,0.55)] lg:block dark:border-white/10'>
+          <img
+            src={HERO_LANDSCAPE_ARTWORK_URL}
+            alt=''
+            referrerPolicy='no-referrer'
+            className='absolute inset-0 h-full w-full object-cover'
+          />
+          <div className='absolute inset-0 bg-[linear-gradient(90deg,rgba(238,244,255,0.5)_0%,rgba(238,244,255,0.05)_55%,transparent_100%)] dark:bg-[linear-gradient(90deg,rgba(8,15,35,0.5)_0%,rgba(8,15,35,0.05)_55%,transparent_100%)]' />
+          <img
+            src={HERO_CHIP_ARTWORK_URL}
+            alt=''
+            referrerPolicy='no-referrer'
+            className='absolute top-3 left-3 h-[86px] w-[86px] rounded-xl object-cover shadow-lg ring-1 ring-white/70'
+          />
+          <div className='absolute right-3 bottom-3 left-3 flex flex-wrap gap-1.5'>
+            {QUICK_LINKS.map((link) => {
+              const Icon = link.icon
+              return (
+                <button
+                  key={link.key}
+                  type='button'
+                  onClick={() => props.onSearchChange?.(link.keyword)}
+                  className='inline-flex items-center gap-1 rounded-full border border-white/70 bg-white/85 px-2.5 py-1 text-[11px] font-medium text-slate-700 shadow-sm backdrop-blur-sm transition-colors hover:bg-white'
+                >
+                  <Icon className='size-3' />
                   {t(link.key)}
-                </span>
-                <span className='text-muted-foreground line-clamp-2 text-[10px] leading-snug'>
-                  {t(link.description)}
-                </span>
-              </button>
-            )
-          })}
-          <div className='flex items-center justify-between gap-3 rounded-xl border border-blue-200/70 bg-[linear-gradient(100deg,#dbeafe,#eff6ff)] px-3 py-2.5 lg:col-span-3 dark:border-white/10 dark:bg-[linear-gradient(100deg,rgba(30,64,175,0.25),rgba(15,23,42,0.25))]'>
-            <div className='min-w-0'>
-              <p className='text-foreground text-xs font-semibold'>
-                {t('One API for every model')}
-              </p>
-              <p className='text-muted-foreground truncate text-[10px]'>
-                {t('Switch providers without changing your integration.')}
-              </p>
-            </div>
-            <span className='shrink-0 text-[10px] font-medium text-blue-600 dark:text-blue-300'>
-              POST /v1/chat/completions
-            </span>
+                </button>
+              )
+            })}
           </div>
         </div>
       </div>
