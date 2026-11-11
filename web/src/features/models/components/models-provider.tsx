@@ -65,6 +65,8 @@ type ModelsContextType = {
   >
   tabCategory: ModelTabCategory
   setTabCategory: (category: ModelTabCategory) => void
+  tagDictionaryOpen: boolean
+  setTagDictionaryOpen: (open: boolean) => void
 }
 
 // ============================================================================
@@ -97,6 +99,7 @@ export function ModelsProvider({ children }: { children: React.ReactNode }) {
     source: 'official',
   })
   const [tabCategory, setTabCategory] = useState<ModelTabCategory>('metadata')
+  const [tagDictionaryOpen, setTagDictionaryOpen] = useState(false)
 
   return (
     <ModelsContext.Provider
@@ -117,6 +120,8 @@ export function ModelsProvider({ children }: { children: React.ReactNode }) {
         setSyncWizardOptions,
         tabCategory,
         setTabCategory,
+        tagDictionaryOpen,
+        setTagDictionaryOpen,
       }}
     >
       {children}

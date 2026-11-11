@@ -152,12 +152,11 @@
 <body>
 
 <header class="topbar">
-  <a class="brand" href="#"><span class="brand-mark">启</span>启算云枢</a>
+  <a class="brand" href="/"><span class="brand-mark">启</span>启算云枢</a>
   <nav class="topnav">
-    <a href="#">控制台</a>
-    <a class="on" href="#">API 文档</a>
-    <a href="#">模型广场</a>
-    <a href="#">价格</a>
+    <a href="/dashboard/overview">控制台</a>
+    <a class="on" href="/doc.html">API 文档</a>
+    <a href="/pricing">模型广场</a>
   </nav>
   <span class="spacer"></span>
   <span class="version">v1.0 · 2026-10-30</span>
@@ -398,8 +397,8 @@ const MODELS = {
       "messages 数组只能有一个对象；单个 message 内放多个 text 会返回 400。",
       "图生图时 content 中 text 必须有且只有一个，image 支持 1–3 张。",
       "size 与 n 必须写在 parameters 内；顶层 OpenAI 风格的 size / n 对本模型不生效。",
-      "parameters 中 <code>negative_prompt</code> 与 <code>prompt_extend_mode</code> 当前不会被转发到上游，传入会被忽略。",
-      "按张计费：输出图 0.18 元/张，输入参考图 0.02 元/张，失败不计费。"
+      "parameters 会原样转发到上游，表中未列出的字段也会透传。",
+      "按张计费：输出图 1K 0.25 元/张、2K 0.50 元/张，输入参考图 0.02 元/张，失败不计费。"
     ],
     endpoints: [
       {
@@ -452,14 +451,13 @@ const MODELS = {
       }
     },
     pricing: {
-      note: "单位：人民币 / 张。按成功生成的张数计费，失败不计费；输入参考图按张单独计价，1K 与 2K 档位同价。",
+      note: "单位：人民币 / 张。以下为当前接口的销售单价，最终费用以实际调用用量和消费记录为准。按成功生成的张数计费，失败不计费；1K / 2K 按输出面积判定，面积 ≤ 2,250,000 记 1K 档，超过记 2K 档。",
       head: ["计费项", "计量项", "单价（CNY / 张）"],
       rows: [
-        ['输出图片 <span class="badge" style="margin-left:6px">主计费</span>', "output_image_count", '<span class="price">0.18 CNY / 张</span>'],
-        ["输出图片（2K）", "output_image_count", '<span class="price">0.18 CNY / 张</span>'],
-        ["输入参考图", "input_image_count", '<span class="price">0.02 CNY / 张</span>'],
-        ["文生图示例（n=2）", "2 张输出", '<span class="price">0.36 CNY</span>'],
-        ["图生图示例（1 图入 / 1 图出）", "1 入 + 1 出", '<span class="price">0.20 CNY</span>']
+        ['输出图片 · 1K <span class="badge" style="margin-left:6px">主计费</span>', "output_image_count（1K 档）", '<span class="price">0.25 CNY / 张</span>'],
+        ["输出图片 · 2K", "output_image_count（2K 档）", '<span class="price">0.50 CNY / 张</span>'],
+        ["输入参考图 · 1K", "input_image_count（1K 档）", '<span class="price">0.02 CNY / 张</span>'],
+        ["输入参考图 · 2K", "input_image_count（2K 档）", '<span class="price">0.02 CNY / 张</span>']
       ]
     },
     params: {
@@ -479,6 +477,8 @@ const MODELS = {
         ["parameters.size", "string", false, "模型推荐", "输出分辨率，格式 \"宽*高\"，如 1024*1024 / 2048*2048；范围 512*512 至 2048*2048，宽高比 1:8–8:1。面积 ≤ 2,250,000 记 1K 档，否则 2K 档。"],
         ["parameters.n", "integer", false, "1", "输出图片数量，范围 1–6。"],
         ["parameters.prompt_extend", "boolean", false, "true", "提示词智能改写开关。"],
+        ["parameters.prompt_extend_mode", "string", false, "direct", "提示词改写模式：direct / agent。agent（APE）仅支持文生图，图生图传入会返回 400。"],
+        ["parameters.negative_prompt", "string", false, "—", "反向提示词，描述不希望在画面中出现的元素。"],
         ["parameters.seed", "integer", false, "—", "随机种子，范围 0–2147483647，用于结果复现。"],
         ["parameters.watermark", "boolean", false, "false", "是否在图片上添加水印。"]
       ],

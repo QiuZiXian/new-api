@@ -53,7 +53,10 @@ function normalizeViewMode(value: unknown): ViewMode {
   return VIEW_MODES.CARD
 }
 
-export function useFilters(models: PricingModel[]) {
+export function useFilters(
+  models: PricingModel[],
+  dictionaryTags: string[] = []
+) {
   const search = useSearch({ from: '/pricing/' })
   const [filterState, setFilterState] = useState<FilterState>(() => ({
     search: search.search,
@@ -143,8 +146,28 @@ export function useFilters(models: PricingModel[]) {
 
   const availableTags = useMemo(() => {
     if (!models || models.length === 0) return []
-    return extractAllTags(models)
-  }, [models])
+    const usedTags = extractAllTags(models).map((tag) => tag.toLowerCase())
+    if (dictionaryTags.length === 0) return usedTags
+
+    const usedSet = new Set(usedTags)
+    const result: string[] = []
+    const seen = new Set<string>()
+    // Dictionary order wins; tags that no visible model uses are skipped so
+    // the filter never offers an option that yields an empty result.
+    for (const name of dictionaryTags) {
+      const key = name.trim().toLowerCase()
+      if (!key || seen.has(key) || !usedSet.has(key)) continue
+      seen.add(key)
+      result.push(name.trim())
+    }
+    // Keep legacy tags that are in use but not registered in the dictionary.
+    for (const tag of usedTags) {
+      if (seen.has(tag)) continue
+      seen.add(tag)
+      result.push(tag)
+    }
+    return result
+  }, [models, dictionaryTags])
 
   const filteredModels = useMemo(() => {
     if (!models || models.length === 0) return []

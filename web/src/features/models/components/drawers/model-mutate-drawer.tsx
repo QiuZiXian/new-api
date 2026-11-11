@@ -92,9 +92,9 @@ import { normalizeJsonString } from "@/features/system-settings/models/utils";
 import type { ModelSettings } from "@/features/system-settings/types";
 import { safeJsonParse } from "@/features/system-settings/utils/json-parser";
 
-import { createModel, updateModel, getModel, getVendors } from "../../api";
+import { createModel, updateModel, getModel, getVendors, getModelTags } from "../../api";
 import { getNameRuleOptions, ENDPOINT_TEMPLATES } from "../../constants";
-import { modelsQueryKeys, vendorsQueryKeys, parseModelTags } from "../../lib";
+import { modelsQueryKeys, vendorsQueryKeys, modelTagsQueryKeys, parseModelTags } from "../../lib";
 import type { Model } from "../../types";
 import {
   parsePriceItems,
@@ -102,6 +102,7 @@ import {
   type PriceItemDraft,
 } from "../../lib/price-items";
 import { PriceItemsEditor } from "../price-items-editor";
+import { useModels } from "../models-provider";
 
 // Extended schema for ratio configuration (internal form state only)
 const extendedModelFormSchema = z.object({
@@ -459,6 +460,19 @@ export function ModelMutateDrawer({
   });
 
   const vendors = vendorsData?.data?.items || [];
+
+  // Managed tag dictionary offered alongside free-form tag input.
+  const { data: tagDictionary } = useQuery({
+    queryKey: modelTagsQueryKeys.lists(),
+    queryFn: getModelTags,
+    enabled: open,
+    staleTime: 30 * 1000,
+  });
+  const tagSuggestions = useMemo(
+    () => (tagDictionary?.data ?? []).map((item) => item.name),
+    [tagDictionary],
+  );
+  const { setTagDictionaryOpen } = useModels();
 
   // Fetch model detail if editing
   const { data: modelData } = useQuery({
@@ -1273,6 +1287,8 @@ export function ModelMutateDrawer({
                         value={field.value || []}
                         onChange={field.onChange}
                         placeholder={t("Add tags...")}
+                        suggestions={tagSuggestions}
+                        onManage={() => setTagDictionaryOpen(true)}
                       />
                     </FormControl>
                     <FormDescription>

@@ -51,6 +51,14 @@ export const prefillGroupsQueryKeys = {
 }
 
 /**
+ * React Query cache keys for the model tag dictionary
+ */
+export const modelTagsQueryKeys = {
+  all: ['model-tags'] as const,
+  lists: () => [...modelTagsQueryKeys.all, 'list'] as const,
+}
+
+/**
  * React Query cache keys for deployments
  */
 export const deploymentsQueryKeys = {

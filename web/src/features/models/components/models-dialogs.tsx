@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { DescriptionDialog } from './dialogs/description-dialog'
 import { MissingModelsDialog } from './dialogs/missing-models-dialog'
+import { ModelTagDictionaryDialog } from './dialogs/model-tag-dictionary-dialog'
 import { PrefillGroupManagement } from './dialogs/prefill-group-management'
 import { SyncWizardDialog } from './dialogs/sync-wizard-dialog'
 import { UpstreamConflictDialog } from './dialogs/upstream-conflict-dialog'
@@ -33,10 +34,17 @@ export function ModelsDialogs() {
     currentVendor,
     descriptionData,
     setDescriptionData,
+    tagDictionaryOpen,
+    setTagDictionaryOpen,
   } = useModels()
 
   return (
     <>
+      {/* Model tag dictionary (independent of the model drawer) */}
+      <ModelTagDictionaryDialog
+        open={tagDictionaryOpen}
+        onOpenChange={setTagDictionaryOpen}
+      />
       {/* Model Create/Update Drawer */}
       <ModelMutateDrawer
         open={open === 'create-model' || open === 'update-model'}

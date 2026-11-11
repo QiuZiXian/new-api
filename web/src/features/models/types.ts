@@ -92,6 +92,22 @@ export interface PrefillGroup {
   description?: string
 }
 
+/** Managed dictionary entry offered as a selectable model tag. */
+export interface ModelTag {
+  id: number
+  name: string
+  sort: number
+  created_time: number
+  updated_time: number
+}
+
+/** GET /api/model_tags/ response. */
+export interface ModelTagsResponse {
+  success: boolean
+  message?: string
+  data?: ModelTag[]
+}
+
 // ============================================================================
 // API Request/Response Types
 // ============================================================================

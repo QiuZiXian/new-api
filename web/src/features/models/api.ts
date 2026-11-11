@@ -31,6 +31,8 @@ import type {
   PreviewUpstreamDiffResponse,
   MissingModelsResponse,
   PrefillGroupsResponse,
+  ModelTag,
+  ModelTagsResponse,
   SyncLocale,
   SyncSource,
   SyncOverwritePayload,
@@ -629,5 +631,47 @@ export async function checkClusterNameAvailability(name: string): Promise<{
   const res = await api.get('/api/deployments/check-name', {
     params: { name },
   })
+  return res.data
+}
+
+// ============================================================================
+// Model Tag Dictionary
+// ============================================================================
+
+export async function getModelTags(): Promise<ModelTagsResponse> {
+  const res = await api.get('/api/model_tags/')
+  return res.data
+}
+
+export async function createModelTag(payload: {
+  name: string
+  sort?: number
+}): Promise<{ success: boolean; message?: string; data?: ModelTag }> {
+  const res = await api.post('/api/model_tags/', payload)
+  return res.data
+}
+
+export async function updateModelTag(payload: {
+  id: number
+  name: string
+  sort?: number
+}): Promise<{ success: boolean; message?: string; data?: ModelTag }> {
+  const res = await api.put('/api/model_tags/', payload)
+  return res.data
+}
+
+export async function deleteModelTag(
+  id: number
+): Promise<{ success: boolean; message?: string }> {
+  const res = await api.delete(`/api/model_tags/${id}`)
+  return res.data
+}
+
+export async function importModelTags(): Promise<{
+  success: boolean
+  message?: string
+  data?: { added?: number }
+}> {
+  const res = await api.post('/api/model_tags/import')
   return res.data
 }

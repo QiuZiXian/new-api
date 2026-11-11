@@ -137,6 +137,8 @@ export type PricingData = {
   message?: string
   data: PricingModel[]
   vendors: PricingVendor[]
+  /** Managed tag dictionary order, shared with the model metadata admin page. */
+  model_tags?: string[]
   group_ratio: Record<string, number>
   usable_group: Record<string, { desc: string; ratio: number }>
   supported_endpoint: Record<string, string>

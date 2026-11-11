@@ -358,6 +358,17 @@ func SetApiRouter(router *gin.Engine) {
 			modelsRoute.DELETE("/:id", controller.DeleteModelMeta)
 		}
 
+		// Model tag dictionary: managed options for model metadata tags.
+		modelTagsRoute := apiRouter.Group("/model_tags")
+		modelTagsRoute.Use(middleware.AdminAuth())
+		{
+			modelTagsRoute.GET("/", controller.GetModelTags)
+			modelTagsRoute.POST("/", controller.CreateModelTag)
+			modelTagsRoute.PUT("/", controller.UpdateModelTag)
+			modelTagsRoute.DELETE("/:id", controller.DeleteModelTag)
+			modelTagsRoute.POST("/import", controller.ImportModelTags)
+		}
+
 		// Deployments (model deployment management)
 		deploymentsRoute := apiRouter.Group("/deployments")
 		deploymentsRoute.Use(middleware.AdminAuth())

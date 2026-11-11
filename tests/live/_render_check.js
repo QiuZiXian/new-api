@@ -62,8 +62,10 @@ check("模型 ID", txt("#docModelId") === "qwen-image-3.0-pro", txt("#docModelId
 check("计费徽标", txt("#billingBadge") === "按张计费", txt("#billingBadge"));
 check("接口地址", txt("#epUrl").endsWith("/v1/images/generations"), txt("#epUrl"));
 check("价格表头", has("#priceHead", "单价（CNY / 张）"));
-check("价格含 0.18", has("#priceBody", "0.18 CNY"));
+check("价格含 1K 0.25", has("#priceBody", "0.25 CNY"));
+check("价格含 2K 0.50", has("#priceBody", "0.50 CNY"));
 check("价格含输入 0.02", has("#priceBody", "0.02 CNY"));
+check("价格标注销售单价口径", txt("#priceNote").includes("以下为当前接口的销售单价") && txt("#priceNote").includes("最终费用以实际调用用量和消费记录为准"));
 check("请求参数含 parameters.n", has("#paramBody", "parameters.n"));
 check("响应参数含 output_image_count", has("#respBody", "output_image_count"));
 check("示例含 input.messages", txt("#sampleCode").includes("input"), "");

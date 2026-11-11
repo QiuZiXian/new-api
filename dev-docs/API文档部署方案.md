@@ -533,15 +533,15 @@ curl -s http://www.qsykai.com:33000/api/pricing | head -c 300
 
 ### 已接入的图像模型
 
-`qwen-image-3.0-pro`：`POST /v1/images/generations`，同步返回，按张计费（输出 0.18、输入 0.02，1K/2K 同价）。价格取自线上 `/api/pricing` 的 `image_count_price` 字段，不是手写。
+`qwen-image-3.0-pro`：`POST /v1/images/generations`，同步返回，按张计费（输出 1K 0.25、2K 0.50，输入参考图 0.02）。价格取自线上 `/api/pricing` 的 `image_count_price` 字段，不是手写；改价后需重新核对文档。
 
-### 已知限制（写文档时必须避开）
+### parameters 的透传规则
 
-平台侧 `parameters` 只透传 `AliImageParameters` 里的字段：`size / n / watermark / prompt_extend / seed / steps / scale / thinking_mode / enable_sequential / bbox_list / color_palette`。
+`relay/channel/ali/dto.go` 的 `AliImageParameters` 现在声明了 `size / n / prompt_extend / prompt_extend_mode / negative_prompt / seed / watermark / steps / scale / thinking_mode / enable_sequential / bbox_list / color_palette`，并带 `Extra map[string]json.RawMessage` 兜底：**未声明的上游新参数会在序列化时平铺回 `parameters`**，不再被静默丢弃。
 
-上游手册里的 `negative_prompt`、`prompt_extend_mode` **不在该结构体内，传进 `parameters` 会被静默丢弃**（反序列化时丢弃，不会报错，也不会有日志）。文档已按平台实际能力编写，并在概览中明示。若业务上需要这两个参数，要先扩 `relay/channel/ali/dto.go` 的 `AliImageParameters`。
+> 历史坑（2026-11-05 已修）：早期只有白名单结构体，`negative_prompt` 与 `prompt_extend_mode` 会被丢弃，且不报错、无日志。文档当时删掉了这两行；修复后已补回，并把概览里的"不会转发"提示换成"parameters 会原样转发到上游"。
 
-另外，该渠道走自定义 API 路径时，**顶层 OpenAI 风格的 `size` / `n` 不会自动映射**到 `parameters`，所以文档要求一律写在 `parameters` 内。
+仍存在的一条限制：该渠道走自定义 API 路径时，**顶层 OpenAI 风格的 `size` / `n` 不会自动映射**到 `parameters`，必须写在 `parameters` 内。
 
 ### 回归校验
 

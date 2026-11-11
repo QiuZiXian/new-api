@@ -21,11 +21,14 @@ import { useMemo, useState } from 'react'
 
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
 
-import { DEFAULT_PRICING_PAGE_SIZE, DEFAULT_TOKEN_UNIT } from '../constants'
+import { DEFAULT_TOKEN_UNIT } from '../constants'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelCard } from './model-card'
-import { NumericPagination } from './numeric-pagination'
 import type { ModelPerfBadgeData } from './model-perf-badge'
+import { NumericPagination } from './numeric-pagination'
+
+/** Two-column reference layout shows fewer, larger cards per page. */
+const CARD_PAGE_SIZE = 8
 
 export interface ModelCardGridProps {
   models: PricingModel[]
@@ -35,11 +38,12 @@ export interface ModelCardGridProps {
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
   selectedGroup?: string
+  docsLink?: string
 }
 
 export function ModelCardGrid(props: ModelCardGridProps) {
   const [page, setPage] = useState(1)
-  const pageSize = DEFAULT_PRICING_PAGE_SIZE
+  const pageSize = CARD_PAGE_SIZE
   const tokenUnit = props.tokenUnit ?? DEFAULT_TOKEN_UNIT
   const totalPages = Math.max(1, Math.ceil(props.models.length / pageSize))
   // Clamp instead of resetting in an effect so filter changes never
@@ -71,24 +75,22 @@ export function ModelCardGrid(props: ModelCardGridProps) {
   }
 
   return (
-    <div className='space-y-4 sm:space-y-5'>
-      {/* Light tinted panel so the raised cards read as floating cards */}
-      <div className='border-amber-200/60 rounded-2xl border bg-gradient-to-b from-amber-50/90 via-yellow-50/70 to-amber-50/90 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] sm:p-4 dark:border-amber-400/10 dark:from-amber-500/10 dark:via-amber-400/5 dark:to-amber-500/10 dark:shadow-none'>
-        <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5'>
-          {pagedModels.map((model) => (
-            <ModelCard
-              key={model.id ?? model.model_name}
-              model={model}
-              tokenUnit={tokenUnit}
-              priceRate={props.priceRate}
-              usdExchangeRate={props.usdExchangeRate}
-              showRechargePrice={props.showRechargePrice}
-              selectedGroup={props.selectedGroup}
-              perf={perfMap.get(model.model_name || '')}
-              onClick={() => props.onModelClick(model.model_name || '')}
-            />
-          ))}
-        </div>
+    <div className='space-y-5'>
+      <div className='grid grid-cols-1 items-stretch gap-3 lg:grid-cols-2'>
+        {pagedModels.map((model) => (
+          <ModelCard
+            key={model.id ?? model.model_name}
+            model={model}
+            tokenUnit={tokenUnit}
+            priceRate={props.priceRate}
+            usdExchangeRate={props.usdExchangeRate}
+            showRechargePrice={props.showRechargePrice}
+            selectedGroup={props.selectedGroup}
+            perf={perfMap.get(model.model_name || '')}
+            docsLink={props.docsLink}
+            onClick={() => props.onModelClick(model.model_name || '')}
+          />
+        ))}
       </div>
 
       <NumericPagination

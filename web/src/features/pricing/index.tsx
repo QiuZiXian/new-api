@@ -25,8 +25,9 @@ import {
   LoadingSkeleton,
   EmptyState,
   PricingHero,
-  SearchFilterRow,
-  VendorTabs,
+  PricingVendorRail,
+  PricingTagBar,
+  PricingApiBar,
   PricingToolbar,
   ModelCardGrid,
   ModelDetailsDrawer,
@@ -40,10 +41,13 @@ export function Pricing() {
   const [selectedModelName, setSelectedModelName] = useState<string | null>(
     null
   )
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false)
 
   const {
     models,
     vendors,
+    dictionaryTags,
+    docsLink,
     groupRatio,
     usableGroup,
     endpointMap,
@@ -79,7 +83,7 @@ export function Pricing() {
     availableTags,
     clearFilters,
     clearSearch,
-  } = useFilters(models || [])
+  } = useFilters(models || [], dictionaryTags)
 
   const handleModelClick = useCallback((modelName: string) => {
     setSelectedModelName(modelName)
@@ -101,11 +105,6 @@ export function Pricing() {
         (g) => !EXCLUDED_GROUPS.includes(g)
       ),
     [usableGroup]
-  )
-
-  const vendorNames = useMemo(
-    () => (vendors || []).map((vendor) => vendor.name).filter(Boolean),
-    [vendors]
   )
 
   const handleClearAll = useCallback(() => {
@@ -134,6 +133,7 @@ export function Pricing() {
           tokenUnit={tokenUnit}
           showRechargePrice={showRechargePrice}
           selectedGroup={groupFilter}
+          docsLink={docsLink}
         />
       )
     }
@@ -155,7 +155,7 @@ export function Pricing() {
     return (
       <PublicLayout showMainContainer={false}>
         <PricingHero total={0} loading />
-        <div className='mx-auto w-full max-w-[1800px] px-3 pt-6 pb-8 sm:px-6 sm:pb-10 xl:px-8'>
+        <div className='mx-auto w-full max-w-[1400px] px-3 pt-6 pb-8 sm:px-6 sm:pb-10 xl:px-8'>
           <LoadingSkeleton viewMode={VIEW_MODES.CARD} />
         </div>
       </PublicLayout>
@@ -164,67 +164,71 @@ export function Pricing() {
 
   return (
     <PublicLayout showMainContainer={false}>
-      <PricingHero total={models?.length ?? 0} />
+      <PricingHero
+        total={models?.length ?? 0}
+        search={searchInput}
+        onSearchChange={setSearchInput}
+      />
 
-      <PageTransition className='relative mx-auto w-full max-w-[1800px] px-3 pt-5 pb-8 sm:px-6 sm:pb-10 xl:px-8'>
-        {/* Search + price range + billing method */}
-        <SearchFilterRow
-          search={searchInput}
-          onSearchChange={setSearchInput}
-          sortBy={sortBy}
-          onSortChange={setSortBy}
-          quotaType={quotaTypeFilter}
-          onQuotaTypeChange={setQuotaTypeFilter}
-          groups={availableGroups}
-          group={groupFilter}
-          onGroupChange={setGroupFilter}
-          groupRatios={groupRatio}
-          tags={availableTags}
-          tag={tagFilter}
-          onTagChange={setTagFilter}
-        />
-
-        {/* Vendor tabs */}
-        <VendorTabs
-          vendors={vendorNames}
-          value={vendorFilter}
-          onChange={setVendorFilter}
-          className='mt-4'
-        />
-
-        {/* Secondary filters & view controls */}
-        <div className='mt-3'>
-          <PricingToolbar
-            filteredCount={filteredModels.length}
-          totalCount={models?.length}
-          sortBy={sortBy}
-          onSortChange={setSortBy}
-          tokenUnit={tokenUnit}
-          onTokenUnitChange={setTokenUnit}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-          quotaTypeFilter={quotaTypeFilter}
-          endpointTypeFilter={endpointTypeFilter}
-          vendorFilter={vendorFilter}
-          groupFilter={groupFilter}
-          tagFilter={tagFilter}
-          onQuotaTypeChange={setQuotaTypeFilter}
-          onEndpointTypeChange={setEndpointTypeFilter}
-          onVendorChange={setVendorFilter}
-          onGroupChange={setGroupFilter}
-          onTagChange={setTagFilter}
-          vendors={vendors || []}
-          groups={availableGroups}
-          groupRatios={groupRatio}
-          tags={availableTags}
-          models={models || []}
-          hasActiveFilters={hasActiveFilters}
-          activeFilterCount={activeFilterCount}
-          onClearFilters={clearFilters}
+      <PageTransition className='relative mx-auto w-full max-w-[1400px] px-3 pt-5 pb-10 sm:px-6 xl:px-8'>
+        <div className='flex items-start gap-5'>
+          <PricingVendorRail
+            vendors={vendors || []}
+            models={models || []}
+            value={vendorFilter}
+            onChange={setVendorFilter}
+            className='sticky top-4 hidden w-52 shrink-0 xl:block'
           />
+
+          <div className='min-w-0 flex-1'>
+            <PricingTagBar
+              tags={availableTags}
+              value={tagFilter}
+              onChange={setTagFilter}
+              onOpenFilters={() => setFilterSheetOpen(true)}
+              onClearFilters={handleClearAll}
+              hasActiveFilters={hasActiveFilters || Boolean(searchInput)}
+              activeFilterCount={activeFilterCount}
+            />
+
+            <div className='mt-1'>
+              <PricingToolbar
+                filteredCount={filteredModels.length}
+                totalCount={models?.length}
+                sortBy={sortBy}
+                onSortChange={setSortBy}
+                tokenUnit={tokenUnit}
+                onTokenUnitChange={setTokenUnit}
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
+                quotaTypeFilter={quotaTypeFilter}
+                endpointTypeFilter={endpointTypeFilter}
+                vendorFilter={vendorFilter}
+                groupFilter={groupFilter}
+                tagFilter={tagFilter}
+                onQuotaTypeChange={setQuotaTypeFilter}
+                onEndpointTypeChange={setEndpointTypeFilter}
+                onVendorChange={setVendorFilter}
+                onGroupChange={setGroupFilter}
+                onTagChange={setTagFilter}
+                vendors={vendors || []}
+                groups={availableGroups}
+                groupRatios={groupRatio}
+                tags={availableTags}
+                models={models || []}
+                hasActiveFilters={hasActiveFilters}
+                activeFilterCount={activeFilterCount}
+                onClearFilters={clearFilters}
+                filterSheetOpen={filterSheetOpen}
+                onFilterSheetOpenChange={setFilterSheetOpen}
+              />
+            </div>
+
+            <div className='mt-3'>{renderPricingContent()}</div>
+          </div>
         </div>
 
-        <div className='mt-4'>{renderPricingContent()}</div>
+        <PricingApiBar docsLink={docsLink} />
 
         {selectedModel && (
           <ModelDetailsDrawer

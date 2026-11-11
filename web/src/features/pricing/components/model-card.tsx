@@ -16,14 +16,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Copy } from 'lucide-react'
-import { memo, type ReactNode } from 'react'
+import { BookOpen, Copy, Play } from 'lucide-react'
+import {
+  memo,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { getLobeIcon } from '@/lib/lobe-icon'
-import { cn } from '@/lib/utils'
 
+import { Button } from '@/components/ui/button'
 import { DEFAULT_TOKEN_UNIT } from '../constants'
 import {
   getDynamicDisplayGroupRatio,
@@ -43,15 +48,9 @@ export interface ModelCardProps {
   showRechargePrice?: boolean
   selectedGroup?: string
   perf?: unknown
+  /** Documentation link configured under system-settings/billing/quota. */
+  docsLink?: string
 }
-
-const TAG_PALETTES = [
-  'bg-emerald-50 text-emerald-600 border-emerald-200/70 dark:bg-emerald-400/10 dark:text-emerald-300 dark:border-emerald-400/20',
-  'bg-sky-50 text-sky-600 border-sky-200/70 dark:bg-sky-400/10 dark:text-sky-300 dark:border-sky-400/20',
-  'bg-cyan-50 text-cyan-600 border-cyan-200/70 dark:bg-cyan-400/10 dark:text-cyan-300 dark:border-cyan-400/20',
-  'bg-violet-50 text-violet-600 border-violet-200/70 dark:bg-violet-400/10 dark:text-violet-300 dark:border-violet-400/20',
-  'bg-amber-50 text-amber-600 border-amber-200/70 dark:bg-amber-400/10 dark:text-amber-300 dark:border-amber-400/20',
-] as const
 
 const CAPABILITY_SHORT_LABELS: Partial<Record<ModelCapability, string>> = {
   function_calling: 'Function calling',
@@ -66,12 +65,34 @@ const CAPABILITY_SHORT_LABELS: Partial<Record<ModelCapability, string>> = {
   tools: 'Tools',
 }
 
-function tagPalette(tag: string): string {
-  let hash = 0
-  for (let i = 0; i < tag.length; i++) {
-    hash = (hash * 31 + tag.charCodeAt(i)) | 0
-  }
-  return TAG_PALETTES[Math.abs(hash) % TAG_PALETTES.length]
+function CardArtwork({ video }: { video: boolean }) {
+  return (
+    <div className='bg-[linear-gradient(135deg,#eaf4ff,#cfe2ff)] relative h-full min-h-[132px] w-full overflow-hidden rounded-lg dark:bg-[linear-gradient(135deg,rgba(30,64,175,0.35),rgba(15,23,42,0.4))]'>
+      <div className='absolute -top-8 -right-8 size-24 rounded-full bg-white/40 blur-2xl dark:bg-blue-400/10' />
+      <svg
+        viewBox='0 0 200 140'
+        className='absolute inset-0 h-full w-full'
+        aria-hidden='true'
+      >
+        <g stroke='rgba(37,99,235,0.45)' strokeWidth='1' fill='none'>
+          <path d='M100 18 L162 52 L100 86 L38 52 Z' fill='rgba(147,197,253,0.55)' />
+          <path d='M38 52 L100 86 L100 132 L38 98 Z' fill='rgba(59,130,246,0.30)' />
+          <path d='M162 52 L100 86 L100 132 L162 98 Z' fill='rgba(96,165,250,0.45)' />
+          <path d='M69 35 L131 69 M131 35 L69 69 M69 70 L69 116 M131 70 L131 116' strokeDasharray='3 4' opacity='0.55' />
+          <circle cx='100' cy='18' r='2.5' fill='#2563eb' stroke='none' />
+          <circle cx='38' cy='52' r='2' fill='#2563eb' stroke='none' />
+          <circle cx='162' cy='52' r='2' fill='#2563eb' stroke='none' />
+        </g>
+      </svg>
+      {video && (
+        <span className='absolute inset-0 flex items-center justify-center'>
+          <span className='flex size-9 items-center justify-center rounded-full border border-white/80 bg-white/70 text-blue-600 shadow-sm backdrop-blur-sm dark:border-white/20 dark:bg-white/15 dark:text-white'>
+            <Play className='size-4 fill-current' />
+          </span>
+        </span>
+      )}
+    </div>
+  )
 }
 
 export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
@@ -86,16 +107,17 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const tags = parseTags(props.model.tags)
   const capabilities = props.model.capabilities ?? []
   const modelIconKey = props.model.icon || props.model.vendor_icon
-  const modelIcon = modelIconKey ? getLobeIcon(modelIconKey, 32) : null
+  const modelIcon = modelIconKey ? getLobeIcon(modelIconKey, 20) : null
   const initial = props.model.model_name?.charAt(0).toUpperCase() || '?'
   const isDynamicPricing =
     props.model.billing_mode === 'tiered_expr' &&
     Boolean(props.model.billing_expr)
   const isHot = tags.some((tag) => ['hot', '热门'].includes(tag.toLowerCase()))
-  // Badge text is configured per model in the admin; empty means "no badge".
-  // The legacy tag-derived HOT badge stays as a fallback for existing setups.
   const hotBadgeText = props.model.hot_label?.trim() || (isHot ? 'HOT' : '')
   const discountLabel = props.model.discount_label?.trim() ?? ''
+  const isVideo =
+    /video|视频/i.test(`${props.model.model_name} ${props.model.tags ?? ''}`) ||
+    props.model.supported_endpoint_types?.includes('openai-video') === true
 
   const dynamicSummary = isDynamicPricing
     ? getDynamicPricingSummary(props.model, {
@@ -113,8 +135,6 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   let priceLabel: string
   let priceValue: ReactNode
   let priceUnit: string
-  // Secondary line under the main price: input price shown in smaller text.
-  let inputPrice: { label: string; value: string; unit: string } | null = null
   if (dynamicSummary && dynamicSummary.primaryEntries.length > 0) {
     const outputEntry = dynamicSummary.primaryEntries.find(
       (item) => item.field === 'outputPrice'
@@ -123,16 +143,6 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
     priceLabel = t(entry.shortLabel)
     priceValue = entry.formatted
     priceUnit = ''
-    const inputEntry = dynamicSummary.primaryEntries.find(
-      (item) => item.field === 'inputPrice'
-    )
-    if (inputEntry && inputEntry !== entry) {
-      inputPrice = {
-        label: t(inputEntry.shortLabel),
-        value: inputEntry.formatted,
-        unit: '',
-      }
-    }
   } else if (isTokenBased) {
     priceLabel = t('Output')
     priceValue = formatPrice(
@@ -145,19 +155,6 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       props.selectedGroup
     )
     priceUnit = ` /${tokenUnitLabel}`
-    inputPrice = {
-      label: t('Input'),
-      value: formatPrice(
-        props.model,
-        'input',
-        tokenUnit,
-        showRechargePrice,
-        priceRate,
-        usdExchangeRate,
-        props.selectedGroup
-      ),
-      unit: ` /${tokenUnitLabel}`,
-    }
   } else {
     priceLabel = ''
     priceValue = formatRequestPrice(
@@ -176,14 +173,26 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       .slice(0, 2)
       .map((capability) => CAPABILITY_SHORT_LABELS[capability])
       .filter((label): label is string => Boolean(label)),
-  ].slice(0, 4)
+  ].slice(0, 3)
 
-  const handleCopy = (e: React.MouseEvent) => {
+  const handleCopy = (e: ReactMouseEvent) => {
     e.stopPropagation()
     copyToClipboard(props.model.model_name || '')
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleDocs = (e: ReactMouseEvent) => {
+    e.stopPropagation()
+    const target = props.docsLink?.trim() || '/docs'
+    window.open(target, '_blank', 'noopener,noreferrer')
+  }
+
+  const handleDetails = (e: ReactMouseEvent) => {
+    e.stopPropagation()
+    props.onClick()
+  }
+
+  const handleKeyDown = (e: ReactKeyboardEvent) => {
+    if (e.target !== e.currentTarget) return
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
       props.onClick()
@@ -196,105 +205,102 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       tabIndex={0}
       onClick={props.onClick}
       onKeyDown={handleKeyDown}
-      className='group border-border/50 hover:border-blue-500/40 relative flex cursor-pointer flex-col items-center overflow-hidden rounded-2xl border bg-gradient-to-b from-card via-card to-muted/45 px-4 pt-8 pb-4 text-center shadow-[0_1px_2px_rgba(15,23,42,0.06),0_10px_22px_-12px_rgba(15,23,42,0.20),inset_0_1px_0_rgba(255,255,255,0.85)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_38px_-16px_rgba(37,99,235,0.42),inset_0_1px_0_rgba(255,255,255,0.9)] dark:border-white/10 dark:shadow-[0_12px_26px_-14px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.06)]'
+      className='group border-border/60 hover:border-blue-400/70 bg-card relative flex cursor-pointer gap-3 overflow-hidden rounded-xl border p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_28px_-16px_rgba(37,99,235,0.45)] dark:border-white/10'
     >
-      {/* Top-left popularity badge, text comes from backend settings */}
-      {hotBadgeText && (
-        <span className='absolute top-2.5 left-2.5 z-20 rounded-full bg-gradient-to-r from-orange-400 to-red-500 px-2.5 py-[3px] text-[12px] leading-none font-bold tracking-wide text-white shadow-[0_2px_6px_-1px_rgba(249,115,22,0.55)]'>
-          {hotBadgeText}
-        </span>
-      )}
-
-      {/* Top-right discount ribbon, text comes from backend settings */}
-      {discountLabel && (
-        <div className='pointer-events-none absolute top-0 right-0 z-20 h-16 w-16 overflow-hidden rounded-tr-2xl'>
-          <span className='absolute top-[14px] right-[-30px] w-24 rotate-45 overflow-hidden bg-gradient-to-r from-rose-500 to-red-500 py-[3px] text-center text-[10px] leading-[14px] font-bold tracking-wide text-ellipsis whitespace-nowrap text-white shadow-[0_2px_8px_-2px_rgba(225,29,72,0.6)]'>
-            {discountLabel}
+      <div className='flex min-w-0 flex-1 flex-col'>
+        <div className='flex items-center gap-1.5'>
+          <span className='border-border/60 bg-background flex size-5 shrink-0 items-center justify-center rounded border text-[10px] font-bold'>
+            {modelIcon || initial}
           </span>
-        </div>
-      )}
-
-      {/* Top-right badges: tiered pricing + hover copy */}
-      <div
-        className={cn(
-          'absolute top-2.5 z-10 flex items-center justify-end gap-1.5',
-          discountLabel ? 'right-16' : 'right-2.5'
-        )}
-      >
-        {isDynamicPricing && !dynamicSummary?.isSpecialExpression && (
-          <span className='border-amber-300/80 bg-amber-50 text-amber-600 rounded-full border px-2 py-0.5 text-[10px] leading-none font-medium dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300'>
-            {t('Tiered pricing')}
+          <span className='text-muted-foreground truncate text-xs font-medium'>
+            {props.model.vendor_name || t('Unknown vendor')}
           </span>
-        )}
-        <button
-          type='button'
-          onClick={handleCopy}
-          className='border-border/60 bg-background/90 text-muted-foreground hover:text-foreground rounded-md border p-1.5 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100'
-          title={t('Copy')}
-          aria-label={t('Copy')}
-        >
-          <Copy className='size-3.5' />
-        </button>
-      </div>
-
-      {/* Icon + name + vendor */}
-      <div className='border-border/50 bg-background/80 flex size-14 shrink-0 items-center justify-center rounded-2xl border shadow-[0_2px_8px_-3px_rgba(15,23,42,0.18)] dark:bg-muted/40'>
-        {modelIcon || (
-          <span className='text-muted-foreground text-lg font-bold'>
-            {initial}
-          </span>
-        )}
-      </div>
-      <h3
-        className='text-foreground mt-3 max-w-full truncate text-[15px] leading-tight font-semibold'
-        title={props.model.model_name}
-      >
-        {props.model.model_name}
-      </h3>
-      {props.model.vendor_name && (
-        <p className='text-muted-foreground/80 mt-0.5 truncate text-xs'>
-          {props.model.vendor_name}
-        </p>
-      )}
-
-      {/* Capability / tag pills */}
-      {displayTags.length > 0 && (
-        <div className='mt-2.5 flex max-w-full flex-wrap items-center justify-center gap-1'>
-          {displayTags.map((tag) => (
-            <span
-              key={tag}
-              className={cn(
-                'rounded border px-1.5 py-0.5 text-[10px] leading-none whitespace-nowrap',
-                tagPalette(tag)
-              )}
-            >
-              {tag}
+          {hotBadgeText && (
+            <span className='shrink-0 rounded-full bg-gradient-to-r from-orange-400 to-red-500 px-1.5 py-px text-[10px] leading-4 font-bold text-white'>
+              {hotBadgeText}
             </span>
-          ))}
+          )}
+          {discountLabel && (
+            <span className='shrink-0 rounded border border-rose-300 bg-rose-50 px-1.5 py-px text-[10px] leading-4 text-rose-600 dark:border-rose-400/30 dark:bg-rose-400/10 dark:text-rose-300'>
+              {discountLabel}
+            </span>
+          )}
         </div>
-      )}
 
-      {/* Price footer */}
-      <div className='border-border/50 mt-3 w-full border-t pt-3'>
-        <div className='flex items-baseline justify-center gap-1'>
-          {priceLabel && (
-            <span className='text-muted-foreground text-xs'>{priceLabel}</span>
-          )}
-          <span className='font-mono text-[18px] font-bold text-red-500 tabular-nums dark:text-red-400'>
-            {priceValue}
-          </span>
-          {priceUnit && (
-            <span className='text-muted-foreground text-xs'>{priceUnit}</span>
-          )}
-        </div>
-        {inputPrice && (
-          <div className='text-muted-foreground/70 mt-0.5 flex items-baseline justify-center gap-1 text-[11px] leading-none'>
-            <span>{inputPrice.label}</span>
-            <span className='font-mono tabular-nums'>{inputPrice.value}</span>
-            {inputPrice.unit && <span>{inputPrice.unit}</span>}
+        <h3
+          className='text-foreground mt-1.5 truncate text-[15px] leading-tight font-semibold'
+          title={props.model.model_name}
+        >
+          {props.model.model_name}
+        </h3>
+
+        {displayTags.length > 0 && (
+          <div className='mt-1.5 flex flex-wrap items-center gap-1'>
+            {displayTags.map((tag) => (
+              <span
+                key={tag}
+                className='border-border/70 bg-muted/60 text-muted-foreground rounded border px-1.5 py-0.5 text-[10px] leading-none whitespace-nowrap'
+              >
+                {tag}
+              </span>
+            ))}
           </div>
         )}
+
+        {props.model.description && (
+          <p className='text-muted-foreground/90 mt-1.5 line-clamp-2 text-xs leading-relaxed'>
+            {props.model.description}
+          </p>
+        )}
+
+        <div className='mt-2 flex items-baseline gap-1'>
+          <span className='text-muted-foreground text-[11px]'>
+            {priceLabel || t('Price')}
+          </span>
+          <span className='font-mono text-lg font-bold text-red-500 tabular-nums dark:text-red-400'>
+            {priceValue}
+          </span>
+          <span className='text-muted-foreground text-[11px]'>{priceUnit}</span>
+        </div>
+
+        <div className='mt-auto flex flex-wrap items-center gap-2 pt-3'>
+          <Button
+            size='sm'
+            onClick={handleDocs}
+            className='h-7 gap-1 px-2.5 text-xs'
+          >
+            <BookOpen className='size-3.5' />
+            {t('Online Documentation')}
+          </Button>
+          <Button
+            size='sm'
+            variant='outline'
+            onClick={handleDetails}
+            className='h-7 px-2.5 text-xs'
+          >
+            {t('Model Details')}
+          </Button>
+        </div>
       </div>
+
+      <div className='hidden w-32 shrink-0 sm:block lg:w-40'>
+        <CardArtwork video={isVideo} />
+      </div>
+
+      <button
+        type='button'
+        onClick={handleCopy}
+        className='border-border/60 bg-background/90 text-muted-foreground hover:text-foreground absolute top-2 right-2 z-10 rounded-md border p-1.5 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100'
+        title={t('Copy')}
+        aria-label={t('Copy')}
+      >
+        <Copy className='size-3.5' />
+      </button>
+      {isDynamicPricing && !dynamicSummary?.isSpecialExpression && (
+        <span className='border-amber-300/80 bg-amber-50 text-amber-600 absolute right-2 bottom-2 rounded-full border px-2 py-0.5 text-[10px] leading-none font-medium dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300'>
+          {t('Tiered pricing')}
+        </span>
+      )}
     </div>
   )
 })

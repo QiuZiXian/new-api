@@ -62,9 +62,16 @@ export function usePricingData() {
     })
   }, [data])
 
+  // Tag dictionary maintained under models/metadata drives the square's tag
+  // filter order. Keep the array stable so downstream memoization is effective.
+  const dictionaryTags = useMemo(() => data?.model_tags ?? [], [data])
+  const docsLink = (status?.docs_link as string | undefined)?.trim() ?? ''
+
   return {
     models,
     vendors: data?.vendors ?? [],
+    dictionaryTags,
+    docsLink,
     groupRatio: data?.group_ratio ?? {},
     usableGroup: data?.usable_group ?? {},
     endpointMap: data?.supported_endpoint ?? {},

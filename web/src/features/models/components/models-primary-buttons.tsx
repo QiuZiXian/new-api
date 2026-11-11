@@ -23,6 +23,7 @@ import {
   List,
   Building2,
   AlertCircle,
+  Tags,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -40,7 +41,7 @@ import { useModels } from './models-provider'
 
 export function ModelsPrimaryButtons() {
   const { t } = useTranslation()
-  const { setOpen, setCurrentRow } = useModels()
+  const { setOpen, setCurrentRow, setTagDictionaryOpen } = useModels()
 
   const handleCreateModel = () => {
     setCurrentRow(null)
@@ -61,6 +62,10 @@ export function ModelsPrimaryButtons() {
 
   const handleManageVendors = () => {
     setOpen('create-vendor') // Will be a separate vendors management dialog
+  }
+
+  const handleTagDictionary = () => {
+    setTagDictionaryOpen(true)
   }
 
   return (
@@ -104,6 +109,13 @@ export function ModelsPrimaryButtons() {
             {t('Manage Vendors')}
             <DropdownMenuShortcut>
               <Building2 className='h-4 w-4' />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+
+          <DropdownMenuItem onClick={handleTagDictionary}>
+            {t('Model Tag Dictionary')}
+            <DropdownMenuShortcut>
+              <Tags className='h-4 w-4' />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
         </DropdownMenuContent>
