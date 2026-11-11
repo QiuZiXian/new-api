@@ -27,9 +27,11 @@ import { useTranslation } from 'react-i18next'
 
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { getLobeIcon } from '@/lib/lobe-icon'
+import { cn } from '@/lib/utils'
 
 import { Button } from '@/components/ui/button'
 import { DEFAULT_TOKEN_UNIT } from '../constants'
+import { getCardArtworkUrl, isVideoModel } from '../lib/artwork'
 import {
   getDynamicDisplayGroupRatio,
   getDynamicPricingSummary,
@@ -65,7 +67,27 @@ const CAPABILITY_SHORT_LABELS: Partial<Record<ModelCapability, string>> = {
   tools: 'Tools',
 }
 
-function CardArtwork({ video }: { video: boolean }) {
+/** Stable pastel palette so every tag keeps the same color across renders. */
+const TAG_PALETTES = [
+  'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-400/10 dark:text-rose-300 dark:border-rose-400/25',
+  'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-400/10 dark:text-amber-300 dark:border-amber-400/25',
+  'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-400/10 dark:text-emerald-300 dark:border-emerald-400/25',
+  'bg-sky-50 text-sky-600 border-sky-200 dark:bg-sky-400/10 dark:text-sky-300 dark:border-sky-400/25',
+  'bg-indigo-50 text-indigo-600 border-indigo-200 dark:bg-indigo-400/10 dark:text-indigo-300 dark:border-indigo-400/25',
+  'bg-violet-50 text-violet-600 border-violet-200 dark:bg-violet-400/10 dark:text-violet-300 dark:border-violet-400/25',
+  'bg-fuchsia-50 text-fuchsia-600 border-fuchsia-200 dark:bg-fuchsia-400/10 dark:text-fuchsia-300 dark:border-fuchsia-400/25',
+  'bg-teal-50 text-teal-600 border-teal-200 dark:bg-teal-400/10 dark:text-teal-300 dark:border-teal-400/25',
+] as const
+
+function tagPalette(tag: string): string {
+  let hash = 0
+  for (let i = 0; i < tag.length; i++) {
+    hash = (hash * 31 + tag.charCodeAt(i)) | 0
+  }
+  return TAG_PALETTES[Math.abs(hash) % TAG_PALETTES.length]
+}
+
+function CardArtwork({ video, imageUrl }: { video: boolean; imageUrl: string }) {
   return (
     <div className='bg-[linear-gradient(135deg,#eaf4ff,#cfe2ff)] relative h-full min-h-[132px] w-full overflow-hidden rounded-lg dark:bg-[linear-gradient(135deg,rgba(30,64,175,0.35),rgba(15,23,42,0.4))]'>
       <div className='absolute -top-8 -right-8 size-24 rounded-full bg-white/40 blur-2xl dark:bg-blue-400/10' />
@@ -84,6 +106,17 @@ function CardArtwork({ video }: { video: boolean }) {
           <circle cx='162' cy='52' r='2' fill='#2563eb' stroke='none' />
         </g>
       </svg>
+      {/* External placeholder artwork; falls back to the gradient above on error. */}
+      <img
+        src={imageUrl}
+        alt=''
+        loading='lazy'
+        referrerPolicy='no-referrer'
+        onError={(event) => {
+          event.currentTarget.style.display = 'none'
+        }}
+        className='absolute inset-0 h-full w-full object-cover'
+      />
       {video && (
         <span className='absolute inset-0 flex items-center justify-center'>
           <span className='flex size-9 items-center justify-center rounded-full border border-white/80 bg-white/70 text-blue-600 shadow-sm backdrop-blur-sm dark:border-white/20 dark:bg-white/15 dark:text-white'>
@@ -115,9 +148,8 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const isHot = tags.some((tag) => ['hot', '热门'].includes(tag.toLowerCase()))
   const hotBadgeText = props.model.hot_label?.trim() || (isHot ? 'HOT' : '')
   const discountLabel = props.model.discount_label?.trim() ?? ''
-  const isVideo =
-    /video|视频/i.test(`${props.model.model_name} ${props.model.tags ?? ''}`) ||
-    props.model.supported_endpoint_types?.includes('openai-video') === true
+  const isVideo = isVideoModel(props.model)
+  const artworkUrl = getCardArtworkUrl(props.model)
 
   const dynamicSummary = isDynamicPricing
     ? getDynamicPricingSummary(props.model, {
@@ -135,6 +167,8 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   let priceLabel: string
   let priceValue: ReactNode
   let priceUnit: string
+  // Secondary line under the main price: input price shown in smaller text.
+  let inputPrice: { label: string; value: string; unit: string } | null = null
   if (dynamicSummary && dynamicSummary.primaryEntries.length > 0) {
     const outputEntry = dynamicSummary.primaryEntries.find(
       (item) => item.field === 'outputPrice'
@@ -143,6 +177,16 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
     priceLabel = t(entry.shortLabel)
     priceValue = entry.formatted
     priceUnit = ''
+    const inputEntry = dynamicSummary.primaryEntries.find(
+      (item) => item.field === 'inputPrice'
+    )
+    if (inputEntry && inputEntry !== entry) {
+      inputPrice = {
+        label: t(inputEntry.shortLabel),
+        value: inputEntry.formatted,
+        unit: '',
+      }
+    }
   } else if (isTokenBased) {
     priceLabel = t('Output')
     priceValue = formatPrice(
@@ -155,6 +199,19 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       props.selectedGroup
     )
     priceUnit = ` /${tokenUnitLabel}`
+    inputPrice = {
+      label: t('Input'),
+      value: formatPrice(
+        props.model,
+        'input',
+        tokenUnit,
+        showRechargePrice,
+        priceRate,
+        usdExchangeRate,
+        props.selectedGroup
+      ),
+      unit: ` /${tokenUnitLabel}`,
+    }
   } else {
     priceLabel = ''
     priceValue = formatRequestPrice(
@@ -239,7 +296,10 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             {displayTags.map((tag) => (
               <span
                 key={tag}
-                className='border-border/70 bg-muted/60 text-muted-foreground rounded border px-1.5 py-0.5 text-[10px] leading-none whitespace-nowrap'
+                className={cn(
+                  'rounded-full border px-2 py-0.5 text-[10px] leading-none font-medium whitespace-nowrap',
+                  tagPalette(tag)
+                )}
               >
                 {tag}
               </span>
@@ -262,6 +322,13 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
           </span>
           <span className='text-muted-foreground text-[11px]'>{priceUnit}</span>
         </div>
+        {inputPrice && (
+          <div className='text-muted-foreground/80 mt-0.5 flex items-baseline gap-1 text-[11px] leading-none'>
+            <span>{inputPrice.label}</span>
+            <span className='font-mono tabular-nums'>{inputPrice.value}</span>
+            <span>{inputPrice.unit}</span>
+          </div>
+        )}
 
         <div className='mt-auto flex flex-wrap items-center gap-2 pt-3'>
           <Button
@@ -284,7 +351,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       </div>
 
       <div className='hidden w-32 shrink-0 sm:block lg:w-40'>
-        <CardArtwork video={isVideo} />
+        <CardArtwork video={isVideo} imageUrl={artworkUrl} />
       </div>
 
       <button
