@@ -521,15 +521,10 @@ export const ModelPricingEditorPanel = forwardRef<
     }
 
     if (pricingMode === 'per-second') {
-      const tiers = fromSecondTierRows(secondTiers)
-      if (!tiers) {
+      // 只填了 720p/1080p 也是合法配置：提交时会自动用最低档价补 default，
+      // 与后端 GetVideoSecondBasePrice 的兜底口径一致，不再阻断保存。
+      if (!fromSecondTierRows(secondTiers)) {
         nextWarnings.push(t('Per-second billing needs at least one tier price.'))
-      } else if (!tiers[VIDEO_SECOND_DEFAULT_TIER]) {
-        nextWarnings.push(
-          t(
-            'A default tier price is required: it bills videos that omit a resolution.'
-          )
-        )
       }
     }
 
@@ -588,12 +583,11 @@ export const ModelPricingEditorPanel = forwardRef<
     }
 
     if (pricingMode === 'per-second') {
-      const tiers = fromSecondTierRows(secondTiers)
-      if (!tiers || !tiers[VIDEO_SECOND_DEFAULT_TIER]) {
+      // 缺少 default 档不再阻断：保存时自动补最低档价，否则管理员只填了
+      // 720p 会一直保存失败，表现为「配了按秒却仍提示先配置模型价格」。
+      if (!fromSecondTierRows(secondTiers)) {
         form.setError('name', {
-          message: t(
-            'Per-second billing needs a default tier price before saving.'
-          ),
+          message: t('Per-second billing needs at least one tier price.'),
         })
         return false
       }
@@ -635,7 +629,20 @@ export const ModelPricingEditorPanel = forwardRef<
       }
 
       if (pricingMode === 'per-second') {
-        data.videoSecondPrice = fromSecondTierRows(secondTiers)
+        const tiers = fromSecondTierRows(secondTiers)
+        if (tiers && tiers[VIDEO_SECOND_DEFAULT_TIER] === undefined) {
+          const positivePrices = Object.values(tiers)
+            .map((value) => Number(value))
+            .filter((value) => Number.isFinite(value) && value > 0)
+          // default 档用于请求未指定分辨率时计价；后端会以最低档价兜底，
+          // 这里显式补齐，保证前后端口径完全一致。
+          if (positivePrices.length > 0) {
+            tiers[VIDEO_SECOND_DEFAULT_TIER] = String(
+              Math.min(...positivePrices)
+            )
+          }
+        }
+        data.videoSecondPrice = tiers
       }
 
       if (pricingMode === 'per-image') {

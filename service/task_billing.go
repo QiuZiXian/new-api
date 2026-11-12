@@ -469,6 +469,14 @@ func RecalculateTaskQuotaBySeconds(ctx context.Context, task *model.Task, second
 		return
 	}
 
+	// 终态没回报分辨率档时，沿用预扣阶段生效的 video_variant 倍率。
+	// 否则会从高分档价回落到 default 基准价，把本该收的钱误退给用户。
+	if variant == "" {
+		if ratio, ok := bc.OtherRatios["video_variant"]; ok && ratio > 0 {
+			price *= ratio
+		}
+	}
+
 	actualQuota, clamp := common.QuotaFromFloatChecked(price * float64(seconds) * common.QuotaPerUnit * bc.GroupRatio)
 	reason := fmt.Sprintf("按秒重算：seconds=%d, variant=%s, price=%.6f, groupRatio=%.2f",
 		seconds, variant, price, bc.GroupRatio)

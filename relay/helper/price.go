@@ -22,8 +22,10 @@ import (
 func modelPriceNotConfiguredError(modelName string, userId int) error {
 	if model.IsAdmin(userId) {
 		return fmt.Errorf(
-			"模型 %s 的价格未配置。请前往「系统设置 → 运营设置」开启自用模式，或在「系统设置 → 分组与模型定价设置」中为该模型配置价格；"+
-				"Model %s price not configured. Go to System Settings → Operation Settings to enable self-use mode, or configure the model price in System Settings → Group & Model Pricing.",
+			"模型 %s 未配置可用价格。请前往「系统设置 → 计量计费 → 模型定价」为该模型配置按次 / 按秒 / 按张价格或 token 倍率；视频模型选择「按秒」后至少填写一个分辨率档单价，并点击页面底部保存。"+
+				"也可在「运营设置」开启自用模式绕过价格校验；"+
+				"Model %s has no usable price. Go to System Settings → Billing → Model Pricing and configure a per-request / per-second / per-image price or a token ratio; for per-second video models at least one resolution tier price is required."+
+				" Alternatively enable self-use mode under Operation Settings.",
 			modelName, modelName,
 		)
 	}
@@ -332,6 +334,14 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (hostt
 
 func HasModelBillingConfig(modelName string) bool {
 	if _, ok := ratio_setting.GetModelPrice(modelName, false); ok {
+		return true
+	}
+	// 只配了按秒 / 按张价格的模型同样是「已定价」，否则 /v1/models 会把它们
+	// 过滤掉，管理员在后台看到已生效、客户端却查不到模型。
+	if _, ok := ratio_setting.GetVideoSecondBasePrice(modelName); ok {
+		return true
+	}
+	if _, ok := ratio_setting.GetImageCountPrice(modelName); ok {
 		return true
 	}
 	if _, ok, _ := ratio_setting.GetModelRatio(modelName); ok {

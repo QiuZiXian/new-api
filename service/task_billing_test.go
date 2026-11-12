@@ -1336,6 +1336,44 @@ func TestSettle_VideoSecondFallsBackToSeconds(t *testing.T) {
 	assert.Equal(t, initQuota, getUserQuota(t, userID))
 }
 
+// TestSettle_VideoSecondKeepsPredeductedVariant 覆盖上游回报了真实时长、
+// 但没有回报分辨率档的情况：终态必须沿用预扣时生效的 video_variant 倍率，
+// 不能回落到 default 基准价，把本该收的钱误退给用户。
+func TestSettle_VideoSecondKeepsPredeductedVariant(t *testing.T) {
+	withVideoSecondPrice(t, `{"test-model":{"default":0.0005,"1080p":0.001}}`)
+
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 43, 43, 43
+	const initQuota, preConsumed = 100000, 500
+
+	seedUser(t, userID, initQuota)
+	seedToken(t, tokenID, userID, "sk-second-variant", initQuota)
+	seedChannel(t, channelID)
+	seedChargedAccounting(t, userID, channelID, tokenID, preConsumed, 1)
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	task.PrivateData.BillingContext.UseVideoSecond = true
+	task.PrivateData.BillingContext.GroupRatio = 1
+	task.PrivateData.BillingContext.OtherRatios = map[string]float64{
+		"seconds":       4,
+		"video_variant": 2,
+	}
+	task.PrivateData.BillingContext.EstimateOnlyRatios = []string{"seconds", "video_variant"}
+	require.NoError(t, model.DB.Create(task).Error)
+
+	taskResult := &relaycommon.TaskInfo{
+		Status:       model.TaskStatusSuccess,
+		VideoSeconds: 4,
+		// VideoVariant 故意留空：模拟上游 usage 只有时长、没有 SR。
+	}
+	settleTaskBillingOnComplete(ctx, &mockAdaptor{}, task, taskResult)
+
+	// 0.0005/s × 2(1080p 倍率) × 4s × 500000 quota/美元 = 2000 quota
+	assert.Equal(t, 2000, task.Quota)
+}
+
 // TestSettlementMultiplierSkipsEstimateOnly 校验结算倍率与预扣倍率的差异。
 func TestSettlementMultiplierSkipsEstimateOnly(t *testing.T) {
 	priceData := &types.PriceData{}

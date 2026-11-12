@@ -654,7 +654,9 @@ func truncateBase64(s string) string {
 //  3. 按秒定价的模型在缺少 token 时 → 用上游回报的真实时长重算
 //  4. 都不满足 → 保持预扣额度不变
 //
-// 说明：按秒定价只决定「展示 + 预扣」，结算仍以上游 token 为准，两种口径不混用。
+// 说明：doubao 这类回报 token 的渠道，按秒定价只决定「展示 + 预扣」，终态
+// 仍以上游 token 为准；ali / wan 这类不回报 token 的渠道，由适配器从 usage
+// 回报真实时长，走第 3 步按秒差额结算。两种口径不混用、不重复扣费。
 func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor, task *model.Task, taskResult *relaycommon.TaskInfo) {
 	// 0. 按次计费的任务不做差额结算
 	if bc := task.PrivateData.BillingContext; bc != nil && bc.PerCallBilling {

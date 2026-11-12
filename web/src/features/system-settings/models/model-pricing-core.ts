@@ -245,12 +245,26 @@ export function newSecondTierId(): string {
 }
 
 // resolvePricingMode 由已保存的定价数据回推编辑器的模式页签。
+// billingMode 只是前端派生字段，不会落库；真实配置在 VideoSecondPrice /
+// ImageCountPrice 里。因此必须同时看价格表，否则重新打开一个按秒模型会被
+// 回推成 per-token，再点保存就会把已生效的按秒配置整个抹掉。
 export function resolvePricingMode(
-  data?: Pick<ModelRatioData, 'billingMode' | 'price' | 'imageCountPrice'> | null
+  data?: Pick<
+    ModelRatioData,
+    'billingMode' | 'price' | 'imageCountPrice' | 'videoSecondPrice'
+  > | null
 ): PricingMode {
   if (data?.billingMode === 'tiered_expr') return 'tiered_expr'
-  if (data?.billingMode === 'per-second') return 'per-second'
-  if (data?.billingMode === 'per-image') return 'per-image'
+  const hasSecondTierPrice = Object.values(data?.videoSecondPrice ?? {}).some(
+    (value) => Number(value) > 0
+  )
+  if (data?.billingMode === 'per-second' || hasSecondTierPrice)
+    return 'per-second'
+  // free_first_output 是布尔开关，不能当成「已配置单价」。
+  const hasImagePrice = Object.entries(data?.imageCountPrice ?? {}).some(
+    ([key, value]) => key !== 'free_first_output' && Number(value) > 0
+  )
+  if (data?.billingMode === 'per-image' || hasImagePrice) return 'per-image'
   if (data?.price) return 'per-request'
   return 'per-token'
 }

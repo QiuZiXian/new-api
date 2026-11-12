@@ -17,6 +17,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
@@ -86,11 +87,29 @@ type AliVideoOutput struct {
 	Message       string `json:"message,omitempty"`
 }
 
-// AliUsage 使用统计
+// AliUsage 使用统计。终态响应里的真实时长与分辨率是「按秒计费」差额结算的
+// 唯一事实来源；上游不同版本会分别回报 duration / output_video_duration，
+// 因此两者都要接，避免按秒模型永远停在预扣额度。
 type AliUsage struct {
-	Duration   dto.IntValue `json:"duration,omitempty"`
-	VideoCount dto.IntValue `json:"video_count,omitempty"`
-	SR         dto.IntValue `json:"SR,omitempty"`
+	Duration            dto.IntValue `json:"duration,omitempty"`
+	VideoCount          dto.IntValue `json:"video_count,omitempty"`
+	SR                  dto.IntValue `json:"SR,omitempty"`
+	FPS                 dto.IntValue `json:"fps,omitempty"`
+	Ratio               string       `json:"ratio,omitempty"`
+	InputVideoDuration  dto.IntValue `json:"input_video_duration,omitempty"`
+	OutputVideoDuration dto.IntValue `json:"output_video_duration,omitempty"`
+}
+
+// billableSeconds 返回本次任务应计费的输出视频秒数。
+// 优先取上游客口径的「输出时长」，缺失时回落到通用 duration。
+func (u *AliUsage) billableSeconds() int {
+	if u == nil {
+		return 0
+	}
+	if seconds := int(u.OutputVideoDuration); seconds > 0 {
+		return seconds
+	}
+	return int(u.Duration)
 }
 
 type AliMetadata struct {
@@ -201,6 +220,9 @@ func sizeToResolution(size string) (string, error) {
 
 func ProcessAliOtherRatios(aliReq *AliVideoRequest) (map[string]float64, error) {
 	otherRatios := make(map[string]float64)
+	if aliReq == nil || aliReq.Parameters == nil {
+		return otherRatios, nil
+	}
 	aliRatios := map[string]map[string]float64{
 		"wan2.6-i2v": {
 			"720P":  1,
@@ -365,16 +387,19 @@ func (a *TaskAdaptor) convertToAliRequest(info *relaycommon.RelayInfo, req relay
 		},
 	}
 
-	// 处理分辨率映射
-	if req.Size != "" {
+	// 处理分辨率映射：对外协议既允许 size（"1280*720"），也允许原生
+	// resolution（"720p"）+ ratio（"16:9"）。两者写的是同一个上游字段，
+	// size 优先；ratio 只描述宽高比，不单独改变上游请求体。
+	resolutionInput := firstNonEmpty(req.Size, req.Resolution)
+	if resolutionInput != "" {
 		// text to video size must be contained *
-		if strings.Contains(req.Model, "t2v") && !strings.Contains(req.Size, "*") {
-			return nil, fmt.Errorf("invalid size: %s, example: %s", req.Size, "1920*1080")
+		if strings.Contains(req.Model, "t2v") && !strings.Contains(resolutionInput, "*") {
+			return nil, fmt.Errorf("invalid size: %s, example: %s", resolutionInput, "1920*1080")
 		}
-		if strings.Contains(req.Size, "*") {
-			aliReq.Parameters.Size = req.Size
+		if strings.Contains(resolutionInput, "*") {
+			aliReq.Parameters.Size = resolutionInput
 		} else {
-			resolution := strings.ToUpper(req.Size)
+			resolution := strings.ToUpper(resolutionInput)
 			// 支持 480p, 720p, 1080p 或 480P, 720P, 1080P
 			if !strings.HasSuffix(resolution, "P") {
 				resolution = resolution + "P"
@@ -444,8 +469,28 @@ func (a *TaskAdaptor) convertToAliRequest(info *relaycommon.RelayInfo, req relay
 	return aliReq, nil
 }
 
+// aliRequestVariant 把发往上游的分辨率归一成按秒价格表的档位名（"720p"）。
+// 请求既可能给 "1280*720" 这种 size，也可能给 "720P" 这种 resolution。
+func aliRequestVariant(aliReq *AliVideoRequest) string {
+	if aliReq == nil || aliReq.Parameters == nil {
+		return ""
+	}
+	if size := strings.TrimSpace(aliReq.Parameters.Size); size != "" {
+		resolution, err := sizeToResolution(size)
+		if err != nil {
+			return ""
+		}
+		return strings.ToLower(resolution)
+	}
+	return strings.ToLower(strings.TrimSpace(aliReq.Parameters.Resolution))
+}
+
 // EstimateBilling 根据用户请求参数计算 OtherRatios（时长、分辨率等）。
-// 在 ValidateRequestAndSetAction 之后、价格计算之前调用。
+// 在 ModelPriceHelperPerCall 之后调用，因此能读到 UseVideoSecond。
+//
+// 按秒模式与按 token / 按次模式的乘数必须分开：按秒价格本身已经是一秒的
+// 单价，分辨率差异由 video_variant 分档倍率表达，不能再叠加渠道内置的
+// resolution-* 倍率表（那是按 token 计费的相对口径），否则同一维度会收两次钱。
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
 	taskReq, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
@@ -457,10 +502,33 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 		return nil
 	}
 
-	// metadata can override Duration past standard request validation;
-	// cap it because it is used as a billing multiplier.
-	otherRatios := map[string]float64{
-		"seconds": float64(min(aliReq.Parameters.Duration, relaycommon.MaxTaskDurationSeconds)),
+	// metadata 可以越过标准请求校验改写 Duration；作为计费乘数前必须钳制。
+	duration := 0
+	if aliReq.Parameters != nil {
+		duration = aliReq.Parameters.Duration
+	}
+	seconds := min(duration, relaycommon.MaxTaskDurationSeconds)
+
+	if info != nil && info.PriceData.UseVideoSecond {
+		ratios := make(map[string]float64)
+		if ratio, ok := ratio_setting.GetVideoSecondVariantRatio(info.OriginModelName, aliRequestVariant(aliReq)); ok {
+			ratios["video_variant"] = ratio
+		}
+		if seconds > 0 {
+			ratios["seconds"] = float64(seconds)
+		}
+		if len(ratios) == 0 {
+			return nil
+		}
+		// 与 doubao 对齐：按秒的乘数只服务于预扣，终态按上游真实时长重算，
+		// 不能在 token 结算里再连乘一次。
+		info.PriceData.MarkOtherRatioEstimateOnly("video_variant", "seconds")
+		return ratios
+	}
+
+	otherRatios := make(map[string]float64)
+	if seconds > 0 {
+		otherRatios["seconds"] = float64(seconds)
 	}
 	ratios, err := ProcessAliOtherRatios(aliReq)
 	if err != nil {
@@ -584,6 +652,17 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		}
 	default:
 		taskResult.Status = model.TaskStatusQueued
+	}
+
+	// 按秒计费的终态事实来源：上游 usage 里的真实输出时长与分辨率档。
+	// 没有 usage 时保持 0，结算层会保留预扣额度，不猜时长。
+	if usage := aliResp.Usage; usage != nil {
+		if seconds := usage.billableSeconds(); seconds > 0 {
+			taskResult.VideoSeconds = min(seconds, relaycommon.MaxTaskDurationSeconds)
+		}
+		if sr := int(usage.SR); sr > 0 {
+			taskResult.VideoVariant = fmt.Sprintf("%dp", sr)
+		}
 	}
 
 	return &taskResult, nil
