@@ -30,7 +30,7 @@ import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
 
 import { Button } from '@/components/ui/button'
-import { DEFAULT_TOKEN_UNIT } from '../constants'
+import { DEFAULT_TOKEN_UNIT, QUOTA_TYPE_VALUES } from '../constants'
 import { getCardArtworkUrl, getProviderLogoUrl, isVideoModel } from '../lib/artwork'
 import {
   getDynamicDisplayGroupRatio,
@@ -109,6 +109,7 @@ function CardArtwork({ video, imageUrl }: { video: boolean; imageUrl: string }) 
       </svg>
       {/* External placeholder artwork; falls back to the gradient above on error. */}
       <img
+        key={imageUrl}
         src={imageUrl}
         alt=''
         loading='lazy'
@@ -217,6 +218,12 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       unit: ` /${tokenUnitLabel}`,
     }
   } else {
+    // 固定价形态共用 model_price，但单位由计费模式决定：按秒 / 按张
+    // 不能继续显示「/ request」，否则展示价与实际扣费口径对不上。
+    const unitByQuotaType: Record<number, string> = {
+      [QUOTA_TYPE_VALUES.PER_SECOND]: t('second'),
+      [QUOTA_TYPE_VALUES.IMAGE_COUNT]: t('image'),
+    }
     priceLabel = ''
     priceValue = formatRequestPrice(
       props.model,
@@ -225,7 +232,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       usdExchangeRate,
       props.selectedGroup
     )
-    priceUnit = ` / ${t('request')}`
+    priceUnit = ` / ${unitByQuotaType[props.model.quota_type] ?? t('request')}`
   }
 
   const displayTags = [
@@ -293,12 +300,24 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
           )}
         </div>
 
-        <h3
-          className='text-foreground mt-1.5 truncate text-[15px] leading-tight font-semibold'
-          title={props.model.model_name}
-        >
-          {props.model.model_name}
-        </h3>
+        <div className='mt-1.5 flex min-w-0 items-center gap-1'>
+          <h3
+            className='text-foreground min-w-0 truncate text-[15px] leading-tight font-semibold'
+            title={props.model.model_name}
+          >
+            {props.model.model_name}
+          </h3>
+          {/* 复制的是模型名称，按钮紧跟名称比浮在卡片右上角更容易理解。 */}
+          <button
+            type='button'
+            onClick={handleCopy}
+            className='text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring shrink-0 rounded p-1 opacity-60 transition-all hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none'
+            title={t('Copy model name')}
+            aria-label={t('Copy model name')}
+          >
+            <Copy className='size-3' />
+          </button>
+        </div>
 
         {displayTags.length > 0 && (
           <div className='mt-1.5 flex flex-wrap items-center gap-1'>
@@ -363,15 +382,6 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
         <CardArtwork video={isVideo} imageUrl={artworkUrl} />
       </div>
 
-      <button
-        type='button'
-        onClick={handleCopy}
-        className='border-border/60 bg-background/90 text-muted-foreground hover:text-foreground absolute top-2 right-2 z-10 rounded-md border p-1.5 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100'
-        title={t('Copy')}
-        aria-label={t('Copy')}
-      >
-        <Copy className='size-3.5' />
-      </button>
       {isDynamicPricing && !dynamicSummary?.isSpecialExpression && (
         <span className='border-amber-300/80 bg-amber-50 text-amber-600 absolute right-2 bottom-2 rounded-full border px-2 py-0.5 text-[10px] leading-none font-medium dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300'>
           {t('Tiered pricing')}

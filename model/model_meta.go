@@ -44,6 +44,8 @@ type Model struct {
 	Capabilities     string `json:"capabilities,omitempty" gorm:"type:varchar(255)"`
 	InputModalities  string `json:"input_modalities,omitempty" gorm:"type:varchar(128)"`
 	OutputModalities string `json:"output_modalities,omitempty" gorm:"type:varchar(128)"`
+	// CardImage 是模型广场卡片的自定义配图 URL，留空时前端按模型类别回落默认配图。
+	CardImage string `json:"card_image,omitempty" gorm:"type:text"`
 	// PriceItems 是管理员编排的「价格展示项」JSON，只描述展示形态（分组文案、
 	// 维度文案、原价、是否启用），价格数值由计量配置实时推导，见 pricing_item.go
 	PriceItems string `json:"price_items,omitempty" gorm:"type:text"`
@@ -92,7 +94,7 @@ func (mi *Model) Update() error {
 	// 使用 Select 强制更新所有字段，包括零值
 	return DB.Model(&Model{}).Where("id = ?", mi.Id).
 		Select("model_name", "description", "icon", "tags", "hot_label", "discount_label", "vendor_id", "endpoints", "status", "sync_official", "name_rule", "updated_time",
-			"context_length", "max_output_tokens", "category", "capabilities", "input_modalities", "output_modalities", "price_items").
+			"context_length", "max_output_tokens", "category", "capabilities", "input_modalities", "output_modalities", "price_items", "card_image").
 		Updates(mi).Error
 }
 

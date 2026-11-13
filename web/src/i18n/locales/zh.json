@@ -1,5 +1,7 @@
 {
   "translation": {
+    "Card Image": "卡片配图",
+    "Custom image URL for the model plaza card. Leave empty to use the default artwork.": "模型广场卡片展示的自定义配图地址，留空则使用默认配图。",
     "360": "360",
     "1000": "1000",
     "10000": "10000",

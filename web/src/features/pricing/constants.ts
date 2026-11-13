@@ -49,6 +49,8 @@ export const QUOTA_TYPES = {
   ALL: 'all',
   TOKEN: 'token',
   REQUEST: 'request',
+  // 与后端 /api/pricing 的 quota_type 对齐：2 = 按秒，3 = 按张。
+  SECOND: 'second',
   IMAGE: 'image',
 } as const
 
@@ -62,6 +64,7 @@ export function getQuotaTypeLabels(
     [QUOTA_TYPES.ALL]: t('All Models'),
     [QUOTA_TYPES.TOKEN]: t('Token-based'),
     [QUOTA_TYPES.REQUEST]: t('Per Request'),
+    [QUOTA_TYPES.SECOND]: t('Per Second'),
     [QUOTA_TYPES.IMAGE]: t('Per Image'),
   }
 }

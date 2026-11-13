@@ -210,6 +210,14 @@ export function PricingSidebar(props: PricingSidebarProps) {
       count: countBy(props.models, (model) => model.quota_type === 1),
     },
     {
+      value: QUOTA_TYPES.SECOND,
+      label: quotaTypeLabels[QUOTA_TYPES.SECOND],
+      count: countBy(
+        props.models,
+        (model) => model.quota_type === QUOTA_TYPE_VALUES.PER_SECOND
+      ),
+    },
+    {
       value: QUOTA_TYPES.IMAGE,
       label: quotaTypeLabels[QUOTA_TYPES.IMAGE],
       count: countBy(

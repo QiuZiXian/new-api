@@ -77,7 +77,13 @@ export function SearchFilterRow(props: SearchFilterRowProps) {
     label: option.label,
   }));
   const quotaItems = (
-    [QUOTA_TYPES.ALL, QUOTA_TYPES.TOKEN, QUOTA_TYPES.REQUEST] as string[]
+    [
+      QUOTA_TYPES.ALL,
+      QUOTA_TYPES.TOKEN,
+      QUOTA_TYPES.REQUEST,
+      QUOTA_TYPES.SECOND,
+      QUOTA_TYPES.IMAGE,
+    ] as string[]
   ).map((option) => ({
     value: option,
     label: quotaLabels[option as QuotaTypeOption],

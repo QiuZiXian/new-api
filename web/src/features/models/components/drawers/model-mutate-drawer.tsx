@@ -143,6 +143,8 @@ const extendedModelFormSchema = z.object({
   capabilities: z.string(),
   input_modalities: z.string(),
   output_modalities: z.string(),
+  // 模型广场卡片配图 URL，留空回落到按类别的默认配图
+  card_image: z.string(),
 });
 
 type ExtendedModelFormValues = z.infer<typeof extendedModelFormSchema>;
@@ -343,6 +345,34 @@ function readPricingConfig(
     modelName,
   );
 
+  // 回显顺序必须与后端 /api/pricing 反推 quota_type 的顺序一致：
+  // 按秒(2) > 按张(3) > 按次固定价(1) > token 倍率(0)。之前按次价排在
+  // 按秒前面，系统设置里配了按秒的模型在这里仍显示 per-request，重新保存
+  // 还会把秒价当成死配置抹掉。
+  const secondTiers = safeJsonParse<
+    Record<string, Record<string, unknown>>
+  >(settings.VideoSecondPrice, { fallback: {}, silent: true });
+  // 兼容历史字符串价格；没有 default 档时取最低档，与后端
+  // GetVideoSecondBasePrice 的兜底口径一致。
+  const secondTierPrices = Object.entries(secondTiers[modelName] ?? {})
+    .map(([tier, value]) => [tier.trim().toLowerCase(), Number(value)] as const)
+    .filter(([, value]) => Number.isFinite(value) && value > 0);
+  const defaultSecondPrice = secondTierPrices.find(
+    ([tier]) => tier === "default",
+  )?.[1];
+  const secondPrice =
+    defaultSecondPrice ??
+    (secondTierPrices.length > 0
+      ? Math.min(...secondTierPrices.map(([, value]) => value))
+      : undefined);
+  if (secondPrice !== undefined) {
+    return {
+      ...EMPTY_PRICING_CONFIG,
+      mode: "per-second",
+      videoSecondPrice: secondPrice.toString(),
+    };
+  }
+
   // 按张计费在同步链路里优先于固定价与 token 倍率（ModelPriceHelper 先查
   // ImageCountPrice），所以配了按张价的模型必须按 per-image 回显并逐档编辑，
   // 否则会显示成 per-token 并在保存时抹掉分档配置。
@@ -367,20 +397,6 @@ function readPricingConfig(
       ...EMPTY_PRICING_CONFIG,
       mode: "per-request",
       fields: { ...EMPTY_PRICING_FIELDS, price: price.toString() },
-    };
-  }
-
-  // 按秒计费优先于 token 倍率（后端 ModelPriceHelperPerCall 先查秒价），
-  // 所以配了秒价的模型直接按 per-second 回显。
-  const secondTiers = safeJsonParse<
-    Record<string, Record<string, number>>
-  >(settings.VideoSecondPrice, { fallback: {}, silent: true });
-  const secondPrice = secondTiers[modelName]?.default;
-  if (secondPrice !== undefined && secondPrice !== null) {
-    return {
-      ...EMPTY_PRICING_CONFIG,
-      mode: "per-second",
-      videoSecondPrice: secondPrice.toString(),
     };
   }
 
@@ -600,12 +616,18 @@ export function ModelMutateDrawer({
       capabilities: "",
       input_modalities: "",
       output_modalities: "",
+      card_image: "",
     },
   });
 
   const watchedModelName = useWatch({
     control: form.control,
     name: "model_name",
+  });
+
+  const watchedCardImage = useWatch({
+    control: form.control,
+    name: "card_image",
   });
 
   const validateNumber = (value: string) => {
@@ -678,6 +700,7 @@ export function ModelMutateDrawer({
         capabilities: joinListValue(model.capabilities),
         input_modalities: joinListValue(model.input_modalities),
         output_modalities: joinListValue(model.output_modalities),
+        card_image: model.card_image || "",
         ...pricing.fields,
         videoSecondPrice: pricing.videoSecondPrice ?? "",
       });
@@ -713,6 +736,7 @@ export function ModelMutateDrawer({
         capabilities: "",
         input_modalities: "",
         output_modalities: "",
+        card_image: "",
         ...pricing.fields,
         videoSecondPrice: pricing.videoSecondPrice ?? "",
       });
@@ -1230,6 +1254,40 @@ export function ModelMutateDrawer({
                     <FormDescription className="text-xs">
                       {t("@lobehub/icons key")}
                     </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="card_image"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("Card Image")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="https://example.com/model-card.webp"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription className="text-xs">
+                      {t(
+                        "Custom image URL for the model plaza card. Leave empty to use the default artwork.",
+                      )}
+                    </FormDescription>
+                    {watchedCardImage?.trim() && (
+                      <img
+                        key={watchedCardImage}
+                        src={watchedCardImage.trim()}
+                        alt=""
+                        referrerPolicy="no-referrer"
+                        className="mt-1 h-20 w-32 rounded-md border object-cover"
+                        onError={(event) => {
+                          event.currentTarget.style.opacity = "0";
+                        }}
+                      />
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}

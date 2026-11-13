@@ -1,5 +1,7 @@
 {
   "translation": {
+    "Card Image": "Card Image",
+    "Custom image URL for the model plaza card. Leave empty to use the default artwork.": "Custom image URL for the model plaza card. Leave empty to use the default artwork.",
     "360": "360",
     "1000": "1000",
     "10000": "10000",

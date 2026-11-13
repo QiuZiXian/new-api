@@ -53,6 +53,11 @@ export type PricingModel = {
     output_2k?: number
     free_first_output?: boolean
   }
+  /**
+   * 按秒计费分档单价：分辨率档 -> 每秒单价，default 为兜底档。
+   * 后端 /api/pricing 在 quota_type=2 时下发，供详情页渲染多档价格表。
+   */
+  video_second_price?: Record<string, number>
   cache_ratio?: number | null
   create_cache_ratio?: number | null
   image_ratio?: number | null
@@ -91,6 +96,8 @@ export type PricingModel = {
    * 不在这里做价格计算，避免与计量配置脱钩。
    */
   price_items?: PriceItem[]
+  /** 管理员在模型管理里配置的卡片配图 URL，未配置时回落到默认配图 */
+  card_image?: string
 }
 
 /** 展示行的计量单位。 */
@@ -155,4 +162,4 @@ export type PriceType =
   | 'audio_input'
   | 'audio_output'
 /** 0=token 倍率, 1=按次固定价, 2=按秒, 3=按张（输入/输出分别计价）。 */
-export type QuotaType = 0 | 1 | 2 | 3 // 0: token-based, 1: per-request
+export type QuotaType = 0 | 1 | 2 | 3

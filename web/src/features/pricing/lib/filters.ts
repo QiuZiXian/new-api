@@ -80,6 +80,7 @@ export function filterByQuotaType(
   if (quotaType === QUOTA_TYPES.ALL) return models
   const targetTypeMap: Record<string, number> = {
     [QUOTA_TYPES.TOKEN]: QUOTA_TYPE_VALUES.TOKEN,
+    [QUOTA_TYPES.SECOND]: QUOTA_TYPE_VALUES.PER_SECOND,
     [QUOTA_TYPES.IMAGE]: QUOTA_TYPE_VALUES.IMAGE_COUNT,
     [QUOTA_TYPES.REQUEST]: QUOTA_TYPE_VALUES.REQUEST,
   }

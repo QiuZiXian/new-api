@@ -92,6 +92,10 @@ export function isVideoModel(model: PricingModel): boolean {
  * DeepSeek/Moonshot -> orbit, everything else -> cube.
  */
 export function getCardArtworkUrl(model: PricingModel): string {
+  // 管理员在模型管理里配置的配图优先；留空才回落到按类别的默认素材。
+  const custom = model.card_image?.trim()
+  if (custom) return custom
+
   const text = [
     model.model_name,
     model.tags ?? '',

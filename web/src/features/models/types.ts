@@ -60,6 +60,8 @@ export interface Model {
   output_modalities?: string
   /** 价格展示项 JSON 字符串 */
   price_items?: string
+  /** 模型广场卡片自定义配图 URL，留空时按模型类别使用默认配图 */
+  card_image?: string
   // Runtime fields
   bound_channels?: BoundChannel[]
   enable_groups?: string[]
@@ -317,7 +319,8 @@ export type ModelStatus = 0 | 1 // disabled, enabled
 /**
  * Quota type
  */
-export type QuotaType = 0 | 1 // usage-based, per-call
+/** 0=token 倍率, 1=按次, 2=按秒, 3=按张（与 /api/pricing 的 quota_type 一致）。 */
+export type QuotaType = 0 | 1 | 2 | 3
 
 /**
  * Sync locale

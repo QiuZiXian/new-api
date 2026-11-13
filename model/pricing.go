@@ -49,6 +49,8 @@ type Pricing struct {
 	Capabilities     []string `json:"capabilities,omitempty"`
 	InputModalities  []string `json:"input_modalities,omitempty"`
 	OutputModalities []string `json:"output_modalities,omitempty"`
+	// CardImage 为管理员在模型管理里配置的卡片配图 URL，未配置时前端回落默认配图。
+	CardImage string `json:"card_image,omitempty"`
 	// PriceItems 为派生展示行，价格由既有计量配置实时推导
 	PriceItems []PriceItem `json:"price_items,omitempty"`
 }
@@ -396,6 +398,7 @@ func updatePricing() {
 			pricing.Capabilities = SplitMetaList(m.Capabilities)
 			pricing.InputModalities = SplitMetaList(m.InputModalities)
 			pricing.OutputModalities = SplitMetaList(m.OutputModalities)
+			pricing.CardImage = m.CardImage
 			meta = m
 		}
 		modelPrice, findPrice := ratio_setting.GetModelPrice(model, false)

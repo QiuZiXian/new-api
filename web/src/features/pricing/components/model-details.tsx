@@ -715,6 +715,59 @@ function PriceSection(props: {
   }
 
   if (!isTokenBased) {
+    // 按秒计费：后端下发的是「分辨率档 -> 每秒单价」，逐档渲染。
+    // 之前这里没有按秒分支，配了秒价的模型会一路落到「Per request」。
+    if (props.model.quota_type === QUOTA_TYPE_VALUES.PER_SECOND) {
+      const tierRows = Object.entries(props.model.video_second_price ?? {})
+        .filter(([, price]) => typeof price === "number" && price > 0)
+        .sort(([a], [b]) =>
+          a === "default" ? -1 : b === "default" ? 1 : a.localeCompare(b),
+        );
+      const formatSecondPrice = (value: number) =>
+        formatFixedPrice(
+          { ...props.model, model_price: value },
+          baseGroupKey,
+          props.showRechargePrice,
+          props.priceRate,
+          props.usdExchangeRate,
+          baseGroupRatioMap,
+        );
+      return (
+        <section>
+          <SectionTitle>{t("Base Price")}</SectionTitle>
+          <div className="space-y-2">
+            {tierRows.length > 0 ? (
+              tierRows.map(([variant, price]) => (
+                <div
+                  key={variant}
+                  className="flex items-baseline justify-between"
+                >
+                  <span className="text-muted-foreground text-sm">
+                    {variant === "default" ? t("Default tier") : variant}
+                  </span>
+                  <span className="text-foreground font-mono text-sm font-semibold tabular-nums">
+                    {formatSecondPrice(price)}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="flex items-baseline justify-between">
+                <span className="text-muted-foreground text-sm">
+                  {t("Per Second")}
+                </span>
+                <span className="text-foreground font-mono text-sm font-semibold tabular-nums">
+                  {formatSecondPrice(props.model.model_price ?? 0)}
+                </span>
+              </div>
+            )}
+            <div className="text-muted-foreground/60 flex items-center justify-end text-xs">
+              <span>/ {t("second")}</span>
+            </div>
+          </div>
+        </section>
+      );
+    }
+
     const imageCountPrice = props.model.image_count_price;
     if (
       props.model.quota_type === QUOTA_TYPE_VALUES.IMAGE_COUNT &&

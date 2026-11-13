@@ -97,19 +97,21 @@ export function PricingHero(props: PricingHeroProps) {
           </p>
         </div>
 
-        <div className='relative hidden h-[190px] overflow-hidden rounded-2xl border border-white/70 shadow-[0_16px_36px_-20px_rgba(37,99,235,0.55)] lg:block dark:border-white/10'>
+        {/* 让 chip 图向左溢出容器，避免与整幅背景图完全叠在一起；
+            圆角改由背景图自己裁剪，容器不再 overflow-hidden。 */}
+        <div className='relative hidden h-[190px] rounded-2xl border border-white/70 shadow-[0_16px_36px_-20px_rgba(37,99,235,0.55)] lg:block dark:border-white/10'>
           <img
             src={HERO_LANDSCAPE_ARTWORK_URL}
             alt=''
             referrerPolicy='no-referrer'
-            className='absolute inset-0 h-full w-full object-cover'
+            className='absolute inset-0 h-full w-full rounded-2xl object-cover'
           />
-          <div className='absolute inset-0 bg-[linear-gradient(90deg,rgba(238,244,255,0.5)_0%,rgba(238,244,255,0.05)_55%,transparent_100%)] dark:bg-[linear-gradient(90deg,rgba(8,15,35,0.5)_0%,rgba(8,15,35,0.05)_55%,transparent_100%)]' />
+          <div className='absolute inset-0 rounded-2xl bg-[linear-gradient(90deg,rgba(238,244,255,0.5)_0%,rgba(238,244,255,0.05)_55%,transparent_100%)] dark:bg-[linear-gradient(90deg,rgba(8,15,35,0.5)_0%,rgba(8,15,35,0.05)_55%,transparent_100%)]' />
           <img
             src={HERO_CHIP_ARTWORK_URL}
             alt=''
             referrerPolicy='no-referrer'
-            className='absolute top-3 left-3 h-[86px] w-[86px] rounded-xl object-cover shadow-lg ring-1 ring-white/70'
+            className='absolute top-3 -left-8 h-[86px] w-[86px] rounded-xl object-cover shadow-lg ring-1 ring-white/70'
           />
           <div className='absolute right-3 bottom-3 left-3 flex flex-wrap gap-1.5'>
             {QUICK_LINKS.map((link) => {
